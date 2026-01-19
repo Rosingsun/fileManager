@@ -1,11 +1,12 @@
-import type { OrganizeConfig, FileInfo } from '../types'
+import type { OrganizeConfig, FileInfo, SizeRange } from '../types'
 
 /**
  * 生成整理预览结果
  */
 export async function generatePreview(
   files: FileInfo[],
-  config: OrganizeConfig
+  config: OrganizeConfig,
+  sizeRanges?: SizeRange[]
 ): Promise<Array<{ from: string; to: string }>> {
   const results: Array<{ from: string; to: string }> = []
   const { sourcePath, rules } = config
@@ -34,12 +35,11 @@ export async function generatePreview(
         targetDir = `${sourcePath}/${year}/${month}/${day}`
       }
     } else if (rules.type === 'size') {
-      // 按文件大小分类
-      const sizeMB = file.size / (1024 * 1024)
-      let sizeCategory = 'small'
-      if (sizeMB > 100) sizeCategory = 'large'
-      else if (sizeMB > 10) sizeCategory = 'medium'
-      targetDir = `${sourcePath}/${sizeCategory}`
+      // 按文件大小分类（使用自定义范围）
+      const ranges = sizeRanges || []
+      const range = ranges.find(r => file.size >= r.minSize && file.size < r.maxSize)
+      const categoryName = range ? range.name : '其他'
+      targetDir = `${sourcePath}/${categoryName}`
     } else if (rules.type === 'custom' && rules.pattern) {
       // 自定义规则（正则表达式）
       const match = file.name.match(new RegExp(rules.pattern))

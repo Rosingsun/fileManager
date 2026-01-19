@@ -15,6 +15,7 @@ declare global {
       previewFile: (filePath: string, fileList?: FileInfo[], currentIndex?: number) => void
       renameFile: (oldPath: string, newName: string) => Promise<boolean>
       deleteFile: (filePath: string) => Promise<boolean>
+      moveFile: (oldPath: string, newPath: string) => Promise<boolean>
       getImageBase64: (filePath: string) => Promise<string>
     }
   }

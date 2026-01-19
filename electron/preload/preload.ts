@@ -89,6 +89,12 @@ try {
       return ipcRenderer.invoke('file:delete', filePath)
     },
 
+    // 移动文件或文件夹
+    moveFile: (oldPath: string, newPath: string): Promise<boolean> => {
+      console.log('[Preload] 调用 moveFile:', oldPath, '->', newPath)
+      return ipcRenderer.invoke('file:move', oldPath, newPath)
+    },
+
     // 获取图片base64用于预览
     getImageBase64: (filePath: string): Promise<string> => {
       console.log('[Preload] 调用 getImageBase64:', filePath)

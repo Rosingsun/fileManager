@@ -17,6 +17,14 @@ export interface OrganizeRule {
   pattern?: string // 自定义规则的正则表达式
 }
 
+// 文件大小分类范围
+export interface SizeRange {
+  id: string
+  name: string // 分类名称，如 "小文件", "中等文件"
+  minSize: number // 最小大小（字节）
+  maxSize: number // 最大大小（字节）
+}
+
 // 整理配置选项
 export interface OrganizeOptions {
   includeSubdirectories: boolean
