@@ -12,6 +12,9 @@ declare global {
       minimizeWindow: () => void
       maximizeWindow: () => void
       closeWindow: () => void
+      previewFile: (filePath: string, fileList?: FileInfo[], currentIndex?: number) => void
+      renameFile: (oldPath: string, newName: string) => Promise<boolean>
+      deleteFile: (filePath: string) => Promise<boolean>
     }
   }
 }

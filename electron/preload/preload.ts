@@ -69,6 +69,24 @@ try {
     
     closeWindow: (): void => {
       ipcRenderer.send('window:close')
+    },
+    
+    // 文件预览
+    previewFile: (filePath: string, fileList?: import('../../src/types').FileInfo[], currentIndex?: number): void => {
+      console.log('[Preload] 调用 previewFile:', filePath, fileList, currentIndex)
+      ipcRenderer.send('file:preview', filePath, fileList, currentIndex)
+    },
+
+    // 文件重命名
+    renameFile: (oldPath: string, newName: string): Promise<boolean> => {
+      console.log('[Preload] 调用 renameFile:', oldPath, '->', newName)
+      return ipcRenderer.invoke('file:rename', oldPath, newName)
+    },
+
+    // 删除文件或文件夹
+    deleteFile: (filePath: string): Promise<boolean> => {
+      console.log('[Preload] 调用 deleteFile:', filePath)
+      return ipcRenderer.invoke('file:delete', filePath)
     }
   }
   

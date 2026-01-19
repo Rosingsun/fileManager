@@ -54,7 +54,7 @@ if (process.platform === 'win32') {
   }
 }
 
-let mainWindow: BrowserWindow | null = null
+let mainWindow: BrowserWindow | undefined = undefined
 let fileWatcher: ReturnType<typeof watch> | null = null
 
 function createWindow() {
@@ -125,7 +125,7 @@ function createWindow() {
   }
 
   mainWindow.on('closed', () => {
-    mainWindow = null
+    mainWindow = undefined
     if (fileWatcher) {
       fileWatcher.close()
       fileWatcher = null
@@ -478,6 +478,160 @@ ipcMain.on('window:maximize', () => {
 ipcMain.on('window:close', () => {
   if (mainWindow) {
     mainWindow.close()
+  }
+})
+
+// IPC 处理器：文件预览
+ipcMain.on('file:preview', (_event, filePath: string, fileList?: FileInfo[], currentIndex?: number) => {
+  // 创建预览窗口
+  const previewWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    title: `预览 - ${filePath.split('\\').pop() || filePath.split('/').pop()}`,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      webSecurity: false, // 允许加载本地文件
+      preload: getPreloadPath()
+    },
+    parent: mainWindow,
+    modal: false
+  })
+
+  // 生成预览HTML内容
+  const fileName = filePath.split('\\').pop() || filePath.split('/').pop() || ''
+  const fileExt = fileName.split('.').pop()?.toLowerCase() || ''
+  
+  let content = ''
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(fileExt)) {
+    // 图片预览
+    const normalizedPath = filePath.replace(/\\/g, '/')
+    const encodedPath = normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+
+    // 准备导航数据
+    let prevImage = null
+    let nextImage = null
+    let currentImageIndex = -1
+
+    if (fileList && currentIndex !== undefined) {
+      // 过滤出图片文件
+      const imageFiles = fileList.filter(f => !f.isDirectory && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(f.name.split('.').pop()?.toLowerCase() || ''))
+      currentImageIndex = imageFiles.findIndex(f => f.path === filePath)
+      if (currentImageIndex > 0) {
+        prevImage = imageFiles[currentImageIndex - 1]
+      }
+      if (currentImageIndex < imageFiles.length - 1) {
+        nextImage = imageFiles[currentImageIndex + 1]
+      }
+    }
+
+    content = `
+      <div style="position: relative; height: 100vh; background: #f0f0f0; display: flex; flex-direction: column;">
+        ${prevImage ? `<button id="prevBtn" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 10; padding: 10px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 5px; cursor: pointer;">◀ 上一张</button>` : ''}
+        ${nextImage ? `<button id="nextBtn" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 10; padding: 10px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 5px; cursor: pointer;">下一张 ▶</button>` : ''}
+        <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
+          <img id="previewImg" src="file:///${encodedPath}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${fileName}" />
+        </div>
+      </div>
+      <script>
+        ${prevImage ? `document.getElementById('prevBtn').addEventListener('click', () => {
+          window.electronAPI.previewFile('${prevImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${imageFiles.findIndex(f => f.path === prevImage.path)})
+        })` : ''}
+        ${nextImage ? `document.getElementById('nextBtn').addEventListener('click', () => {
+          window.electronAPI.previewFile('${nextImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${imageFiles.findIndex(f => f.path === nextImage.path)})
+        })` : ''}
+      </script>
+    `
+    content = `
+      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0;">
+        <img src="file:///${encodedPath}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${fileName}" />
+      </div>
+    `
+  } else if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv'].includes(fileExt)) {
+    // 视频预览
+    const normalizedPath = filePath.replace(/\\/g, '/')
+    const encodedPath = normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+    content = `
+      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #000;">
+        <video controls style="max-width: 100%; max-height: 100%;" autoplay>
+          <source src="file:///${encodedPath}" type="video/${fileExt === 'mkv' ? 'x-matroska' : fileExt}">
+          您的浏览器不支持视频播放。
+        </video>
+      </div>
+    `
+  } else if (['mp3', 'wav', 'flac', 'aac'].includes(fileExt)) {
+    // 音频预览
+    const normalizedPath = filePath.replace(/\\/g, '/')
+    const encodedPath = normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+    content = `
+      <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0;">
+        <h2 style="margin-bottom: 20px;">${fileName}</h2>
+        <audio controls style="width: 80%;" autoplay>
+          <source src="file:///${encodedPath}" type="audio/${fileExt === 'aac' ? 'aac' : fileExt}">
+          您的浏览器不支持音频播放。
+        </audio>
+      </div>
+    `
+  } else {
+    // 其他文件类型，显示文件信息
+    content = `
+      <div style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0;">
+        <h2>无法预览此文件类型</h2>
+        <p>文件: ${fileName}</p>
+        <p>类型: ${fileExt.toUpperCase()}</p>
+      </div>
+    `
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>文件预览</title>
+      <style>
+        body { margin: 0; font-family: Arial, sans-serif; }
+      </style>
+    </head>
+    <body>
+      ${content}
+    </body>
+    </html>
+  `
+
+  // 加载HTML内容
+  previewWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`)
+})
+
+// IPC 处理器：文件重命名
+ipcMain.handle('file:rename', async (_event, oldPath: string, newName: string): Promise<boolean> => {
+  try {
+    const dir = oldPath.substring(0, oldPath.lastIndexOf('\\') || oldPath.lastIndexOf('/'))
+    const newPath = `${dir}/${newName}`
+    await move(oldPath, newPath)
+    console.log('[Main] 文件重命名成功:', oldPath, '->', newPath)
+    return true
+  } catch (error) {
+    console.error('[Main] 文件重命名失败:', error)
+    return false
+  }
+})
+
+// IPC 处理器：删除文件或文件夹
+ipcMain.handle('file:delete', async (_event, filePath: string): Promise<boolean> => {
+  try {
+    const stats = await stat(filePath)
+    if (stats.isDirectory()) {
+      await fs.remove(filePath)
+      console.log('[Main] 文件夹删除成功:', filePath)
+    } else {
+      await fs.unlink(filePath)
+      console.log('[Main] 文件删除成功:', filePath)
+    }
+    return true
+  } catch (error) {
+    console.error('[Main] 删除失败:', error)
+    return false
   }
 })
 

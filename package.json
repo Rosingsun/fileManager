@@ -5,7 +5,7 @@
   "main": "dist-electron/main/main.js",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "electron-vite dev ",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "pack": "electron-builder",
@@ -19,23 +19,24 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "antd": "^5.12.8",
+    "chokidar": "^3.5.3",
+    "classnames": "^2.3.2",
+    "dayjs": "^1.11.10",
+    "fast-glob": "^3.3.2",
+    "fs-extra": "^11.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "antd": "^5.12.8",
-    "@ant-design/icons": "^5.2.6",
-    "dayjs": "^1.11.10",
-    "classnames": "^2.3.2",
-    "fs-extra": "^11.2.0",
-    "chokidar": "^3.5.3",
-    "fast-glob": "^3.3.2",
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
     "@types/node": "^20.10.6",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
-    "@types/fs-extra": "^11.0.4",
     "@vitejs/plugin-react": "^4.2.1",
+    "cross-env": "^10.1.0",
     "electron": "^28.1.0",
     "electron-builder": "^24.9.1",
     "electron-vite": "^2.0.0",
@@ -72,4 +73,3 @@
     }
   }
 }
-

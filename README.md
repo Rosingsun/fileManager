@@ -30,6 +30,22 @@ npm run dev
 
 这将启动 Electron 应用和 Vite 开发服务器。
 
+#### Windows 用户
+
+在 Windows 系统上，您可以双击运行 `dev.bat` 文件，或在命令提示符/PowerShell 中执行：
+
+```bash
+dev.bat
+```
+
+或
+
+```powershell
+.\dev.bat
+```
+
+这将执行相同的开发启动命令。
+
 ### 构建应用
 
 ```bash
