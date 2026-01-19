@@ -1,38 +1,21 @@
-import React, { useEffect } from 'react'
-import { Tree, Card, Empty, Button, Popconfirm, Space, Tooltip } from 'antd'
-import type { DataNode } from 'antd/es/tree'
-import { FolderOutlined, FolderOpenOutlined, DeleteOutlined, ClearOutlined } from '@ant-design/icons'
+import React from 'react'
+import { List, Card, Empty, Button, Popconfirm, Tooltip } from 'antd'
+import { DeleteOutlined, ClearOutlined } from '@ant-design/icons'
 import { useFileStore } from '../stores/fileStore'
 import { useFileSystem } from '../hooks/useFileSystem'
 import { formatDateTime } from '../utils/fileUtils'
-import type { TreeNode, HistoryItem } from '../types'
+import type { HistoryItem } from '../types'
 
 const FileTree: React.FC = () => {
-  const { currentPath, treeData, setTreeData, historyList, removeHistory, clearHistory } = useFileStore()
+  const { currentPath, historyList, removeHistory, clearHistory } = useFileStore()
   const { loadDirectoryFromHistory } = useFileSystem()
-  const [selectedKeys, setSelectedKeys] = React.useState<React.Key[]>([])
 
-  useEffect(() => {
-    // 将历史记录转换为树节点数据
-    const nodes: TreeNode[] = historyList.map((item: HistoryItem) => ({
-      key: item.path,
-      title: item.name,
-      path: item.path,
-      isLeaf: false
-    }))
-    setTreeData(nodes)
-  }, [historyList, setTreeData])
-
-  const onSelect = (selectedKeys: React.Key[]) => {
-    setSelectedKeys(selectedKeys)
-    if (selectedKeys.length > 0) {
-      const path = selectedKeys[0] as string
-      loadDirectoryFromHistory(path)
-    }
+  const onSelect = (path: string) => {
+    loadDirectoryFromHistory(path)
   }
 
   const handleRemoveHistory = (e: React.MouseEvent, path: string) => {
-    e.stopPropagation() // 阻止树节点选择事件
+    e.stopPropagation() // 阻止选择事件
     removeHistory(path)
     if (currentPath === path) {
       // 如果删除的是当前选中的路径，清空当前路径
@@ -76,42 +59,40 @@ const FileTree: React.FC = () => {
 
   return (
     <Card title={titleNode} size="small" style={{ height: '100%' }}>
-      <Tree
-        showIcon
-        selectedKeys={selectedKeys}
-        onSelect={onSelect}
-        treeData={treeData}
-        draggable={false}
-        icon={(props: any) => 
-          props.expanded ? <FolderOpenOutlined /> : <FolderOutlined />
-        }
-        titleRender={(node: DataNode) => {
-          const treeNode = node as TreeNode
-          const historyItem = historyList.find((item: HistoryItem) => item.path === treeNode.path)
-          return (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <Tooltip title={treeNode.path} placement="right">
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {treeNode.title}
-                </span>
-              </Tooltip>
-              <Space size="small" style={{ marginLeft: 8 }}>
-                {historyItem && (
-                  <span style={{ fontSize: 11, color: '#999', whiteSpace: 'nowrap' }}>
-                    {formatDateTime(historyItem.timestamp)}
-                  </span>
-                )}
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  onClick={(e: React.MouseEvent) => handleRemoveHistory(e, treeNode.path)}
-                  style={{ opacity: 0.6 }}
-                />
-              </Space>
-            </div>
-          )
+      <List
+        dataSource={historyList}
+        pagination={{
+          pageSize: 10,
+          showSizeChanger: true,
+          showTotal: (total) => `共 ${total} 项`,
+          position: 'bottom'
         }}
+        renderItem={(item: HistoryItem) => (
+          <List.Item
+            actions={[
+              <Button
+                type="text"
+                size="small"
+                icon={<DeleteOutlined />}
+                onClick={(e: React.MouseEvent) => handleRemoveHistory(e, item.path)}
+                style={{ opacity: 0.6 }}
+              />
+            ]}
+            onClick={() => onSelect(item.path)}
+            style={{ 
+              cursor: 'pointer',
+              backgroundColor: item.path === currentPath ? '#e6f7ff' : 'transparent',
+              padding: '2px 8px',
+              borderRadius: 4,
+              width: '100%'
+            }}
+          >
+            <List.Item.Meta
+              title={<Tooltip title={item.path} placement="right">{item.name}</Tooltip>}
+              description={formatDateTime(item.timestamp)}
+            />
+          </List.Item>
+        )}
       />
     </Card>
   )

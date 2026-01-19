@@ -509,19 +509,22 @@ ipcMain.on('file:preview', (_event, filePath: string, fileList?: FileInfo[], cur
     const encodedPath = normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
 
     // 准备导航数据
-    let prevImage = null
-    let nextImage = null
-    let currentImageIndex = -1
+    let prevImage: FileInfo | null = null
+    let nextImage: FileInfo | null = null
+    let prevIndex = -1
+    let nextIndex = -1
 
     if (fileList && currentIndex !== undefined) {
       // 过滤出图片文件
       const imageFiles = fileList.filter(f => !f.isDirectory && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(f.name.split('.').pop()?.toLowerCase() || ''))
-      currentImageIndex = imageFiles.findIndex(f => f.path === filePath)
+      const currentImageIndex = imageFiles.findIndex(f => f.path === filePath)
       if (currentImageIndex > 0) {
         prevImage = imageFiles[currentImageIndex - 1]
+        prevIndex = currentImageIndex - 1
       }
       if (currentImageIndex < imageFiles.length - 1) {
         nextImage = imageFiles[currentImageIndex + 1]
+        nextIndex = currentImageIndex + 1
       }
     }
 
@@ -535,10 +538,10 @@ ipcMain.on('file:preview', (_event, filePath: string, fileList?: FileInfo[], cur
       </div>
       <script>
         ${prevImage ? `document.getElementById('prevBtn').addEventListener('click', () => {
-          window.electronAPI.previewFile('${prevImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${imageFiles.findIndex(f => f.path === prevImage.path)})
+          window.electronAPI.previewFile('${prevImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${prevIndex})
         })` : ''}
         ${nextImage ? `document.getElementById('nextBtn').addEventListener('click', () => {
-          window.electronAPI.previewFile('${nextImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${imageFiles.findIndex(f => f.path === nextImage.path)})
+          window.electronAPI.previewFile('${nextImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${nextIndex})
         })` : ''}
       </script>
     `
@@ -634,4 +637,32 @@ ipcMain.handle('file:delete', async (_event, filePath: string): Promise<boolean>
     return false
   }
 })
+
+// IPC 处理器：获取图片base64用于预览
+ipcMain.handle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
+  try {
+    const buffer = await fs.readFile(filePath)
+    const mimeType = getMimeType(filePath)
+    const base64 = buffer.toString('base64')
+    return `data:${mimeType};base64,${base64}`
+  } catch (error) {
+    console.error('[Main] 获取图片base64失败:', error)
+    return ''
+  }
+})
+
+// 获取MIME类型的辅助函数
+function getMimeType(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase()
+  const mimeTypes: Record<string, string> = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    'bmp': 'image/bmp',
+    'svg': 'image/svg+xml',
+    'webp': 'image/webp'
+  }
+  return mimeTypes[ext || ''] || 'image/jpeg'
+}
 

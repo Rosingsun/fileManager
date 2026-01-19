@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Table, Card, Tag, Space, Empty, Button, Modal, Input, message } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Table, Card, Tag, Space, Empty, Modal, Input, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   FileOutlined,
@@ -10,10 +10,7 @@ import {
   FileExcelOutlined,
   VideoCameraOutlined,
   SoundOutlined,
-  FileZipOutlined,
-  EyeOutlined,
-  EditOutlined,
-  DeleteOutlined
+  FileZipOutlined
 } from '@ant-design/icons'
 import { useFileStore } from '../stores/fileStore'
 import { useFileSystem } from '../hooks/useFileSystem'
@@ -28,6 +25,31 @@ const FileList: React.FC = () => {
   const [newFileName, setNewFileName] = useState('')
   const [deleteModalVisible, setDeleteModalVisible] = useState(false)
   const [deletingFile, setDeletingFile] = useState<FileInfo | null>(null)
+  const [imagePreviews, setImagePreviews] = useState<Map<string, string>>(new Map())
+
+  // 加载图片预览
+  useEffect(() => {
+    const loadImagePreviews = async () => {
+      const newPreviews = new Map<string, string>()
+      for (const file of fileList) {
+        if (isPreviewable(file) && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(file.name).toLowerCase())) {
+          try {
+            const base64 = await window.electronAPI?.getImageBase64(file.path)
+            if (base64) {
+              newPreviews.set(file.path, base64)
+            }
+          } catch (error) {
+            console.error('加载图片预览失败:', file.path, error)
+          }
+        }
+      }
+      setImagePreviews(newPreviews)
+    }
+
+    if (fileList.length > 0) {
+      loadImagePreviews()
+    }
+  }, [fileList])
 
   // 判断文件是否可预览
   const isPreviewable = (file: FileInfo): boolean => {
@@ -135,10 +157,29 @@ const FileList: React.FC = () => {
 
   const columns: ColumnsType<FileInfo> = [
     {
+      title: '预览',
+      key: 'preview',
+      width: '10%',
+      render: (_, record: FileInfo) => {
+        if (isPreviewable(record)) {
+          const base64 = imagePreviews.get(record.path)
+          if (base64) {
+            return <img src={base64} style={{ width: 50, height: 50, objectFit: 'cover', borderRadius: 4 }} />
+          } else {
+            // 显示加载中或占位符
+            return <div style={{ width: 50, height: 50, backgroundColor: '#f0f0f0', borderRadius: 4, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <PictureOutlined style={{ color: '#ccc' }} />
+            </div>
+          }
+        }
+        return null
+      }
+    },
+    {
       title: '名称',
       dataIndex: 'name',
       key: 'name',
-      width: '40%',
+      width: '30%',
       render: (text: string, record: FileInfo) => (
         <Space>
           {getIcon(record)}
@@ -163,44 +204,32 @@ const FileList: React.FC = () => {
       render: (time: number) => formatDateTime(time)
     },
     {
-      title: '创建时间',
-      dataIndex: 'createdTime',
-      key: 'createdTime',
-      width: '20%',
-      render: (time: number) => formatDateTime(time)
-    },
-    {
       title: '操作',
       key: 'action',
-      width: '15%',
+      width: '20%',
       render: (_, record: FileInfo) => (
         <Space>
-          <Button
-            type="text"
-            icon={<EyeOutlined />}
-            disabled={!isPreviewable(record)}
+          <span
+            style={{ color: '#1890ff', cursor: 'pointer' }}
             onClick={() => handlePreview(record)}
             title={isPreviewable(record) ? '预览文件' : '此文件类型不支持预览'}
           >
             查看
-          </Button>
-          <Button
-            type="text"
-            icon={<EditOutlined />}
+          </span>
+          <span
+            style={{ color: '#1890ff', cursor: 'pointer' }}
             onClick={() => handleRename(record)}
             title="重命名"
           >
             重命名
-          </Button>
-          <Button
-            type="text"
-            danger
-            icon={<DeleteOutlined />}
+          </span>
+          <span
+            style={{ color: 'red', cursor: 'pointer' }}
             onClick={() => handleDelete(record)}
             title="删除"
           >
             删除
-          </Button>
+          </span>
         </Space>
       )
     }
@@ -221,7 +250,7 @@ const FileList: React.FC = () => {
         dataSource={fileList}
         loading={loading}
         rowKey="path"
-        scroll={{ y: 'calc(100vh - 320px)' }}
+        scroll={{ x: true, y: 'calc(100% - 80px)' }}
         size="small"
         pagination={{
           pageSize: 50,

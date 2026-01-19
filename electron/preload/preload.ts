@@ -87,6 +87,12 @@ try {
     deleteFile: (filePath: string): Promise<boolean> => {
       console.log('[Preload] 调用 deleteFile:', filePath)
       return ipcRenderer.invoke('file:delete', filePath)
+    },
+
+    // 获取图片base64用于预览
+    getImageBase64: (filePath: string): Promise<string> => {
+      console.log('[Preload] 调用 getImageBase64:', filePath)
+      return ipcRenderer.invoke('file:getImageBase64', filePath)
     }
   }
   

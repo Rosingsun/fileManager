@@ -81,7 +81,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
   setPreviewViewMode: (mode: 'list' | 'tree' | 'grid') => set({ previewViewMode: mode }),
   
   historyList: loadHistoryFromStorage(),
-  // 添加历史记录：如果已存在相同路径，则更新其时间戳并移到顶部；否则添加新记录
+  // 添加历史记录：如果已存在相同路径，则更新其时间戳但保持位置；否则添加新记录到顶部
   addHistory: (path: string) => {
     const { historyList } = get()
     const normalizedPath = path.replace(/\\/g, '/') // 统一路径分隔符
@@ -89,19 +89,16 @@ export const useFileStore = create<FileStore>((set, get) => ({
     const existingIndex = historyList.findIndex(item => item.path === normalizedPath)
     
     if (existingIndex >= 0) {
-      // 如果已存在，移除旧记录并创建新的（更新时间戳）移到顶部
+      // 如果已存在，更新时间戳但保持位置
       const newList = [...historyList]
-      newList.splice(existingIndex, 1)
-      newList.unshift({
-        id: normalizedPath,
-        path: normalizedPath,
-        name,
+      newList[existingIndex] = {
+        ...newList[existingIndex],
         timestamp: Date.now()
-      })
+      }
       set({ historyList: newList })
       saveHistoryToStorage(newList)
     } else {
-      // 如果不存在，添加新记录
+      // 如果不存在，添加新记录到顶部
       const newHistoryItem: HistoryItem = {
         id: normalizedPath,
         path: normalizedPath,
