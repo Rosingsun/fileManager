@@ -54,3 +54,10 @@ export interface PreviewResultItem {
   to: string
 }
 
+// 历史记录项
+export interface HistoryItem {
+  id: string // 唯一标识，使用路径
+  path: string
+  name: string // 显示名称
+  timestamp: number // 访问时间戳
+}

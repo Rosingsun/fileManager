@@ -34,9 +34,19 @@ try {
       return ipcRenderer.invoke('fs:readDirectory', path)
     },
     
+    readDirectoryRecursive: (path: string): Promise<FileInfo[]> => {
+      console.log('[Preload] 调用 readDirectoryRecursive:', path)
+      return ipcRenderer.invoke('fs:readDirectoryRecursive', path)
+    },
+    
     organizeFiles: (config: OrganizeConfig): Promise<Array<{ from: string; to: string; success: boolean; error?: string }>> => {
       console.log('[Preload] 调用 organizeFiles:', config)
       return ipcRenderer.invoke('fs:organize', config)
+    },
+    
+    extractFiles: (targetPath: string, extensions: string[], conflictAction: 'skip' | 'overwrite' | 'rename'): Promise<Array<{ from: string; to: string; success: boolean; error?: string }>> => {
+      console.log('[Preload] 调用 extractFiles:', { targetPath, extensions, conflictAction })
+      return ipcRenderer.invoke('fs:extractFiles', targetPath, extensions, conflictAction)
     },
     
     // 应用功能
@@ -88,19 +98,5 @@ try {
   }
 }
 
-// 类型声明
-declare global {
-  interface Window {
-    electronAPI: {
-      openDirectory: () => Promise<string | null>
-      readDirectory: (path: string) => Promise<FileInfo[]>
-      organizeFiles: (config: OrganizeConfig) => Promise<Array<{ from: string; to: string; success: boolean; error?: string }>>
-      getAppVersion: () => Promise<string>
-      getPlatform: () => Promise<string>
-      minimizeWindow: () => void
-      maximizeWindow: () => void
-      closeWindow: () => void
-    }
-  }
-}
+// 类型声明（已在 src/types/electron.d.ts 中定义，这里不再重复声明）
 

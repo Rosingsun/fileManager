@@ -1,10 +1,9 @@
-import React, { useEffect } from 'react'
-import { Table, Card, Tag, Space, Button, Empty } from 'antd'
+import React from 'react'
+import { Table, Card, Tag, Space, Empty } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   FileOutlined,
   FolderOutlined,
-  DownloadOutlined,
   PictureOutlined,
   FilePdfOutlined,
   FileWordOutlined,
@@ -14,11 +13,13 @@ import {
   FileZipOutlined
 } from '@ant-design/icons'
 import { useFileStore } from '../stores/fileStore'
+import { useFileSystem } from '../hooks/useFileSystem'
 import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../utils/fileUtils'
 import type { FileInfo } from '../types'
 
 const FileList: React.FC = () => {
   const { fileList, loading, currentPath } = useFileStore()
+  const { loadDirectory } = useFileSystem()
 
   // 获取文件图标
   const getIcon = (file: FileInfo) => {
@@ -101,6 +102,14 @@ const FileList: React.FC = () => {
           showTotal: (total) => `共 ${total} 项`
         }}
         size="small"
+        onRow={(record) => ({
+          onDoubleClick: () => {
+            if (record.isDirectory) {
+              loadDirectory(record.path)
+            }
+          },
+          style: { cursor: record.isDirectory ? 'pointer' : 'default' }
+        })}
       />
     </Card>
   )

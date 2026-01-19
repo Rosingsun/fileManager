@@ -201,6 +201,153 @@ ipcMain.handle('fs:readDirectory', async (_event, path: string): Promise<FileInf
   }
 })
 
+// 递归获取目录下所有文件
+async function getAllFiles(dirPath: string, extensions: string[]): Promise<Array<{ path: string; name: string }>> {
+  const files: Array<{ path: string; name: string }> = []
+  
+  async function traverse(currentPath: string) {
+    try {
+      const items = await readdir(currentPath)
+      
+      for (const item of items) {
+        const fullPath = join(currentPath, item)
+        const stats = await stat(fullPath)
+        
+        if (stats.isDirectory()) {
+          // 递归遍历子目录
+          await traverse(fullPath)
+        } else {
+          // 检查文件扩展名是否匹配
+          const ext = item.split('.').pop()?.toLowerCase() || ''
+          if (extensions.length === 0 || extensions.includes(ext)) {
+            files.push({ path: fullPath, name: item })
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`遍历目录失败 ${currentPath}:`, error)
+    }
+  }
+  
+  await traverse(dirPath)
+  return files
+}
+
+// 递归读取目录，返回所有文件和文件夹的 FileInfo
+async function readDirectoryRecursive(dirPath: string): Promise<FileInfo[]> {
+  const fileInfos: FileInfo[] = []
+  
+  async function traverse(currentPath: string) {
+    try {
+      const items = await readdir(currentPath)
+      
+      for (const item of items) {
+        const fullPath = join(currentPath, item)
+        const stats = await stat(fullPath)
+        
+        fileInfos.push({
+          name: item,
+          path: fullPath,
+          isDirectory: stats.isDirectory(),
+          size: stats.size,
+          modifiedTime: stats.mtime.getTime(),
+          createdTime: stats.birthtime.getTime()
+        })
+        
+        if (stats.isDirectory()) {
+          // 递归遍历子目录
+          await traverse(fullPath)
+        }
+      }
+    } catch (error) {
+      console.error(`遍历目录失败 ${currentPath}:`, error)
+    }
+  }
+  
+  await traverse(dirPath)
+  return fileInfos
+}
+
+// IPC 处理器：递归读取目录
+ipcMain.handle('fs:readDirectoryRecursive', async (_event, path: string): Promise<FileInfo[]> => {
+  try {
+    if (!existsSync(path)) {
+      return []
+    }
+    return await readDirectoryRecursive(path)
+  } catch (error) {
+    console.error('递归读取目录失败:', error)
+    throw error
+  }
+})
+
+// IPC 处理器：提取文件（将子目录中的指定类型文件提取到当前目录）
+ipcMain.handle('fs:extractFiles', async (_event, targetPath: string, extensions: string[], conflictAction: 'skip' | 'overwrite' | 'rename') => {
+  try {
+    if (!existsSync(targetPath)) {
+      throw new Error('目标目录不存在')
+    }
+
+    const results: Array<{ from: string; to: string; success: boolean; error?: string }> = []
+    
+    // 获取所有匹配的文件（不包括目标目录本身的文件）
+    const allFiles = await getAllFiles(targetPath, extensions)
+    
+    // 过滤掉已经在目标目录中的文件
+    const filesToExtract = allFiles.filter(file => {
+      const fileDir = file.path.substring(0, file.path.lastIndexOf(file.name) - 1)
+      return fileDir !== targetPath
+    })
+
+    for (const file of filesToExtract) {
+      const targetFile = join(targetPath, file.name)
+      
+      // 处理文件名冲突
+      let finalTargetFile = targetFile
+      if (existsSync(finalTargetFile)) {
+        if (conflictAction === 'skip') {
+          results.push({
+            from: file.path,
+            to: targetFile,
+            success: false,
+            error: '文件已存在，跳过'
+          })
+          continue
+        } else if (conflictAction === 'rename') {
+          let counter = 1
+          const ext = file.name.split('.').pop()
+          const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.'))
+          while (existsSync(finalTargetFile)) {
+            finalTargetFile = join(targetPath, `${nameWithoutExt}_${counter}.${ext}`)
+            counter++
+          }
+        }
+      }
+
+      try {
+        await move(file.path, finalTargetFile, { overwrite: conflictAction === 'overwrite' })
+        results.push({
+          from: file.path,
+          to: finalTargetFile,
+          success: true
+        })
+      } catch (error: any) {
+        results.push({
+          from: file.path,
+          to: finalTargetFile,
+          success: false,
+          error: error.message
+        })
+      }
+    }
+
+    return results
+  } catch (error: any) {
+    console.error('提取文件失败:', error)
+    throw error
+  }
+})
+
 // IPC 处理器：整理文件
 ipcMain.handle('fs:organize', async (_event, config: OrganizeConfig) => {
   try {
