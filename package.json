@@ -9,7 +9,10 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "pack": "electron-builder",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
   },
   "keywords": [
     "electron",
@@ -24,6 +27,7 @@
     "chokidar": "^3.5.3",
     "classnames": "^2.3.2",
     "dayjs": "^1.11.10",
+    "electron-squirrel-startup": "^1.0.1",
     "fast-glob": "^3.3.2",
     "fs-extra": "^11.2.0",
     "react": "^18.2.0",
@@ -31,6 +35,14 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@electron-forge/cli": "^7.11.1",
+    "@electron-forge/maker-deb": "^7.11.1",
+    "@electron-forge/maker-rpm": "^7.11.1",
+    "@electron-forge/maker-squirrel": "^7.11.1",
+    "@electron-forge/maker-zip": "^7.11.1",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.11.1",
+    "@electron-forge/plugin-fuses": "^7.11.1",
+    "@electron/fuses": "^1.8.0",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^20.10.6",
     "@types/react": "^18.2.45",
@@ -38,7 +50,7 @@
     "@vitejs/plugin-react": "^4.2.1",
     "cross-env": "^10.1.0",
     "electron": "^28.1.0",
-    "electron-builder": "^24.9.1",
+    "electron-builder": "^26.4.0",
     "electron-vite": "^2.0.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.10"
@@ -57,7 +69,8 @@
       "target": [
         "nsis"
       ],
-      "icon": "build/icon.ico"
+      "icon": "build/icon.ico",
+      "forceCodeSigning": false
     },
     "mac": {
       "target": [

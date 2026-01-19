@@ -29,3 +29,5 @@ release
 .env.local
 .env.production
 
+
+out/
