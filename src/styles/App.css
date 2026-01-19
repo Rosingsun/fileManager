@@ -1,0 +1,68 @@
+.app-layout {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  background: #001529;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  height: 64px;
+  flex-shrink: 0;
+}
+
+.app-content {
+  flex: 1;
+  overflow: hidden;
+  padding: 16px;
+  background: #f0f2f5;
+}
+
+.app-main {
+  display: flex;
+  gap: 16px;
+  height: 100%;
+}
+
+.app-sidebar {
+  width: 250px;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-center {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.app-panel {
+  width: 320px;
+  flex-shrink: 0;
+  overflow-y: auto;
+}
+
+/* 自定义滚动条 */
+.app-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-panel::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.app-panel::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+.app-panel::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
