@@ -25,27 +25,23 @@ try {
   const electronAPI = {
     // 文件系统操作
     openDirectory: (): Promise<string | null> => {
-      console.log('[Preload] 调用 openDirectory')
+      console.log('[Preload] Calling openDirectory')
       return ipcRenderer.invoke('dialog:openDirectory')
     },
     
     readDirectory: (path: string): Promise<FileInfo[]> => {
-      console.log('[Preload] 调用 readDirectory:', path)
       return ipcRenderer.invoke('fs:readDirectory', path)
     },
     
     readDirectoryRecursive: (path: string): Promise<FileInfo[]> => {
-      console.log('[Preload] 调用 readDirectoryRecursive:', path)
       return ipcRenderer.invoke('fs:readDirectoryRecursive', path)
     },
     
     organizeFiles: (config: OrganizeConfig): Promise<Array<{ from: string; to: string; success: boolean; error?: string }>> => {
-      console.log('[Preload] 调用 organizeFiles:', config)
       return ipcRenderer.invoke('fs:organize', config)
     },
     
     extractFiles: (targetPath: string, extensions: string[], conflictAction: 'skip' | 'overwrite' | 'rename'): Promise<Array<{ from: string; to: string; success: boolean; error?: string }>> => {
-      console.log('[Preload] 调用 extractFiles:', { targetPath, extensions, conflictAction })
       return ipcRenderer.invoke('fs:extractFiles', targetPath, extensions, conflictAction)
     },
     
@@ -73,58 +69,55 @@ try {
     
     // 文件预览
     previewFile: (filePath: string, fileList?: import('../../src/types').FileInfo[], currentIndex?: number): void => {
-      console.log('[Preload] 调用 previewFile:', filePath, fileList, currentIndex)
       ipcRenderer.send('file:preview', filePath, fileList, currentIndex)
     },
 
     // 文件重命名
     renameFile: (oldPath: string, newName: string): Promise<boolean> => {
-      console.log('[Preload] 调用 renameFile:', oldPath, '->', newName)
       return ipcRenderer.invoke('file:rename', oldPath, newName)
     },
 
     // 删除文件或文件夹
     deleteFile: (filePath: string): Promise<boolean> => {
-      console.log('[Preload] 调用 deleteFile:', filePath)
       return ipcRenderer.invoke('file:delete', filePath)
     },
 
     // 移动文件或文件夹
     moveFile: (oldPath: string, newPath: string): Promise<boolean> => {
-      console.log('[Preload] 调用 moveFile:', oldPath, '->', newPath)
       return ipcRenderer.invoke('file:move', oldPath, newPath)
     },
 
     // 获取图片base64用于预览
     getImageBase64: (filePath: string): Promise<string> => {
-      console.log('[Preload] 调用 getImageBase64:', filePath)
       return ipcRenderer.invoke('file:getImageBase64', filePath)
+    },
+
+    // 获取图片缩略图base64用于预览
+    getImageThumbnail: (filePath: string, size?: number, quality?: number): Promise<string> => {
+      return ipcRenderer.invoke('file:getImageThumbnail', filePath, size, quality)
     }
   }
   
+  console.log('[Preload] About to expose electronAPI to main world')
+  console.log('[Preload] electronAPI object keys:', Object.keys(electronAPI))
+  
   contextBridge.exposeInMainWorld('electronAPI', electronAPI)
+  console.log('[Preload] electronAPI exposed successfully')
   
-  console.log('[Preload] electronAPI 初始化成功')
-  console.log('[Preload] 已暴露的方法:', Object.keys(electronAPI))
-  
-  // 验证是否成功暴露
-  if ((globalThis as any).electronAPI) {
-    console.log('[Preload] 验证: electronAPI 已成功暴露到 globalThis')
-  } else {
-    console.warn('[Preload] 警告: electronAPI 未在 globalThis 中找到')
-  }
+  // 验证暴露是否成功
+  setTimeout(() => {
+    console.log('[Preload] Checking if electronAPI is available in globalThis:', typeof (globalThis as any).electronAPI)
+    if ((globalThis as any).electronAPI) {
+      console.log('[Preload] electronAPI methods:', Object.keys((globalThis as any).electronAPI))
+    }
+  }, 100)
 } catch (error: any) {
-  console.error('[Preload] electronAPI 初始化失败:', error)
-  console.error('[Preload] 错误详情:', {
-    message: error.message,
-    stack: error.stack,
-    name: error.name
-  })
+  console.error('[Preload] Failed to expose electronAPI:', error)
   // 即使失败也尝试暴露一个空对象，避免渲染进程崩溃
   try {
-    contextBridge.exposeInMainWorld('electronAPI', null)
+    contextBridge.exposeInMainWorld('electronAPI', {})
   } catch (e) {
-    console.error('[Preload] 无法暴露空 electronAPI:', e)
+    console.error('[Preload] Could not expose fallback electronAPI:', e)
   }
 }
 

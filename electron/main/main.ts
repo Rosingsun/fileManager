@@ -3,9 +3,40 @@ import { join } from 'path'
 import { mkdirSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
+import sharp from 'sharp'
 import type { OrganizeConfig, FileInfo } from '../../src/types'
 
 const { readdir, stat, mkdir, move, existsSync } = fs
+
+// 获取文件的 MIME 类型
+function getMimeType(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+  const mimeTypes: Record<string, string> = {
+    // 图片类型
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    'bmp': 'image/bmp',
+    'svg': 'image/svg+xml',
+    'webp': 'image/webp',
+    // 视频类型
+    'mp4': 'video/mp4',
+    'avi': 'video/x-msvideo',
+    'mov': 'video/quicktime',
+    'wmv': 'video/x-ms-wmv',
+    'flv': 'video/x-flv',
+    'mkv': 'video/x-matroska',
+    // 音频类型
+    'mp3': 'audio/mpeg',
+    'wav': 'audio/wav',
+    'flac': 'audio/flac',
+    'aac': 'audio/aac',
+    // 默认类型
+    '': 'application/octet-stream'
+  };
+  return mimeTypes[ext] || 'application/octet-stream';
+}
 
 // 获取预加载脚本路径
 function getPreloadPath(): string {
@@ -104,14 +135,14 @@ function createWindow() {
   
   // 监听预加载脚本加载完成
   mainWindow.webContents.on('did-finish-load', () => {
-    console.log('[Main] 页面加载完成')
+    console.log('[Main] Page loaded successfully')
     // 检查 electronAPI 是否已注入
-    mainWindow?.webContents.executeJavaScript('window.electronAPI ? "已注入" : "未注入"')
+    mainWindow?.webContents.executeJavaScript('window.electronAPI ? "injected" : "not injected"')
       .then((result) => {
-        console.log('[Main] electronAPI 状态:', result)
+        console.log('[Main] electronAPI status:', result)
       })
       .catch((error) => {
-        console.error('[Main] 检查 electronAPI 状态失败:', error)
+        console.error('[Main] Failed to check electronAPI status:', error)
       })
   })
 
@@ -651,18 +682,32 @@ ipcMain.handle('file:getImageBase64', async (_event, filePath: string): Promise<
   }
 })
 
-// 获取MIME类型的辅助函数
-function getMimeType(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase()
-  const mimeTypes: Record<string, string> = {
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'png': 'image/png',
-    'gif': 'image/gif',
-    'bmp': 'image/bmp',
-    'svg': 'image/svg+xml',
-    'webp': 'image/webp'
+// IPC 处理器：获取图片缩略图base64用于预览
+ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 80): Promise<string> => {
+  try {
+    // 使用Sharp生成缩略图
+    const buffer = await sharp(filePath)
+      .resize(size, size, {
+        fit: 'cover',
+        position: 'center'
+      })
+      .jpeg({ quality }) // 统一转换为JPEG格式
+      .toBuffer()
+    
+    const base64 = buffer.toString('base64')
+    return `data:image/jpeg;base64,${base64}`
+  } catch (error) {
+    console.error('[Main] 生成图片缩略图失败:', error)
+    // 回退到原方法
+    try {
+      const buffer = await fs.readFile(filePath)
+      const mimeType = getMimeType(filePath)
+      const base64 = buffer.toString('base64')
+      return `data:${mimeType};base64,${base64}`
+    } catch (fallbackError) {
+      console.error('[Main] 回退方法也失败:', fallbackError)
+      return ''
+    }
   }
-  return mimeTypes[ext || ''] || 'image/jpeg'
-}
+})
 

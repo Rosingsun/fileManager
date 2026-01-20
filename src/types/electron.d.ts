@@ -17,6 +17,7 @@ declare global {
       deleteFile: (filePath: string) => Promise<boolean>
       moveFile: (oldPath: string, newPath: string) => Promise<boolean>
       getImageBase64: (filePath: string) => Promise<string>
+      getImageThumbnail: (filePath: string, size?: number, quality?: number) => Promise<string>
     }
   }
 }
