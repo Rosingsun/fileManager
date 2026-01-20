@@ -14,7 +14,12 @@ import {
   FileZipOutlined,
   DeleteOutlined,
   EditOutlined,
-  FolderOpenOutlined
+  FolderOpenOutlined,
+  ZoomInOutlined,
+  ZoomOutOutlined,
+  RotateLeftOutlined,
+  RotateRightOutlined,
+  ReloadOutlined
 } from '@ant-design/icons'
 import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { useFileStore } from '../stores/fileStore'
@@ -38,6 +43,8 @@ const FileList: React.FC = () => {
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
   const [previewIndex, setPreviewIndex] = useState<number>(0)
   const [currentImageBase64, setCurrentImageBase64] = useState<string | null>(null)
+  const [isLoadingHighRes, setIsLoadingHighRes] = useState(false)
+  const [imageLoadError, setImageLoadError] = useState(false)
   const [previewEnabled] = useState(true) // 预览开关，默认打开
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
   const [selectedRows, setSelectedRows] = useState<FileInfo[]>([])
@@ -47,6 +54,9 @@ const FileList: React.FC = () => {
   const [batchRenameSuffix, setBatchRenameSuffix] = useState('')
   const [moveModalVisible, setMoveModalVisible] = useState(false)
   const [moveTargetPath, setMoveTargetPath] = useState('')
+  // 图片预览操作状态
+  const [scale, setScale] = useState(100) // 当前缩放比例，默认100%
+  const [rotation, setRotation] = useState(0) // 当前旋转角度，默认0度
   // 分页相关状态
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(15)
@@ -107,7 +117,7 @@ const FileList: React.FC = () => {
     let mounted = true
 
     const loadVisibleThumbnails = async () => {
-      const imagesToLoad = Array.from(visibleImages).filter(path => 
+      const imagesToLoad = Array.from(visibleImages).filter(path =>
         !imagePreviews.has(path) && !loadingImages.has(path)
       )
 
@@ -193,20 +203,39 @@ const FileList: React.FC = () => {
   }
 
   // 预览文件
-  const handlePreview = (file: FileInfo) => {
+  const handlePreview = async (file: FileInfo) => {
     // 在应用内弹出模态预览，并支持上一张/下一张
     const previewableFiles = fileList.filter(f => !f.isDirectory && isPreviewable(f) && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(f.name).toLowerCase()))
     const index = previewableFiles.findIndex(f => f.path === file.path)
     if (index >= 0) {
       setPreviewIndex(index)
       setPreviewModalVisible(true)
-      // 尝试直接从已加载的缩略图拿数据，如果没有则请求完整图片
+
+      // 重置状态
+      setImageLoadError(false)
+
+      // 先尝试获取缩略图作为占位符
       const previewData = imagePreviews.get(previewableFiles[index].path)
       if (previewData?.thumbnail) {
         setCurrentImageBase64(previewData.thumbnail)
       } else {
-        // 否则通过主进程请求完整图片
-        window.electronAPI?.getImageBase64(previewableFiles[index].path).then((b64: string) => setCurrentImageBase64(b64)).catch(() => setCurrentImageBase64(null))
+        setCurrentImageBase64(null)
+      }
+
+      // 加载高清图片
+      setIsLoadingHighRes(true)
+      try {
+        const highResB64 = await window.electronAPI?.getImageBase64(previewableFiles[index].path)
+        if (highResB64) {
+          setCurrentImageBase64(highResB64)
+        } else {
+          setImageLoadError(true)
+        }
+      } catch (e) {
+        console.error('加载高清图片失败:', e)
+        setImageLoadError(true)
+      } finally {
+        setIsLoadingHighRes(false)
       }
     } else {
       // 回退到系统预览
@@ -228,16 +257,33 @@ const FileList: React.FC = () => {
     if (index < 0 || index >= paths.length) return
     setPreviewIndex(index)
     const path = paths[index]
+
+    // 重置状态
+    setImageLoadError(false)
+
+    // 先尝试获取缩略图作为占位符
     const previewData = imagePreviews.get(path)
     if (previewData?.thumbnail) {
       setCurrentImageBase64(previewData.thumbnail)
     } else {
-      try {
-        const b64 = await window.electronAPI?.getImageBase64(path)
-        setCurrentImageBase64(b64 || null)
-      } catch (e) {
-        setCurrentImageBase64(null)
+      // 没有缩略图时显示加载状态
+      setCurrentImageBase64(null)
+    }
+
+    // 加载高清图片
+    setIsLoadingHighRes(true)
+    try {
+      const highResB64 = await window.electronAPI?.getImageBase64(path)
+      if (highResB64) {
+        setCurrentImageBase64(highResB64)
+      } else {
+        setImageLoadError(true)
       }
+    } catch (e) {
+      console.error('加载高清图片失败:', e)
+      setImageLoadError(true)
+    } finally {
+      setIsLoadingHighRes(false)
     }
   }
 
@@ -254,15 +300,73 @@ const FileList: React.FC = () => {
     }
   }
 
+  // 图片缩放功能
+  const handleZoomIn = () => {
+    setScale(prevScale => Math.min(prevScale + 20, 300)) // 每次增加20%，上限300%
+  }
+
+  const handleZoomOut = () => {
+    setScale(prevScale => Math.max(prevScale - 20, 20)) // 每次减少20%，下限20%
+  }
+
+  const handleResetScale = () => {
+    setScale(100) // 重置缩放为100%
+  }
+
+  // 图片旋转功能
+  const handleRotateLeft = () => {
+    setRotation(prevRotation => prevRotation - 90) // 向左旋转90度
+  }
+
+  const handleRotateRight = () => {
+    setRotation(prevRotation => prevRotation + 90) // 向右旋转90度
+  }
+
+  const handleResetRotation = () => {
+    setRotation(0) // 重置旋转为0度
+  }
+
+  // 重置所有图片操作状态
+  const handleResetAll = () => {
+    setScale(100) // 重置缩放为100%
+    setRotation(0) // 重置旋转为0度
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!previewModalVisible) return
+
+      // 导航快捷键
       if (e.key === 'ArrowLeft') handlePrev()
       if (e.key === 'ArrowRight') handleNext()
+
+      // 缩放和旋转快捷键
+      if (e.ctrlKey || e.metaKey) {
+        switch (e.key) {
+          case '+':
+          case '=':
+            e.preventDefault()
+            handleZoomIn()
+            break
+          case '-':
+          case '_':
+            e.preventDefault()
+            handleZoomOut()
+            break
+          case 'ArrowLeft':
+            e.preventDefault()
+            handleRotateLeft()
+            break
+          case 'ArrowRight':
+            e.preventDefault()
+            handleRotateRight()
+            break
+        }
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [previewModalVisible, previewIndex, imagePreviews, fileList])
+  }, [previewModalVisible, previewIndex, imagePreviews, fileList, scale, rotation])
 
   // 重命名文件
   const handleRename = (file: FileInfo) => {
@@ -457,10 +561,10 @@ const FileList: React.FC = () => {
     if (file.isDirectory) {
       return <FolderOutlined style={{ color: '#1890ff' }} />
     }
-    
+
     const ext = getFileExtension(file.name)
     const iconType = getFileTypeIcon(ext, false)
-    
+
     const iconMap: Record<string, React.ReactNode> = {
       'image': <PictureOutlined style={{ color: '#52c41a' }} />,
       'file-pdf': <FilePdfOutlined style={{ color: '#ff4d4f' }} />,
@@ -470,7 +574,7 @@ const FileList: React.FC = () => {
       'audio': <SoundOutlined style={{ color: '#722ed1' }} />,
       'file-zip': <FileZipOutlined style={{ color: '#fa8c16' }} />
     }
-    
+
     return iconMap[iconType] || <FileOutlined />
   }
 
@@ -512,9 +616,9 @@ const FileList: React.FC = () => {
         if (isPreviewable(record)) {
           const previewData = imagePreviews.get(record.path)
           const isLoading = loadingImages.has(record.path)
-          
+
           return (
-            <div 
+            <div
               ref={(el) => {
                 if (el && observerRef.current) {
                   el.dataset.filePath = record.path
@@ -526,36 +630,36 @@ const FileList: React.FC = () => {
               onClick={() => handlePreview(record)}
             >
               {isLoading ? (
-                <div style={{ 
-                  width: '100%', 
-                  height: '100%', 
-                  backgroundColor: '#f0f0f0', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#f0f0f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}>
                   <PictureOutlined style={{ color: '#ccc' }} />
                 </div>
               ) : previewData ? (
-                <img 
-                  src={previewData.thumbnail || previewData.full} 
-                  style={{ 
-                    width: '100%', 
-                    height: '100%', 
+                <img
+                  src={previewData.thumbnail || previewData.full}
+                  style={{
+                    width: '100%',
+                    height: '100%',
                     objectFit: 'cover',
                     filter: previewData.thumbnail ? 'none' : 'blur(2px)', // 模糊占位符
                     transition: 'filter 0.3s ease'
-                  }} 
+                  }}
                   alt="preview"
                 />
               ) : (
-                <div style={{ 
-                  width: '100%', 
-                  height: '100%', 
-                  backgroundColor: '#f0f0f0', 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#f0f0f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}>
                   <PictureOutlined style={{ color: '#ccc' }} />
                 </div>
@@ -584,7 +688,7 @@ const FileList: React.FC = () => {
       dataIndex: 'size',
       key: 'size',
       width: previewEnabled ? '15%' : '20%',
-      render: (size: number, record: FileInfo) => 
+      render: (size: number, record: FileInfo) =>
         record.isDirectory ? '-' : formatFileSize(size)
     },
     {
@@ -654,7 +758,7 @@ const FileList: React.FC = () => {
   }
 
   return (
-    <Card 
+    <Card
       title={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <Space>
@@ -683,7 +787,7 @@ const FileList: React.FC = () => {
           </Space>
         </div>
       }
-      style={{ height: '100%', display: 'flex', flexDirection: 'column' }} 
+      style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
       bodyStyle={{ padding: 0 }}
     >
       {selectedRows.length > 0 && (
@@ -705,39 +809,39 @@ const FileList: React.FC = () => {
           </Space>
         </div>
       )}
-        {viewMode === 'list' ? (
-          <Table
-            columns={columns}
-            dataSource={paginatedFileList}
-            loading={loading}
-            rowKey="path"
-            rowSelection={{
-              selectedRowKeys,
-              onChange: (keys, rows) => {
-                setSelectedRowKeys(keys as string[])
-                setSelectedRows(rows)
-              }
-            }}
-            scroll={{ x: true, y: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 275px)' }}
-            onRow={(record) => ({
-              onDoubleClick: () => handleDoubleClick(record),
-              style: { cursor: record.isDirectory ? 'pointer' : 'default', height: '40px' }
-            })}
-            pagination={false}
-          />
-        ) : (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(5, 1fr)',
-              gap: '10px',
-              padding: '10px',
-              overflowY: 'auto',
-              maxHeight: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 220px)'
-            }}
-          >
-            {paginatedFileList.map(file => (
-              <div
+      {viewMode === 'list' ? (
+        <Table
+          columns={columns}
+          dataSource={paginatedFileList}
+          loading={loading}
+          rowKey="path"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys, rows) => {
+              setSelectedRowKeys(keys as string[])
+              setSelectedRows(rows)
+            }
+          }}
+          scroll={{ x: true, y: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 275px)' }}
+          onRow={(record) => ({
+            onDoubleClick: () => handleDoubleClick(record),
+            style: { cursor: record.isDirectory ? 'pointer' : 'default', height: '40px' }
+          })}
+          pagination={false}
+        />
+      ) : (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(5, 1fr)',
+            gap: '10px',
+            padding: '10px',
+            overflowY: 'auto',
+            maxHeight: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 220px)'
+          }}
+        >
+          {paginatedFileList.map(file => (
+            <div
               key={file.path}
               style={{
                 border: `1px solid ${selectedRowKeys.includes(file.path) ? '#1890ff' : '#d9d9d9'}`,
@@ -758,141 +862,141 @@ const FileList: React.FC = () => {
                 }
               }}
               onDoubleClick={() => handleDoubleClick(file)}
-              >
-                {/* 复选框 */}
-                <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 10, backgroundColor: 'rgba(255, 255, 255, 0.8)' }}>
-                  <Checkbox
-                    checked={selectedRowKeys.includes(file.path)}
-                    onChange={(e) => {
-                      const newSelectedRowKeys = e.target.checked
-                        ? [...selectedRowKeys, file.path]
-                        : selectedRowKeys.filter(key => key !== file.path)
-                      const newSelectedRows = e.target.checked
-                        ? [...selectedRows, file]
-                        : selectedRows.filter(row => row.path !== file.path)
-                      setSelectedRowKeys(newSelectedRowKeys)
-                      setSelectedRows(newSelectedRows)
-                    }}
-                  />
-                </div>
-                {/* 图片预览区域 */}
-                <div
-                  ref={(el) => {
-                    if (el && observerRef.current) {
-                      el.dataset.filePath = file.path
-                      imageRefs.current.set(file.path, el)
-                      observerRef.current.observe(el)
-                    }
+            >
+              {/* 复选框 */}
+              <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 10, backgroundColor: 'rgba(255, 255, 255, 0.8)' }}>
+                <Checkbox
+                  checked={selectedRowKeys.includes(file.path)}
+                  onChange={(e) => {
+                    const newSelectedRowKeys = e.target.checked
+                      ? [...selectedRowKeys, file.path]
+                      : selectedRowKeys.filter(key => key !== file.path)
+                    const newSelectedRows = e.target.checked
+                      ? [...selectedRows, file]
+                      : selectedRows.filter(row => row.path !== file.path)
+                    setSelectedRowKeys(newSelectedRowKeys)
+                    setSelectedRows(newSelectedRows)
                   }}
-                  style={{
-                    width: '100%',
-                    height: '120px',
-                    borderRadius: '4px',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: '#f5f5f5'
-                  }}
-                >
-                  {isPreviewable(file) ? (
-                    <>
-                      {(() => {
-                        const previewData = imagePreviews.get(file.path)
-                        const isLoading = loadingImages.has(file.path)
-                        
-                        if (isLoading) {
-                          return <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />                          
-                        }
-                        
-                        if (previewData) {
-                          return (
-                            <img
-                              src={previewData.thumbnail || previewData.full}
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                                filter: previewData.thumbnail ? 'none' : 'blur(2px)',
-                                transition: 'filter 0.3s ease'
-                              }}
-                              alt={file.name}
-                            />
-                          )
-                        }
-                        
-                        return <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
-                      })()}
-                    </>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-                      {getIcon(file)}
-                    </div>
-                  )}
-                </div>
-                
-                {/* 信息展示区域 */}
-                <div style={{ padding: '8px', backgroundColor: '#fff' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '4px' }}>
-                    {file.name}
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
-                    {file.isDirectory ? '-' : formatFileSize(file.size)}
-                  </div>
-                </div>
+                />
               </div>
-            ))}
-          </div>
-        )}
-        
-        {/* 分页组件 - 适用于列表和网格视图 */}
-        {total > 0 && (
-          <div style={{ padding: '16px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-            <span style={{ marginRight: '16px', fontSize: '14px' }}>共 {total} 条记录</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <span style={{ fontSize: '14px' }}>每页显示：</span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  const newPageSize = parseInt(e.target.value, 10)
-                  setPageSize(newPageSize)
-                  setCurrentPage(1)
+              {/* 图片预览区域 */}
+              <div
+                ref={(el) => {
+                  if (el && observerRef.current) {
+                    el.dataset.filePath = file.path
+                    imageRefs.current.set(file.path, el)
+                    observerRef.current.observe(el)
+                  }
                 }}
                 style={{
-                  padding: '4px 8px',
-                  border: '1px solid #d9d9d9',
+                  width: '100%',
+                  height: '120px',
                   borderRadius: '4px',
-                  fontSize: '14px'
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#f5f5f5'
                 }}
               >
-                {pageSizeOptions.map(option => (
-                  <option key={option} value={parseInt(option, 10)}>{option}</option>
-                ))}
-              </select>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Button
-                  type="default"
-                  size="small"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(currentPage - 1)}
-                >
-                  上一页
-                </Button>
-                <span style={{ fontSize: '14px', minWidth: '60px', textAlign: 'center' }}>
-                  {currentPage} / {Math.ceil(total / pageSize)}
-                </span>
-                <Button
-                  type="default"
-                  size="small"
-                  disabled={currentPage === Math.ceil(total / pageSize)}
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                >
-                  下一页
-                </Button>
+                {isPreviewable(file) ? (
+                  <>
+                    {(() => {
+                      const previewData = imagePreviews.get(file.path)
+                      const isLoading = loadingImages.has(file.path)
+
+                      if (isLoading) {
+                        return <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
+                      }
+
+                      if (previewData) {
+                        return (
+                          <img
+                            src={previewData.thumbnail || previewData.full}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              filter: previewData.thumbnail ? 'none' : 'blur(2px)',
+                              transition: 'filter 0.3s ease'
+                            }}
+                            alt={file.name}
+                          />
+                        )
+                      }
+
+                      return <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
+                    })()}
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+                    {getIcon(file)}
+                  </div>
+                )}
+              </div>
+
+              {/* 信息展示区域 */}
+              <div style={{ padding: '8px', backgroundColor: '#fff' }}>
+                <div style={{ fontSize: '14px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '4px' }}>
+                  {file.name}
+                </div>
+                <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
+                  {file.isDirectory ? '-' : formatFileSize(file.size)}
+                </div>
               </div>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* 分页组件 - 适用于列表和网格视图 */}
+      {total > 0 && (
+        <div style={{ padding: '16px', borderTop: '1px solid #f0f0f0', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <span style={{ marginRight: '16px', fontSize: '14px' }}>共 {total} 条记录</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <span style={{ fontSize: '14px' }}>每页显示：</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                const newPageSize = parseInt(e.target.value, 10)
+                setPageSize(newPageSize)
+                setCurrentPage(1)
+              }}
+              style={{
+                padding: '4px 8px',
+                border: '1px solid #d9d9d9',
+                borderRadius: '4px',
+                fontSize: '14px'
+              }}
+            >
+              {pageSizeOptions.map(option => (
+                <option key={option} value={parseInt(option, 10)}>{option}</option>
+              ))}
+            </select>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Button
+                type="default"
+                size="small"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                上一页
+              </Button>
+              <span style={{ fontSize: '14px', minWidth: '60px', textAlign: 'center' }}>
+                {currentPage} / {Math.ceil(total / pageSize)}
+              </span>
+              <Button
+                type="default"
+                size="small"
+                disabled={currentPage === Math.ceil(total / pageSize)}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                下一页
+              </Button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
       <Modal
         title={
           <Space>
@@ -903,18 +1007,137 @@ const FileList: React.FC = () => {
         open={previewModalVisible}
         onCancel={() => { setPreviewModalVisible(false); setCurrentImageBase64(null) }}
         footer={[
-          <Button key="prev" icon={<LeftOutlined />} onClick={handlePrev} disabled={previewIndex <= 0} />,
-          <Button key="next" icon={<RightOutlined />} onClick={handleNext} disabled={previewIndex >= getPreviewablePaths().length - 1} />,
-          <Button key="close" onClick={() => { setPreviewModalVisible(false); setCurrentImageBase64(null) }}>关闭</Button>
+          <Space key="zoom-controls">
+            <Button key="zoom-out" icon={<ZoomOutOutlined />} onClick={handleZoomOut} disabled={scale <= 20} title="缩小" />,
+            <Button key="zoom-in" icon={<ZoomInOutlined />} onClick={handleZoomIn} disabled={scale >= 300} title="放大" />,
+            <Button key="reset-scale" onClick={handleResetScale} title="重置缩放">重置缩放</Button>
+          </Space>,
+          <Space key="rotate-controls">
+            <Button key="rotate-left" icon={<RotateLeftOutlined />} onClick={handleRotateLeft} title="向左旋转" />,
+            <Button key="rotate-right" icon={<RotateRightOutlined />} onClick={handleRotateRight} title="向右旋转" />,
+            <Button key="reset-rotation" onClick={handleResetRotation} title="重置旋转">重置旋转</Button>
+          </Space>,
+          <Button key="reset-all" icon={<ReloadOutlined />} onClick={handleResetAll} title="重置所有">重置所有</Button>,
+          <Space key="nav-controls" style={{ marginLeft: 'auto' }}>
+            <Button key="prev" icon={<LeftOutlined />} onClick={handlePrev} disabled={previewIndex <= 0} title="上一张" />,
+            <Button key="next" icon={<RightOutlined />} onClick={handleNext} disabled={previewIndex >= getPreviewablePaths().length - 1} title="下一张" />,
+            <Button key="close" onClick={() => { setPreviewModalVisible(false); setCurrentImageBase64(null) }}>关闭</Button>
+          </Space>
         ]}
-        width={800}
-        height={600}
+        width="800px"
+        height="80%"
+        style={{ top: '10%', position: 'relative' }}
       >
-        <div style={{ textAlign: 'center', width: '100%', height: '600px' }}>
+        <div style={{
+          textAlign: 'center',
+          width: '100%',
+          height: 'calc(100% - 50px)',
+          backgroundColor: '#f0f0f0',
+          overflow: 'auto'
+        }}>
+          {/* 当前状态显示 */}
+          <div style={{
+            position: 'absolute',
+            top: '60px',
+            left: '35px',
+            backgroundColor: 'rgba(255, 255, 255, 0.8)',
+            padding: '8px 16px',
+            borderRadius: '4px',
+            fontSize: '14px',
+            zIndex: 10,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+          }}>
+            <Space>
+              <span>缩放：{scale}%</span>
+              <span>旋转：{((rotation % 360) + 360) % 360}°</span>
+            </Space>
+          </div>
+          {/* 加载状态指示器 */}
+          {isLoadingHighRes && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 10,
+              backgroundColor: 'rgba(255, 255, 255, 0.8)',
+              padding: '16px 32px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <div style={{
+                width: '20px',
+                height: '20px',
+                border: '3px solid #1890ff',
+                borderTop: '3px solid transparent',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+              <span>正在加载高清图片...</span>
+              <style>{`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+              `}</style>
+            </div>
+          )}
+
+          {/* 图片显示 */}
           {currentImageBase64 ? (
-            <img src={currentImageBase64} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain',background:"#f0f0f0" }} />
-          ) : (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>加载中或不支持的图片</div>
+            <img
+              src={currentImageBase64}
+              alt="preview"
+              style={{
+                maxWidth: '100%',
+                height: '450px',
+                objectFit: 'contain',
+                display: 'block',
+                margin: '0 auto',
+                transition: 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out',
+                opacity: isLoadingHighRes ? 0.7 : 1,
+                transform: `scale(${scale / 100}) rotate(${rotation}deg)`,
+                transformOrigin: 'center center'
+              }}
+              onError={() => setImageLoadError(true)}
+            />
+          ) : <Empty description="加载中或不支持的图片" />}
+
+          {/* 错误处理 */}
+          {imageLoadError && (
+            <div style={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#ff4d4f',
+              gap: '16px'
+            }}>
+              <div style={{ fontSize: '48px' }}>❌</div>
+              <div>图片加载失败</div>
+              <Button
+                type="primary"
+                onClick={() => showPreviewAt(previewIndex)}
+              >
+                重试
+              </Button>
+            </div>
+          )}
+
+          {/* 初始加载状态 */}
+          {!currentImageBase64 && !isLoadingHighRes && !imageLoadError && (
+            <div style={{
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#999'
+            }}>
+              准备加载图片...
+            </div>
           )}
         </div>
       </Modal>
