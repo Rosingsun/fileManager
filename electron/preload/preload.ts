@@ -95,6 +95,11 @@ try {
     // 获取图片缩略图base64用于预览
     getImageThumbnail: (filePath: string, size?: number, quality?: number): Promise<string> => {
       return ipcRenderer.invoke('file:getImageThumbnail', filePath, size, quality)
+    },
+    
+    // 打开文件
+    openFile: (filePath: string): Promise<boolean> => {
+      return ipcRenderer.invoke('file:open', filePath)
     }
   }
   

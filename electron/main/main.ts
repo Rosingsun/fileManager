@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { join } from 'path'
 import { mkdirSync } from 'fs'
 import fs from 'fs-extra'
@@ -177,6 +177,23 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
+  }
+})
+
+// IPC 处理器：打开文件
+ipcMain.handle('file:open', async (_event, filePath: string): Promise<boolean> => {
+  try {
+    // 使用系统默认程序打开文件
+    const result = await shell.openPath(filePath)
+    if (result) {
+      console.error('[Main] 打开文件失败:', result)
+      return false
+    }
+    console.log('[Main] 文件打开成功:', filePath)
+    return true
+  } catch (error) {
+    console.error('[Main] 打开文件失败:', error)
+    return false
   }
 })
 

@@ -12,8 +12,6 @@ import {
   VideoCameraOutlined,
   SoundOutlined,
   FileZipOutlined,
-  EyeOutlined,
-  EyeInvisibleOutlined,
   DeleteOutlined,
   EditOutlined,
   FolderOpenOutlined
@@ -40,7 +38,7 @@ const FileList: React.FC = () => {
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
   const [previewIndex, setPreviewIndex] = useState<number>(0)
   const [currentImageBase64, setCurrentImageBase64] = useState<string | null>(null)
-  const [previewEnabled, setPreviewEnabled] = useState(true) // 预览开关，默认打开
+  const [previewEnabled] = useState(true) // 预览开关，默认打开
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
   const [selectedRows, setSelectedRows] = useState<FileInfo[]>([])
   const [batchRenameModalVisible, setBatchRenameModalVisible] = useState(false)
@@ -51,8 +49,8 @@ const FileList: React.FC = () => {
   const [moveTargetPath, setMoveTargetPath] = useState('')
   // 分页相关状态
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(12)
-  const [pageSizeOptions, setPageSizeOptions] = useState(['12', '36', '72', '144', '288'])
+  const [pageSize, setPageSize] = useState(15)
+  const [pageSizeOptions] = useState(['15', '30', '75', '150', '300']) // 页码选择范围
 
   // 加载图片预览（懒加载版本）
   useEffect(() => {
@@ -62,8 +60,6 @@ const FileList: React.FC = () => {
       setLoadingImages(new Set())
       return
     }
-
-    let mounted = true
 
     // 初始化Intersection Observer
     const observer = new IntersectionObserver(
@@ -100,7 +96,6 @@ const FileList: React.FC = () => {
     imageRefs.current.clear()
 
     return () => {
-      mounted = false
       observer.disconnect()
     }
   }, [previewEnabled])
@@ -247,7 +242,6 @@ const FileList: React.FC = () => {
   }
 
   const handlePrev = () => {
-    const paths = getPreviewablePaths()
     if (previewIndex > 0) {
       showPreviewAt(previewIndex - 1)
     }
@@ -480,12 +474,41 @@ const FileList: React.FC = () => {
     return iconMap[iconType] || <FileOutlined />
   }
 
+  // 双击处理函数
+  const handleDoubleClick = async (file: FileInfo) => {
+    try {
+      if (file.isDirectory) {
+        // 如果是文件夹，切换到该文件夹
+        loadDirectory(file.path)
+      } else {
+        // 如果是媒体文件，调用系统默认打开程序
+        if (isPreviewable(file)) {
+          if (window.electronAPI && window.electronAPI.openFile) {
+            await window.electronAPI.openFile(file.path)
+          } else {
+            message.error('无法打开文件：系统API不可用')
+          }
+        } else {
+          // 非媒体文件也尝试打开
+          if (window.electronAPI && window.electronAPI.openFile) {
+            await window.electronAPI.openFile(file.path)
+          } else {
+            message.error('无法打开文件：系统API不可用')
+          }
+        }
+      }
+    } catch (error) {
+      console.error('双击操作失败:', error)
+      message.error('操作失败：' + (error instanceof Error ? error.message : String(error)))
+    }
+  }
+
   const columns: ColumnsType<FileInfo> = [
     ...(previewEnabled ? [{
       title: '预览',
       key: 'preview',
       width: '10%',
-      render: (_, record: FileInfo) => {
+      render: (_: any, record: FileInfo) => {
         if (isPreviewable(record)) {
           const previewData = imagePreviews.get(record.path)
           const isLoading = loadingImages.has(record.path)
@@ -603,6 +626,14 @@ const FileList: React.FC = () => {
     }
   ]
 
+  // 返回上级目录
+  const handleGoBack = () => {
+    if (!currentPath) return
+    // 计算上级目录路径
+    const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/' // 处理根目录情况
+    loadDirectory(parentPath)
+  }
+
   // 分页逻辑
   const startIndex = (currentPage - 1) * pageSize
   const endIndex = startIndex + pageSize
@@ -613,12 +644,6 @@ const FileList: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1)
   }, [fileList, pageSize])
-
-  // 处理分页变化
-  const handlePageChange = (page: number, size: number) => {
-    setCurrentPage(page)
-    setPageSize(size)
-  }
 
   if (!currentPath) {
     return (
@@ -631,32 +656,32 @@ const FileList: React.FC = () => {
   return (
     <Card 
       title={
-        <Space>
-          文件列表
-          <Switch
-            checkedChildren={<EyeOutlined />}
-            unCheckedChildren={<EyeInvisibleOutlined />}
-            checked={previewEnabled}
-            onChange={setPreviewEnabled}
-            title={previewEnabled ? '关闭预览' : '开启预览'}
-          />
-          <Button
-            type={viewMode === 'list' ? 'primary' : 'default'}
-            size="small"
-            onClick={() => setViewMode('list')}
-            title="列表视图"
-          >
-            列表
-          </Button>
-          <Button
-            type={viewMode === 'grid' ? 'primary' : 'default'}
-            size="small"
-            onClick={() => setViewMode('grid')}
-            title="网格视图"
-          >
-            网格
-          </Button>
-        </Space>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <Space>
+            <Button
+              type="default"
+              size="small"
+              icon={<LeftOutlined />}
+              onClick={handleGoBack}
+              disabled={!currentPath || currentPath === '/'} // 根目录时禁用
+              title="返回上级目录"
+            >
+              返回
+            </Button>
+            <span style={{ fontSize: '14px', color: '#666' }}>
+              当前路径: {currentPath}
+            </span>
+          </Space>
+          <Space size="middle">
+            <Switch
+              checkedChildren="网格"
+              unCheckedChildren="列表"
+              checked={viewMode === 'grid'}
+              onChange={(checked) => setViewMode(checked ? 'grid' : 'list')}
+              title={viewMode === 'list' ? '切换到网格视图' : '切换到列表视图'}
+            />
+          </Space>
+        </div>
       }
       style={{ height: '100%', display: 'flex', flexDirection: 'column' }} 
       bodyStyle={{ padding: 0 }}
@@ -695,11 +720,7 @@ const FileList: React.FC = () => {
             }}
             scroll={{ x: true, y: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 275px)' }}
             onRow={(record) => ({
-              onDoubleClick: () => {
-                if (record.isDirectory) {
-                  loadDirectory(record.path)
-                }
-              },
+              onDoubleClick: () => handleDoubleClick(record),
               style: { cursor: record.isDirectory ? 'pointer' : 'default', height: '40px' }
             })}
             pagination={false}
@@ -708,36 +729,35 @@ const FileList: React.FC = () => {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-              gap: '16px',
-              padding: '16px',
+              gridTemplateColumns: 'repeat(5, 1fr)',
+              gap: '10px',
+              padding: '10px',
               overflowY: 'auto',
               maxHeight: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 220px)'
             }}
           >
             {paginatedFileList.map(file => (
               <div
-                key={file.path}
-                style={{
-                  border: `1px solid ${selectedRowKeys.includes(file.path) ? '#1890ff' : '#d9d9d9'}`,
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  backgroundColor: selectedRowKeys.includes(file.path) ? '#e6f7ff' : '#fff'
-                }}
-                onClick={(e) => {
-                  // 防止点击复选框时触发预览
-                  if (!e.target.closest('.ant-checkbox-wrapper')) {
+              key={file.path}
+              style={{
+                border: `1px solid ${selectedRowKeys.includes(file.path) ? '#1890ff' : '#d9d9d9'}`,
+                borderRadius: '5px',
+                overflow: 'hidden',
+                transition: 'all 0.3s ease',
+                cursor: file.isDirectory ? 'pointer' : 'default',
+                position: 'relative',
+                backgroundColor: selectedRowKeys.includes(file.path) ? '#e6f7ff' : '#fff'
+              }}
+              onClick={(e) => {
+                // 防止点击复选框时触发预览
+                if (!(e.target as HTMLElement).closest('.ant-checkbox-wrapper')) {
+                  // 只有非文件夹且可预览的文件才执行预览操作
+                  if (!file.isDirectory && isPreviewable(file)) {
                     handlePreview(file)
                   }
-                }}
-                onDoubleClick={() => {
-                  if (file.isDirectory) {
-                    loadDirectory(file.path)
-                  }
-                }}
+                }
+              }}
+              onDoubleClick={() => handleDoubleClick(file)}
               >
                 {/* 复选框 */}
                 <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 10, backgroundColor: 'rgba(255, 255, 255, 0.8)' }}>
@@ -766,7 +786,7 @@ const FileList: React.FC = () => {
                   }}
                   style={{
                     width: '100%',
-                    height: '150px',
+                    height: '120px',
                     borderRadius: '4px',
                     overflow: 'hidden',
                     display: 'flex',
@@ -776,7 +796,7 @@ const FileList: React.FC = () => {
                   }}
                 >
                   {isPreviewable(file) ? (
-                    <>                    
+                    <>
                       {(() => {
                         const previewData = imagePreviews.get(file.path)
                         const isLoading = loadingImages.has(file.path)
@@ -806,7 +826,7 @@ const FileList: React.FC = () => {
                     </>
                   ) : (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
-                      {getFileTypeIcon(file)}
+                      {getIcon(file)}
                     </div>
                   )}
                 </div>

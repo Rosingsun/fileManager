@@ -13,6 +13,7 @@ declare global {
       maximizeWindow: () => void
       closeWindow: () => void
       previewFile: (filePath: string, fileList?: FileInfo[], currentIndex?: number) => void
+      openFile: (filePath: string) => Promise<boolean>
       renameFile: (oldPath: string, newName: string) => Promise<boolean>
       deleteFile: (filePath: string) => Promise<boolean>
       moveFile: (oldPath: string, newPath: string) => Promise<boolean>

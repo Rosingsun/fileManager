@@ -28,28 +28,31 @@ import type { OrganizeRule, OrganizeConfig, PreviewResultItem, SizeRange } from 
 const { Option } = Select
 
 // 构建树形数据
-const buildTreeData = (results: PreviewResultItem[]) => {
+const buildTreeData = (results: PreviewResultItem[], currentPath: string) => {
   const treeMap: Record<string, any> = {}
 
   results.forEach((result) => {
-    const targetPath = result.to
+    let targetPath = result.to
     const sourcePath = result.from
+
+    // 转换为相对路径
+    targetPath = targetPath.replace(currentPath + '/', '')
 
     // 解析目标路径
     const pathParts = targetPath.split('/').filter(p => p)
-    let currentPath = ''
+    let currentTreePath = ''
 
     pathParts.forEach((part, index) => {
-      currentPath += '/' + part
-      if (!treeMap[currentPath]) {
-        treeMap[currentPath] = {
-          key: currentPath,
+      currentTreePath += '/' + part
+      if (!treeMap[currentTreePath]) {
+        treeMap[currentTreePath] = {
+          key: currentTreePath,
           title: part,
           children: [],
           isLeaf: index === pathParts.length - 1
         }
         if (index === pathParts.length - 1) {
-          treeMap[currentPath].title = `${part} (${sourcePath.split('/').pop()})`
+          treeMap[currentTreePath].title = `${part} (${sourcePath.split('/').pop()})`
         }
       }
     })
@@ -448,8 +451,8 @@ const ControlPanel: React.FC = () => {
             <>
               {previewResults.map((result: PreviewResultItem, index: number) => (
                 <div key={index} style={{ marginBottom: 8, fontSize: 12 }}>
-                  <div style={{ color: '#666' }}>从: {result.from}</div>
-                  <div style={{ color: '#1890ff' }}>到: {result.to}</div>
+                  <div style={{ color: '#666' }}>从: {result.from.replace(currentPath + '/', '')}</div>
+                  <div style={{ color: '#1890ff' }}>到: {result.to.replace(currentPath + '/', '')}</div>
                   {index < previewResults.length - 1 && <Divider style={{ margin: '8px 0' }} />}
                 </div>
               ))}
@@ -457,19 +460,19 @@ const ControlPanel: React.FC = () => {
           )}
           {previewViewMode === 'tree' && (
             <Tree
-              treeData={buildTreeData(previewResults)}
+              treeData={buildTreeData(previewResults, currentPath)}
               defaultExpandAll
             />
           )}
           {previewViewMode === 'grid' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
               {previewResults.map((result: PreviewResultItem, index: number) => (
                 <Card key={index} size="small" style={{ fontSize: 12 }}>
                   <div style={{ color: '#666', marginBottom: 4 }}>来源:</div>
-                  <div style={{ wordBreak: 'break-all', fontSize: 11 }}>{result.from}</div>
+                  <div style={{ wordBreak: 'break-all', fontSize: 11 }}>{result.from.replace(currentPath + '/', '')}</div>
                   <Divider style={{ margin: '8px 0' }} />
                   <div style={{ color: '#1890ff', marginBottom: 4 }}>目标:</div>
-                  <div style={{ wordBreak: 'break-all', fontSize: 11 }}>{result.to}</div>
+                  <div style={{ wordBreak: 'break-all', fontSize: 11 }}>{result.to.replace(currentPath + '/', '')}</div>
                 </Card>
               ))}
             </div>
