@@ -36,12 +36,9 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   // 确保 URL 不为空字符串时才传递给 useImageLoader
   const imageUrl = useMemo(() => {
     const url = currentImage?.url
-    if (url && url.trim() !== '' && url.startsWith('data:')) {
-      return url
-    }
-    // 如果 URL 格式不正确，记录警告
     if (url && url.trim() !== '') {
-      console.warn('[ImageViewer] 图片 URL 格式可能不正确:', url.substring(0, 50))
+      // 允许所有有效的 URL 格式，包括 http/https 和 data URL
+      return url
     }
     return null
   }, [currentImage?.url])

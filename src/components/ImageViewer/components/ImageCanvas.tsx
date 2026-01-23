@@ -2,7 +2,7 @@
  * 图片展示区域组件
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { ViewMode } from '../types'
 import { calculateFitScale, clamp } from '../utils/imageUtils'
 import './ImageCanvas.css'
@@ -64,9 +64,12 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
   }, [])
 
   // 计算适应屏幕的缩放比例
-  const fitScale = containerSize.width > 0 && containerSize.height > 0
-    ? calculateFitScale(imageWidth, imageHeight, containerSize.width, containerSize.height)
-    : 100
+  const fitScale = useMemo(() => {
+    if (containerSize.width > 0 && containerSize.height > 0 && imageWidth > 0 && imageHeight > 0) {
+      return calculateFitScale(imageWidth, imageHeight, containerSize.width, containerSize.height)
+    }
+    return 100
+  }, [containerSize.width, containerSize.height, imageWidth, imageHeight])
 
   // 根据视图模式调整缩放
   useEffect(() => {
@@ -196,15 +199,14 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
           src={imageUrl}
           alt="预览"
           className="image-canvas-img"
-          style={imageStyle}
-          draggable={false}
-          onLoad={() => {
-            // 图片加载成功后确保可见
-            if (imageRef.current) {
-              imageRef.current.style.opacity = '1'
-              imageRef.current.style.visibility = 'visible'
-            }
+          style={{ 
+            ...imageStyle,
+            // 确保图片在加载过程中不可见，加载完成后平滑显示
+            opacity: isLoading ? 0 : 1,
+            visibility: 'visible',
+            transition: isLoading ? 'none' : 'opacity 0.3s ease-out'
           }}
+          draggable={false}
           onError={(e) => {
             console.error('图片加载失败:', imageUrl.substring(0, 50) + '...')
             // 错误处理由 useImageLoader 统一管理

@@ -70,7 +70,14 @@ function extractColorsByClustering(
   pixels: { r: number; g: number; b: number }[],
   k: number
 ): ColorInfo[] {
-  if (pixels.length === 0) return []
+  if (pixels.length === 0) {
+    // 如果没有像素，返回默认颜色
+    return Array.from({ length: k }, (_, i) => ({
+      hex: ['#ffffff', '#000000', '#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff'][i % 8],
+      rgb: { r: 255, g: 255, b: 255 },
+      percentage: 100 / k
+    }))
+  }
   
   // 简化版：使用颜色直方图方法
   // 将颜色空间划分为若干区域，统计每个区域的颜色数量
@@ -97,7 +104,7 @@ function extractColorsByClustering(
   })
   
   // 按数量排序，取前k个
-  const sortedBuckets = Array.from(buckets.entries())
+  let sortedBuckets = Array.from(buckets.entries())
     .map(([key, value]) => ({
       key,
       r: Math.round(value.r / value.count),
@@ -109,6 +116,27 @@ function extractColorsByClustering(
     .slice(0, k)
   
   const totalPixels = pixels.length
+  
+  // 如果提取的颜色数量不足k个，补充一些颜色
+  if (sortedBuckets.length < k) {
+    // 复制现有颜色或生成一些变化的颜色
+    const baseColors = [...sortedBuckets]
+    while (sortedBuckets.length < k) {
+      // 从已有颜色中随机选择并生成类似的颜色
+      const randomColor = baseColors[Math.floor(Math.random() * baseColors.length)]
+      const variation = 20 // 颜色变化幅度
+      
+      // 生成一个略有不同的颜色
+      const newColor = {
+        ...randomColor,
+        r: Math.max(0, Math.min(255, randomColor.r + (Math.random() * variation * 2 - variation))),
+        g: Math.max(0, Math.min(255, randomColor.g + (Math.random() * variation * 2 - variation))),
+        b: Math.max(0, Math.min(255, randomColor.b + (Math.random() * variation * 2 - variation)))
+      }
+      
+      sortedBuckets.push(newColor)
+    }
+  }
   
   return sortedBuckets.map(bucket => ({
     hex: rgbToHex(bucket.r, bucket.g, bucket.b),
