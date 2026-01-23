@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Table, Card, Tag, Space, Empty, Modal, Input, message, Button, AutoComplete, Checkbox } from 'antd'
+import { Table, Card, Switch, Tag, Space, Empty, Modal, Input, message, Button, AutoComplete, Checkbox } from 'antd'
 import { Button as AntButton } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -25,6 +25,9 @@ import ImageViewer from './ImageViewer'
 import type { Image } from './ImageViewer'
 
 const FileList: React.FC = () => {
+  // 图片大小限制：50MB
+  const MAX_IMAGE_SIZE = 50 * 1024 * 1024 // 52428800 bytes
+  
   const { fileList, loading, currentPath } = useFileStore()
   const { loadDirectory } = useFileSystem()
   const [renameModalVisible, setRenameModalVisible] = useState(false)
@@ -183,29 +186,38 @@ const FileList: React.FC = () => {
           const filePath = imagesToLoad[i]
 
           try {
-            // 先加载低质量的模糊占位符
-            const lowQuality = await window.electronAPI?.getImageThumbnail(filePath, 20, 20)
-            if (lowQuality && lowQuality.trim() !== '' && mounted) {
-              setImagePreviews(prev => {
-                const m = new Map(prev)
-                m.set(filePath, { thumbnail: '', full: lowQuality })
-                return m
-              })
+            // 检查文件大小，只对小于等于50MB的图片生成缩略图
+            const file = fileList.find(f => f.path === filePath)
+            if (file && file.size > MAX_IMAGE_SIZE) {
+              console.log(`跳过大于50MB的图片缩略图生成: ${filePath}`)
+              // 即使大于50MB，也要从loadingImages中移除
+              if (mounted) {
+                setLoadingImages(prev => {
+                  const newSet = new Set(prev)
+                  newSet.delete(filePath)
+                  return newSet
+                })
+              }
+              continue
             }
-
-            // 然后加载高质量缩略图
-            const highQuality = await window.electronAPI?.getImageThumbnail(filePath, 100, 80)
-            if (highQuality && highQuality.trim() !== '' && mounted) {
+            
+            // 对于小于等于50MB的图片，使用sharp生成最低质量的缩略图用于预览
+            // 确保所有不超过50MB的图片都尝试加载预览
+            console.log(`[FileList] 正在加载预览图片: ${filePath} (${file ? (file.size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小'})`)
+            const thumbnail = await window.electronAPI?.getImageThumbnail(filePath, 100, 1) // 使用最低质量(1)
+            if (thumbnail && thumbnail.trim() !== '' && mounted) {
               setImagePreviews(prev => {
                 const m = new Map(prev)
-                const current = m.get(filePath) || { thumbnail: '', full: '' }
-                m.set(filePath, { ...current, thumbnail: highQuality })
+                m.set(filePath, { thumbnail, full: thumbnail })
                 return m
               })
+              console.log(`[FileList] 预览图片加载成功: ${filePath}`)
+            } else if (mounted && file && file.size <= MAX_IMAGE_SIZE) {
+              // 如果加载失败但文件大小在限制内，记录警告但不阻止后续尝试
+              console.warn(`[FileList] 图片缩略图加载失败，但文件大小在限制内: ${filePath} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
             }
           } catch (error) {
             console.error('加载图片缩略图失败:', filePath, error)
-            // 加载失败时，从 loadingImages 中移除，但不设置预览数据
           } finally {
             if (mounted) {
               setLoadingImages(prev => {
@@ -217,7 +229,7 @@ const FileList: React.FC = () => {
           }
 
           // 小延迟，给渲染线程喘息
-          await new Promise(res => setTimeout(res, 20))
+          await new Promise(res => setTimeout(res, 2000))
         }
       }
 
@@ -238,7 +250,7 @@ const FileList: React.FC = () => {
     return () => {
       mounted = false
     }
-  }, [visibleImages, previewEnabled, imagePreviews, loadingImages])
+  }, [visibleImages, previewEnabled, imagePreviews, loadingImages, fileList])
 
   // 判断文件是否可预览
   const isPreviewable = (file: FileInfo): boolean => {
@@ -253,7 +265,7 @@ const FileList: React.FC = () => {
     // 获取图片尺寸 - 优先从 electron 端获取，失败则从前端加载图片获取
     let width = 0
     let height = 0
-    
+
     // 首先尝试从 electron 端获取尺寸（更准确）
     try {
       const dimensions = await window.electronAPI?.getImageDimensions(file.path)
@@ -273,7 +285,7 @@ const FileList: React.FC = () => {
           const timeout = setTimeout(() => {
             reject(new Error('加载超时'))
           }, 10000)
-          
+
           img.onload = () => {
             clearTimeout(timeout)
             width = img.naturalWidth || img.width || 0
@@ -284,7 +296,7 @@ const FileList: React.FC = () => {
               reject(new Error('无法获取图片尺寸'))
             }
           }
-          
+
           img.onerror = () => {
             clearTimeout(timeout)
             reject(new Error('图片加载失败'))
@@ -315,12 +327,18 @@ const FileList: React.FC = () => {
 
   // 预览文件
   const handlePreview = async (file: FileInfo) => {
+    // 检查文件大小，超过50MB的图片不进行预览
+    if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(file.name).toLowerCase()) && file.size > MAX_IMAGE_SIZE) {
+      message.info('图片大小超过50MB，不支持预览')
+      return
+    }
+    
     // 在应用内弹出模态预览，并支持上一张/下一张
     const files = fileList.filter(f => !f.isDirectory && isPreviewable(f) && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(f.name).toLowerCase()))
     const index = files.findIndex(f => f.path === file.path)
     if (index >= 0) {
       setPreviewableFiles(files)
-      
+
       // 构建初始图片列表（使用占位符）
       const initialImages: Image[] = files.map((f) => ({
         id: f.path,
@@ -335,7 +353,7 @@ const FileList: React.FC = () => {
         description: '',
         tags: []
       }))
-      
+
       setPreviewImages(initialImages)
       setPreviewIndex(index)
       setPreviewModalVisible(true)
@@ -353,9 +371,15 @@ const FileList: React.FC = () => {
   // 加载图片数据（异步）
   const loadImageForPreview = async (index: number, filePath: string) => {
     try {
+      const file = previewableFiles[index]
+      // 检查文件大小，超过50MB的图片不加载原图
+      if (file && file.size > MAX_IMAGE_SIZE) {
+        console.log(`跳过大于50MB的图片加载: ${file.name}`)
+        return
+      }
+      
       const highResB64 = await window.electronAPI?.getImageBase64(filePath)
       if (highResB64 && highResB64.trim() !== '') {
-        const file = previewableFiles[index]
         if (file) {
           console.log(`[FileList] 加载图片 ${index}: ${file.name}, URL长度: ${highResB64.length}`)
           const image = await convertFileToImage(file, highResB64)
@@ -371,7 +395,6 @@ const FileList: React.FC = () => {
         // 如果加载失败，尝试使用缩略图
         const previewData = imagePreviews.get(filePath)
         if (previewData?.thumbnail) {
-          const file = previewableFiles[index]
           if (file) {
             console.log(`[FileList] 使用缩略图: ${file.name}`)
             const image = await convertFileToImage(file, previewData.thumbnail)
@@ -664,6 +687,9 @@ const FileList: React.FC = () => {
       width: '10%',
       render: (_: any, record: FileInfo) => {
         if (isPreviewable(record)) {
+          const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(record.name).toLowerCase())
+          // 只有超过50MB的图片才显示占位符，小于等于50MB的都应该尝试显示预览
+          const isLargeImage = isImage && record.size > MAX_IMAGE_SIZE
           const previewData = imagePreviews.get(record.path)
           const isLoading = loadingImages.has(record.path)
 
@@ -701,7 +727,23 @@ const FileList: React.FC = () => {
               style={{ width: 50, height: 50, borderRadius: 4, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}
               onClick={() => handlePreview(record)}
             >
-              {isLoading ? (
+              {isLargeImage ? (
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#f0f0f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  color: '#999',
+                  textAlign: 'center',
+                  padding: '4px'
+                }}>
+                  <div>大图片</div>
+                  <div style={{ fontSize: '10px' }}>超过50MB</div>
+                </div>
+              ) : isLoading ? (
                 <div style={{
                   width: '100%',
                   height: '100%',
@@ -714,29 +756,28 @@ const FileList: React.FC = () => {
                 </div>
               ) : previewData && (previewData.thumbnail || previewData.full) ? (
                 <img
-                  src={previewData.thumbnail || previewData.full}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    filter: previewData.thumbnail ? 'none' : 'blur(2px)', // 模糊占位符
-                    transition: 'filter 0.3s ease'
-                  }}
-                  alt="preview"
-                  onError={(e) => {
-                    // 图片加载失败时，隐藏图片，显示占位符
-                    const target = e.target as HTMLImageElement
-                    target.style.display = 'none'
-                    const parent = target.parentElement
-                    if (parent && !parent.querySelector('.error-placeholder')) {
-                      const placeholder = document.createElement('div')
-                      placeholder.className = 'error-placeholder'
-                      placeholder.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;'
-                      placeholder.innerHTML = '<span style="font-size: 20px; color: #ccc;">📷</span>'
-                      parent.appendChild(placeholder)
-                    }
-                  }}
-                />
+                    src={previewData.thumbnail || previewData.full}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      transition: 'opacity 0.3s ease'
+                    }}
+                    alt="preview"
+                    onError={(e) => {
+                      // 图片加载失败时，隐藏图片，显示占位符
+                      const target = e.target as HTMLImageElement
+                      target.style.display = 'none'
+                      const parent = target.parentElement
+                      if (parent && !parent.querySelector('.error-placeholder')) {
+                        const placeholder = document.createElement('div')
+                        placeholder.className = 'error-placeholder'
+                        placeholder.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;'
+                        placeholder.innerHTML = '<span style="font-size: 20px; color: #ccc;">📷</span>'
+                        parent.appendChild(placeholder)
+                      }
+                    }}
+                  />
               ) : (
                 <div style={{
                   width: '100%',
@@ -886,7 +927,14 @@ const FileList: React.FC = () => {
             </span>
           </Space>
           <Space size="middle">
-            <Button
+            <Switch
+              checkedChildren="网格"
+              unCheckedChildren="列表"
+              checked={viewMode === 'grid'}
+              onChange={(checked: boolean) => setViewMode(checked ? 'grid' : 'list')}
+              title={viewMode === 'list' ? '切换到网格视图' : '切换到列表视图'}
+            />
+            {/* <Button
               type={viewMode === 'list' ? 'primary' : 'default'}
               size="small"
               onClick={() => setViewMode('list')}
@@ -901,7 +949,7 @@ const FileList: React.FC = () => {
               style={{ transition: 'all 0.3s ease' }}
             >
               网格视图
-            </Button>
+            </Button> */}
           </Space>
         </div>
       }
@@ -984,8 +1032,8 @@ const FileList: React.FC = () => {
                 opacity: 1
               }}
               onClick={(e) => {
-                if (!(e.target as HTMLElement).closest('.ant-checkbox-wrapper') && 
-                    !(e.target as HTMLElement).closest('[data-preview-area]')) {
+                if (!(e.target as HTMLElement).closest('.ant-checkbox-wrapper') &&
+                  !(e.target as HTMLElement).closest('[data-preview-area]')) {
                   if (!file.isDirectory && isPreviewable(file)) {
                     handlePreview(file)
                   }
@@ -1074,8 +1122,33 @@ const FileList: React.FC = () => {
                 {isPreviewable(file) ? (
                   <>
                     {(() => {
+                      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(file.name).toLowerCase())
+                      // 只有超过50MB的图片才显示占位符，小于等于50MB的都应该尝试显示预览
+                      const isLargeImage = isImage && file.size > MAX_IMAGE_SIZE
                       const previewData = imagePreviews.get(file.path)
                       const isLoading = loadingImages.has(file.path)
+
+                      if (isLargeImage) {
+                        return (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            backgroundColor: '#f0f0f0',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '14px',
+                            color: '#999',
+                            textAlign: 'center',
+                            padding: '8px'
+                          }}>
+                            <PictureOutlined style={{ fontSize: '32px', color: '#ccc', marginBottom: '8px' }} />
+                            <div>大图片</div>
+                            <div style={{ fontSize: '12px' }}>超过50MB</div>
+                          </div>
+                        )
+                      }
 
                       if (isLoading) {
                         return <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
@@ -1089,8 +1162,7 @@ const FileList: React.FC = () => {
                               width: '100%',
                               height: '100%',
                               objectFit: 'cover',
-                              filter: previewData.thumbnail ? 'none' : 'blur(2px)',
-                              transition: 'filter 0.3s ease'
+                              transition: 'opacity 0.3s ease'
                             }}
                             alt={file.name}
                             onError={(e) => {

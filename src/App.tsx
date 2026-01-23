@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Layout, Alert, Tabs } from 'antd'
+import { Layout, Alert } from 'antd'
 import FileTree from './components/FileTree'
 import FileList from './components/FileList'
 import ControlPanel from './components/ControlPanel'
@@ -35,7 +35,7 @@ const App: React.FC = () => {
 
   return (
     <Layout className="app-layout">
-      <AppHeader />
+      <AppHeader activeTab={activeTab} onTabChange={setActiveTab} />
       {electronAPIStatus === 'unavailable' && (
         <Alert
           message="Electron API 未初始化"
@@ -47,38 +47,24 @@ const App: React.FC = () => {
         />
       )}
       <Content className="app-content">
-        <Tabs
-          activeKey={activeTab}
-          onChange={setActiveTab}
-          items={[
-            {
-              key: 'organize',
-              label: '文件整理',
-              children: (
-                <div className="app-main">
-                  <div className="app-sidebar">
-                    <FileTree />
-                  </div>
-                  <div className="app-center">
-                    <FileList />
-                  </div>
-                  <div className="app-panel">
-                    <ControlPanel />
-                  </div>
-                </div>
-              )
-            },
-            {
-              key: 'similarity',
-              label: '相似照片检测',
-              children: (
-                <div style={{ padding: '2px', height: '700px', overflow: 'auto' }}>
-                  <SimilarityDetection />
-                </div>
-              )
-            }
-          ]}
-        />
+        {activeTab === 'organize' && (
+          <div className="app-main">
+            <div className="app-sidebar">
+              <FileTree />
+            </div>
+            <div className="app-center">
+              <FileList />
+            </div>
+            <div className="app-panel">
+              <ControlPanel />
+            </div>
+          </div>
+        )}
+        {activeTab === 'similarity' && (
+          <div style={{ padding: '2px', height: '100%', overflow: 'scroll' }}>
+            <SimilarityDetection />
+          </div>
+        )}
       </Content>
     </Layout>
   )

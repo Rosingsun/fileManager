@@ -717,28 +717,113 @@ ipcMain.handle('file:getImageDimensions', async (_event, filePath: string): Prom
   }
 })
 
-// IPC 处理器：获取图片缩略图base64用于预览
-ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 80): Promise<string> => {
+// IPC 处理器：获取图片缩略图base64用于预览（使用sharp，最低质量压缩）
+ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 1): Promise<string> => {
   try {
-    // 使用Sharp生成缩略图
-    const buffer = await sharp(filePath)
+    // 获取文件大小，确保只处理50MB及以下的图片（包括50MB）
+    const stats = await stat(filePath)
+    const MAX_THUMBNAIL_SIZE = 50 * 1024 * 1024 // 50MB
+    
+    // 只有超过50MB的图片才跳过，小于等于50MB的都应该处理
+    if (stats.size > MAX_THUMBNAIL_SIZE) {
+      console.warn(`[Main] 跳过大于50MB的图片缩略图生成: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`)
+      return ''
+    }
+    
+    const mimeType = getMimeType(filePath)
+    const isPng = mimeType === 'image/png'||mimeType === 'image/jpeg'||mimeType === 'image/jpg'
+    const isWebp = mimeType === 'image/webp'
+    const isGif = mimeType === 'image/gif'
+    const isBmp = mimeType === 'image/bmp'
+    const isSvg = mimeType === 'image/svg+xml'
+    
+    // 使用Sharp生成缩略图，使用最低质量压缩以减小体积
+    // 强制使用最低质量（quality = 1）用于列表预览
+    const MIN_QUALITY = 1
+    const sharpInstance = sharp(filePath)
       .resize(size, size, {
         fit: 'cover',
         position: 'center'
       })
-      .jpeg({ quality }) // 统一转换为JPEG格式
-      .toBuffer()
+    
+    let buffer: Buffer
+    
+    // 针对不同图片格式进行优化处理，统一使用最低质量
+    if (isPng) {
+      // PNG格式转换为JPEG以减小体积（PNG不支持质量参数，转换为JPEG）
+      buffer = await sharpInstance.jpeg({
+        quality: MIN_QUALITY,
+        progressive: false,
+        chromaSubsampling: '4:2:0'
+      }).toBuffer()
+    } else if (isWebp) {
+      // WebP格式使用最低质量
+      buffer = await sharpInstance.webp({
+        quality: MIN_QUALITY,
+        lossless: false
+      }).toBuffer()
+    } else if (isGif) {
+      // 对于GIF，使用Sharp生成静态缩略图（保留第一帧），使用最低质量
+      buffer = await sharpInstance.jpeg({ 
+        quality: MIN_QUALITY,
+        progressive: false,
+        chromaSubsampling: '4:2:0'
+      }).toBuffer()
+    } else if (isBmp) {
+      // BMP格式转换为JPEG以减小体积，使用最低质量
+      buffer = await sharpInstance.jpeg({ 
+        quality: MIN_QUALITY,
+        progressive: false,
+        chromaSubsampling: '4:2:0'
+      }).toBuffer()
+    } else if (isSvg) {
+      // SVG格式转换为JPEG以减小体积，使用最低质量
+      buffer = await sharpInstance.jpeg({ 
+        quality: MIN_QUALITY,
+        progressive: false,
+        chromaSubsampling: '4:2:0'
+      }).toBuffer()
+    } else {
+      // 默认使用JPEG，适用于JPEG等格式，使用最低质量
+      buffer = await sharpInstance.jpeg({
+        quality: MIN_QUALITY,
+        progressive: false,
+        chromaSubsampling: '4:2:0'
+      }).toBuffer()
+    }
     
     const base64 = buffer.toString('base64')
+    // 统一输出为JPEG格式以减小体积
     return `data:image/jpeg;base64,${base64}`
   } catch (error) {
     console.error('[Main] 生成图片缩略图失败:', error)
-    // 回退到原方法
+    // 优化回退方法：尝试使用更低质量或更小尺寸
     try {
-      const buffer = await fs.readFile(filePath)
-      const mimeType = getMimeType(filePath)
+      // 检查文件大小，确保只处理50MB及以下的图片
+      const stats = await stat(filePath)
+      const MAX_THUMBNAIL_SIZE = 50 * 1024 * 1024 // 50MB
+      
+      // 只有超过50MB的图片才跳过，小于等于50MB的都应该尝试处理
+      if (stats.size > MAX_THUMBNAIL_SIZE) {
+        console.warn(`[Main] 回退方法：跳过大于50MB的图片: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`)
+        return ''
+      }
+      
+      // 尝试使用最低质量和更小尺寸重新生成
+      const sharpInstance = sharp(filePath)
+        .resize(50, 50, { // 使用更小的尺寸
+          fit: 'cover',
+          position: 'center'
+        })
+        .jpeg({ 
+          quality: 1, // 使用最低质量
+          progressive: false,
+          chromaSubsampling: '4:2:0'
+        })
+      
+      const buffer = await sharpInstance.toBuffer()
       const base64 = buffer.toString('base64')
-      return `data:${mimeType};base64,${base64}`
+      return `data:image/jpeg;base64,${base64}`
     } catch (fallbackError) {
       console.error('[Main] 回退方法也失败:', fallbackError)
       return ''

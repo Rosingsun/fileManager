@@ -9,8 +9,45 @@
   padding: 0 24px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   height: 64px;
   flex-shrink: 0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-tabs {
+  margin-left: auto;
+  background: transparent;
+  border-bottom: none;
+}
+
+.header-tabs .ant-tabs-nav {
+  background: transparent;
+}
+
+.header-tabs .ant-tabs-tab {
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 500;
+}
+
+.header-tabs .ant-tabs-tab:hover {
+  color: #fff;
+}
+
+.header-tabs .ant-tabs-tab-active {
+  color: #fff;
+}
+
+.header-tabs .ant-tabs-ink-bar {
+  background: #1890ff;
+}
+
+.header-tabs .ant-tabs-nav::before {
+  display: none;
 }
 
 .app-content {

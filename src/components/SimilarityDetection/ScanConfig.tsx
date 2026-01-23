@@ -90,13 +90,13 @@ const ScanConfig: React.FC<ScanConfigProps> = ({ onStart }) => {
                 name="includeSubdirectories"
                 valuePropName="checked"
                 className="include-subdirs-item"
-                labelCol={{ span: 8 }}
+                labelCol={{ span: 24 }}
                 wrapperCol={{ span: 16 }}
               >
                 <Switch checkedChildren="是" unCheckedChildren="否" />
               </Form.Item>
             </div>
-            
+
             <div className="size-filters-row">
               <div className="size-filter-item">
                 <Form.Item
@@ -208,19 +208,19 @@ const ScanConfig: React.FC<ScanConfigProps> = ({ onStart }) => {
 
       <Form.Item className="submit-btn-item">
         <Space style={{ width: '100%' }}>
-          <Button 
-            type="primary" 
-            htmlType="submit" 
-            size="large" 
-            block 
+          <Button
+            type="primary"
+            htmlType="submit"
+            size="large"
+            block
             className="start-scan-btn"
           >
             开始扫描
           </Button>
-          <Button 
-            type="default" 
-            size="large" 
-            block 
+          <Button
+            type="default"
+            size="large"
+            block
             icon={<EyeOutlined />}
             onClick={() => setPreviewVisible(true)}
           >

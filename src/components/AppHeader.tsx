@@ -1,19 +1,40 @@
 import React from 'react'
-import { Layout, Typography, Space } from 'antd'
+import { Layout, Typography, Space, Tabs } from 'antd'
 import { FolderOpenOutlined } from '@ant-design/icons'
 
 const { Header } = Layout
 const { Title } = Typography
+const { TabPane } = Tabs
 
-const AppHeader: React.FC = () => {
+interface AppHeaderProps {
+  activeTab: string
+  onTabChange: (key: string) => void
+}
+
+const AppHeader: React.FC<AppHeaderProps> = ({ activeTab, onTabChange }) => {
   return (
     <Header className="app-header">
-      <Space>
-        <FolderOpenOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+      <Space className="header-left">
+        <FolderOpenOutlined style={{ fontSize: 24, color: '#fff' }} />
         <Title level={4} style={{ margin: 0, color: '#fff' }}>
           文件整理工具 v1.0
         </Title>
       </Space>
+      <Tabs
+        activeKey={activeTab}
+        onChange={onTabChange}
+        className="header-tabs"
+        items={[
+          {
+            key: 'organize',
+            label: '文件整理',
+          },
+          {
+            key: 'similarity',
+            label: '相似照片检测',
+          },
+        ]}
+      />
     </Header>
   )
 }
