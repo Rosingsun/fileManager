@@ -76,6 +76,24 @@ const FileList: React.FC = () => {
     imageRefs.current.clear()
   }, [currentPath])
 
+  // 当文件列表或 observer 变化时，重新观察所有已注册的元素
+  useEffect(() => {
+    if (!previewEnabled || !observerRef.current) return
+
+    // 延迟执行，确保DOM已渲染
+    const timer = setTimeout(() => {
+      if (observerRef.current) {
+        imageRefs.current.forEach((element) => {
+          if (element && observerRef.current) {
+            observerRef.current.observe(element)
+          }
+        })
+      }
+    }, 50)
+
+    return () => clearTimeout(timer)
+  }, [fileList, previewEnabled])
+
   // 加载图片预览（懒加载版本）
   useEffect(() => {
     if (!previewEnabled) {
@@ -115,9 +133,29 @@ const FileList: React.FC = () => {
 
     // 清理之前的观察
     imageRefs.current.forEach((element) => {
-      observer.unobserve(element)
+      if (element) {
+        observer.unobserve(element)
+      }
     })
     imageRefs.current.clear()
+
+    // 延迟观察已存在的元素，确保DOM已渲染
+    // 使用 requestAnimationFrame 确保在下一帧执行
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (observerRef.current) {
+          imageRefs.current.forEach((element) => {
+            if (element && observerRef.current) {
+              try {
+                observerRef.current.observe(element)
+              } catch (error) {
+                console.warn('观察元素失败:', error)
+              }
+            }
+          })
+        }
+      }, 100)
+    })
 
     return () => {
       observer.disconnect()
@@ -154,7 +192,7 @@ const FileList: React.FC = () => {
           try {
             // 先加载低质量的模糊占位符
             const lowQuality = await window.electronAPI?.getImageThumbnail(filePath, 20, 20)
-            if (lowQuality && mounted) {
+            if (lowQuality && lowQuality.trim() !== '' && mounted) {
               setImagePreviews(prev => {
                 const m = new Map(prev)
                 m.set(filePath, { thumbnail: '', full: lowQuality })
@@ -164,7 +202,7 @@ const FileList: React.FC = () => {
 
             // 然后加载高质量缩略图
             const highQuality = await window.electronAPI?.getImageThumbnail(filePath, 100, 80)
-            if (highQuality && mounted) {
+            if (highQuality && highQuality.trim() !== '' && mounted) {
               setImagePreviews(prev => {
                 const m = new Map(prev)
                 const current = m.get(filePath) || { thumbnail: '', full: '' }
@@ -174,6 +212,7 @@ const FileList: React.FC = () => {
             }
           } catch (error) {
             console.error('加载图片缩略图失败:', filePath, error)
+            // 加载失败时，从 loadingImages 中移除，但不设置预览数据
           } finally {
             if (mounted) {
               setLoadingImages(prev => {
@@ -634,10 +673,32 @@ const FileList: React.FC = () => {
           return (
             <div
               ref={(el) => {
-                if (el && observerRef.current) {
+                if (el) {
                   el.dataset.filePath = record.path
                   imageRefs.current.set(record.path, el)
-                  observerRef.current.observe(el)
+                  // 如果 observer 已存在，立即观察；否则等待 observer 创建后再观察
+                  if (observerRef.current) {
+                    observerRef.current.observe(el)
+                  } else {
+                    // 延迟观察，确保 observer 已创建
+                    setTimeout(() => {
+                      if (observerRef.current && imageRefs.current.has(record.path)) {
+                        const element = imageRefs.current.get(record.path)
+                        if (element) {
+                          observerRef.current.observe(element)
+                        }
+                      }
+                    }, 100)
+                  }
+                } else {
+                  // 元素被卸载时，清理引用
+                  imageRefs.current.delete(record.path)
+                  if (observerRef.current) {
+                    const element = imageRefs.current.get(record.path)
+                    if (element) {
+                      observerRef.current.unobserve(element)
+                    }
+                  }
                 }
               }}
               style={{ width: 50, height: 50, borderRadius: 4, overflow: 'hidden', cursor: 'pointer', position: 'relative' }}
@@ -654,7 +715,7 @@ const FileList: React.FC = () => {
                 }}>
                   <PictureOutlined style={{ color: '#ccc' }} />
                 </div>
-              ) : previewData ? (
+              ) : previewData && (previewData.thumbnail || previewData.full) ? (
                 <img
                   src={previewData.thumbnail || previewData.full}
                   style={{
@@ -665,6 +726,19 @@ const FileList: React.FC = () => {
                     transition: 'filter 0.3s ease'
                   }}
                   alt="preview"
+                  onError={(e) => {
+                    // 图片加载失败时，隐藏图片，显示占位符
+                    const target = e.target as HTMLImageElement
+                    target.style.display = 'none'
+                    const parent = target.parentElement
+                    if (parent && !parent.querySelector('.error-placeholder')) {
+                      const placeholder = document.createElement('div')
+                      placeholder.className = 'error-placeholder'
+                      placeholder.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;'
+                      placeholder.innerHTML = '<span style="font-size: 20px; color: #ccc;">📷</span>'
+                      parent.appendChild(placeholder)
+                    }
+                  }}
                 />
               ) : (
                 <div style={{
@@ -868,7 +942,9 @@ const FileList: React.FC = () => {
               }}
               onClick={(e) => {
                 // 防止点击复选框时触发预览
-                if (!(e.target as HTMLElement).closest('.ant-checkbox-wrapper')) {
+                // 防止点击预览区域时重复触发（预览区域有自己的点击事件）
+                if (!(e.target as HTMLElement).closest('.ant-checkbox-wrapper') && 
+                    !(e.target as HTMLElement).closest('[data-preview-area]')) {
                   // 只有非文件夹且可预览的文件才执行预览操作
                   if (!file.isDirectory && isPreviewable(file)) {
                     handlePreview(file)
@@ -896,10 +972,39 @@ const FileList: React.FC = () => {
               {/* 图片预览区域 */}
               <div
                 ref={(el) => {
-                  if (el && observerRef.current) {
+                  if (el) {
                     el.dataset.filePath = file.path
                     imageRefs.current.set(file.path, el)
-                    observerRef.current.observe(el)
+                    // 如果 observer 已存在，立即观察；否则等待 observer 创建后再观察
+                    if (observerRef.current) {
+                      observerRef.current.observe(el)
+                    } else {
+                      // 延迟观察，确保 observer 已创建
+                      setTimeout(() => {
+                        if (observerRef.current && imageRefs.current.has(file.path)) {
+                          const element = imageRefs.current.get(file.path)
+                          if (element) {
+                            observerRef.current.observe(element)
+                          }
+                        }
+                      }, 100)
+                    }
+                  } else {
+                    // 元素被卸载时，清理引用
+                    imageRefs.current.delete(file.path)
+                    if (observerRef.current) {
+                      const element = imageRefs.current.get(file.path)
+                      if (element) {
+                        observerRef.current.unobserve(element)
+                      }
+                    }
+                  }
+                }}
+                data-preview-area="true"
+                onClick={(e) => {
+                  e.stopPropagation() // 阻止事件冒泡到外层div
+                  if (!file.isDirectory && isPreviewable(file)) {
+                    handlePreview(file)
                   }
                 }}
                 style={{
@@ -910,8 +1015,11 @@ const FileList: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: '#f5f5f5'
+                  backgroundColor: '#f5f5f5',
+                  cursor: !file.isDirectory && isPreviewable(file) ? 'pointer' : 'default',
+                  position: 'relative'
                 }}
+                title={!file.isDirectory && isPreviewable(file) ? '点击预览图片' : ''}
               >
                 {isPreviewable(file) ? (
                   <>
@@ -923,7 +1031,7 @@ const FileList: React.FC = () => {
                         return <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
                       }
 
-                      if (previewData) {
+                      if (previewData && (previewData.thumbnail || previewData.full)) {
                         return (
                           <img
                             src={previewData.thumbnail || previewData.full}
@@ -935,6 +1043,18 @@ const FileList: React.FC = () => {
                               transition: 'filter 0.3s ease'
                             }}
                             alt={file.name}
+                            onError={(e) => {
+                              // 图片加载失败时，隐藏图片，显示占位符
+                              const target = e.target as HTMLImageElement
+                              target.style.display = 'none'
+                              const parent = target.parentElement
+                              if (parent) {
+                                const placeholder = document.createElement('div')
+                                placeholder.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;'
+                                placeholder.innerHTML = '<span style="font-size: 32px; color: #ccc;">📷</span>'
+                                parent.appendChild(placeholder)
+                              }
+                            }}
                           />
                         )
                       }
@@ -1019,7 +1139,11 @@ const FileList: React.FC = () => {
           </Space>
         }
         open={previewModalVisible}
-        onCancel={() => { setPreviewModalVisible(false); setCurrentImageBase64(null) }}
+        onCancel={() => { 
+          setPreviewModalVisible(false)
+          setCurrentImageBase64(null)
+          handleResetAll() // 关闭时重置所有状态
+        }}
         footer={[
           <Space key="zoom-controls">
             <Button key="zoom-out" icon={<ZoomOutOutlined />} onClick={handleZoomOut} disabled={scale <= 20} title="缩小" />,
@@ -1035,7 +1159,11 @@ const FileList: React.FC = () => {
           <Space key="nav-controls" style={{ marginLeft: 'auto' }}>
             <Button key="prev" icon={<LeftOutlined />} onClick={handlePrev} disabled={previewIndex <= 0} title="上一张" />,
             <Button key="next" icon={<RightOutlined />} onClick={handleNext} disabled={previewIndex >= getPreviewablePaths().length - 1} title="下一张" />,
-            <Button key="close" onClick={() => { setPreviewModalVisible(false); setCurrentImageBase64(null) }}>关闭</Button>
+            <Button key="close" onClick={() => { 
+              setPreviewModalVisible(false)
+              setCurrentImageBase64(null)
+              handleResetAll() // 关闭时重置所有状态
+            }}>关闭</Button>
           </Space>
         ]}
         width="800px"

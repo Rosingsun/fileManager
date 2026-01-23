@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { Card, List, Button, Space, Typography, Progress, Checkbox, Modal, message, Statistic, Row, Col } from 'antd'
-import { DeleteOutlined, ReloadOutlined, CheckCircleOutlined } from '@ant-design/icons'
+import { DeleteOutlined, ReloadOutlined, CheckCircleOutlined, PictureOutlined } from '@ant-design/icons'
 import type { SimilarityScanResult, SimilarityScanConfig } from '../../types'
 import { formatFileSize, formatDateTime } from '../../utils/fileUtils'
 import './ScanResults.css'
@@ -241,27 +241,56 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
     <div className="scan-results">
       <Space direction="vertical" style={{ width: '100%' }} size="large">
         {/* 统计信息 */}
-        <Card>
-          <Row gutter={16}>
-            <Col span={6}>
-              <Statistic title="扫描照片数" value={result.totalImages} />
+        <Card className="stat-card" bordered={false}>
+          <Row gutter={[16, 16]}>
+            <Col xs={12} sm={12} md={6}>
+              <div className="stat-item">
+                <Statistic 
+                  title={<span className="stat-title">扫描照片数</span>} 
+                  value={result.totalImages} 
+                  valueStyle={{ color: '#1890ff', fontSize: '24px', fontWeight: '600' }}
+                />
+              </div>
             </Col>
-            <Col span={6}>
-              <Statistic title="相似组数" value={result.totalGroups} />
+            <Col xs={12} sm={12} md={6}>
+              <div className="stat-item">
+                <Statistic 
+                  title={<span className="stat-title">相似组数</span>} 
+                  value={result.totalGroups} 
+                  valueStyle={{ color: '#52c41a', fontSize: '24px', fontWeight: '600' }}
+                />
+              </div>
             </Col>
-            <Col span={6}>
-              <Statistic title="可释放空间" value={formatFileSize(calculateSpaceToSave())} />
+            <Col xs={12} sm={12} md={6}>
+              <div className="stat-item">
+                <Statistic 
+                  title={<span className="stat-title">可释放空间</span>} 
+                  value={formatFileSize(calculateSpaceToSave())} 
+                  valueStyle={{ color: '#faad14', fontSize: '24px', fontWeight: '600' }}
+                />
+              </div>
             </Col>
-            <Col span={6}>
-              <Statistic title="扫描耗时" value={`${(result.scanTime / 1000).toFixed(1)}秒`} />
+            <Col xs={12} sm={12} md={6}>
+              <div className="stat-item">
+                <Statistic 
+                  title={<span className="stat-title">扫描耗时</span>} 
+                  value={`${(result.scanTime / 1000).toFixed(1)}秒`} 
+                  valueStyle={{ color: '#722ed1', fontSize: '24px', fontWeight: '600' }}
+                />
+              </div>
             </Col>
           </Row>
         </Card>
 
         {/* 批量操作 */}
-        <Card>
-          <Space>
-            <Button icon={<CheckCircleOutlined />} onClick={handleMarkAllBest}>
+        <Card className="batch-actions-card" bordered={false}>
+          <div className="batch-actions">
+            <Button 
+              icon={<CheckCircleOutlined />} 
+              onClick={handleMarkAllBest}
+              className="batch-btn"
+              size="large"
+            >
               标记所有最佳照片
             </Button>
             <Button
@@ -269,43 +298,57 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
               danger
               onClick={handleDeleteSelected}
               disabled={selectedGroups.size === 0}
+              className="batch-btn delete-btn"
+              size="large"
             >
               删除选中组的非保留照片 ({selectedGroups.size} 组)
             </Button>
-            <Button icon={<ReloadOutlined />} onClick={onReset}>
+            <Button 
+              icon={<ReloadOutlined />} 
+              onClick={onReset}
+              className="batch-btn reset-btn"
+              size="large"
+            >
               重新扫描
             </Button>
-          </Space>
+          </div>
         </Card>
 
         {/* 分组列表 */}
-        <List
-          dataSource={result.groups}
-          renderItem={(group) => (
-            <List.Item>
+        <div className="groups-list">
+          {result.groups.map((group) => (
+            <div key={group.id} className="group-list-item">
               <Card
                 className={`similarity-group ${selectedGroups.has(group.id) ? 'selected' : ''}`}
+                bordered={false}
                 title={
-                  <Space>
-                    <Checkbox
-                      checked={selectedGroups.has(group.id)}
-                      onChange={() => handleGroupToggle(group.id)}
-                    />
-                    <Text strong>{group.id}</Text>
-                    <Text type="secondary">
-                      ({group.images.length} 张照片，相似度: {group.similarity}%)
-                    </Text>
-                  </Space>
+                  <div className="group-card-header">
+                    <div className="group-card-title">
+                      <Checkbox
+                        checked={selectedGroups.has(group.id)}
+                        onChange={() => handleGroupToggle(group.id)}
+                        className="group-checkbox"
+                      />
+                      <Text strong className="group-id">{group.id}</Text>
+                      <Text type="secondary" className="group-info">
+                        ({group.images.length} 张照片，相似度: {group.similarity}%)
+                      </Text>
+                    </div>
+                    <div className="group-similarity-indicator">
+                      <Progress
+                        type="circle"
+                        percent={group.similarity}
+                        size={40}
+                        format={() => `${group.similarity}%`}
+                        strokeColor={{
+                          '0%': '#ff4d4f',
+                          '50%': '#faad14',
+                          '100%': '#52c41a'
+                        }}
+                      />
+                    </div>
+                  </div>
                 }
-                extra={
-                  <Progress
-                    type="circle"
-                    percent={group.similarity}
-                    size={40}
-                    format={() => `${group.similarity}%`}
-                  />
-                }
-                style={{ width: '100%' }}
               >
                 <div className="group-images">
                   {group.images.map((img) => {
@@ -323,47 +366,49 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
                             onChange={() => handleImageToggle(group.id, img.filePath)}
                           />
                           {isRecommended && (
-                            <Text type="success" style={{ fontSize: 12, marginLeft: 8 }}>
+                            <div className="recommended-badge">
+                              <CheckCircleOutlined style={{ fontSize: 12, marginRight: 4 }} />
                               推荐保留
-                            </Text>
+                            </div>
                           )}
                         </div>
                         <div
                           className="image-thumbnail"
                           onClick={() => handlePreviewImage(img.filePath)}
+                          title="点击预览"
                         >
                           {getThumbnail(img.filePath) ? (
                             <img
                               src={getThumbnail(img.filePath)!}
                               alt={img.filePath}
+                              className="thumbnail-image"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><text>加载失败</text></svg>'
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="#999" font-size="14">加载失败</text></svg>'
                               }}
                             />
                           ) : (
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              justifyContent: 'center', 
-                              height: '100%',
-                              background: '#f0f0f0',
-                              color: '#999'
-                            }}>
-                              {loadingThumbnails.has(img.filePath) ? '加载中...' : '加载失败'}
+                            <div className="thumbnail-placeholder">
+                              {loadingThumbnails.has(img.filePath) ? (
+                                <div className="loading-spinner"></div>
+                              ) : (
+                                <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
+                              )}
                             </div>
                           )}
                         </div>
                         <div className="image-info">
-                          <Text strong style={{ display: 'block' }} title={img.filePath}>
+                          <Text strong className="file-name" title={img.filePath}>
                             {img.filePath.split(/[/\\]/).pop()}
                           </Text>
-                          <Text type="secondary" style={{ fontSize: 11, display: 'block', wordBreak: 'break-all' }} title={img.filePath}>
-                            {img.filePath}
-                          </Text>
-                          <Text type="secondary" style={{ fontSize: 12 }}>
-                            {img.width && img.height ? `${img.width}×${img.height}` : '未知尺寸'} | {formatFileSize(img.size)}
-                          </Text>
-                          <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                          <div className="file-meta">
+                            <Text type="secondary" className="file-size">
+                              {formatFileSize(img.size)}
+                            </Text>
+                            <Text type="secondary" className="file-dimensions">
+                              {img.width && img.height ? `${img.width}×${img.height}` : '未知尺寸'}
+                            </Text>
+                          </div>
+                          <Text type="secondary" className="file-time">
                             {formatDateTime(img.modifiedTime)}
                           </Text>
                         </div>
@@ -372,9 +417,9 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
                   })}
                 </div>
               </Card>
-            </List.Item>
-          )}
-        />
+            </div>
+          ))}
+        </div>
       </Space>
 
       {/* 图片预览模态框 */}
@@ -384,16 +429,20 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
         footer={null}
         width={900}
         centered
-        styles={{ body: { padding: 0 } }}
+        className="preview-modal"
+        styles={{
+          body: { padding: 0 },
+          content: { borderRadius: '16px', overflow: 'hidden' }
+        }}
       >
         {previewImage && (
-          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px', background: '#f0f0f0' }}>
+          <div className="preview-content">
             <img 
               src={previewImage} 
               alt="预览" 
-              style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain' }}
+              className="preview-image"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><text>加载失败</text></svg>'
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="#ff4d4f" font-size="18">图片加载失败</text></svg>'
               }}
             />
           </div>
