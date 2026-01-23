@@ -12,7 +12,7 @@ export interface ColorPaletteProps {
 }
 
 const ColorPalette: React.FC<ColorPaletteProps> = ({ imageUrl }) => {
-  const { colors, isLoading } = useColorExtractor(imageUrl, 4)
+  const { colors, isLoading } = useColorExtractor(imageUrl, 8)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
   const handleColorClick = async (hex: string, index: number) => {

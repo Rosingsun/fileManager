@@ -42,9 +42,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
     <div className="info-section">
       <h3 className="info-section-title">操作</h3>
       <div className="info-section-content">
-        {/* 导航控制 */}
+        {/* 分页控制 */}
         <div className="toolbar-group">
-          <div className="toolbar-label">导航</div>
+          <div className="toolbar-label">分页</div>
           <div className="toolbar-buttons">
             <button
               className="toolbar-btn"
@@ -52,9 +52,9 @@ const Toolbar: React.FC<ToolbarProps> = ({
               disabled={currentIndex <= 0}
               title="上一张 (←)"
             >
-              ← 上一张
+              ←
             </button>
-            <span className="toolbar-counter">
+            <span className="toolbar-counter toolbar-counter-wide">
               {currentIndex + 1} / {totalCount}
             </span>
             <button
@@ -63,7 +63,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
               disabled={currentIndex >= totalCount - 1}
               title="下一张 (→)"
             >
-              下一张 →
+              →
             </button>
           </div>
         </div>
@@ -75,30 +75,30 @@ const Toolbar: React.FC<ToolbarProps> = ({
             <button
               className="toolbar-btn"
               onClick={onRotate}
-              title="旋转 (R)"
+              title={`旋转 ${rotation}° (R)`}
             >
-              ↻ 旋转 ({rotation}°)
+              ↻
             </button>
             <button
               className="toolbar-btn"
               onClick={onFlipHorizontal}
               title="水平翻转"
             >
-              ⇄ 水平翻转
+              ⇄
             </button>
             <button
               className="toolbar-btn"
               onClick={onFlipVertical}
               title="垂直翻转"
             >
-              ⇅ 垂直翻转
+              ⇅
             </button>
             <button
               className="toolbar-btn"
               onClick={onReset}
               title="重置变换"
             >
-              ↺ 重置
+              ↺
             </button>
           </div>
         </div>
@@ -113,7 +113,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 onClick={onDownload}
                 title="下载原图"
               >
-                ⬇ 下载
+                ⬇
               </button>
             )}
             {onFavorite && (
@@ -122,7 +122,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 onClick={onFavorite}
                 title="设为收藏"
               >
-                ⭐ 收藏
+                ⭐
               </button>
             )}
             {onDelete && (
@@ -131,7 +131,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
                 onClick={onDelete}
                 title="删除图片"
               >
-                🗑 删除
+                🗑
               </button>
             )}
           </div>

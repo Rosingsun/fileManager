@@ -137,11 +137,10 @@
 
 /* 颜色面板样式 */
 .color-palette {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
-  flex-wrap: nowrap;
-  align-items: stretch;
+  max-width: 100%;
 }
 
 .color-item {
@@ -153,9 +152,8 @@
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
-  flex: 1;
-  min-width: 80px;
-  max-width: 120px;
+  min-width: 60px;
+  max-width: 100%;
 }
 
 .color-item:hover {
@@ -353,13 +351,12 @@
 }
 
 .toolbar-buttons {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
 }
 
 .toolbar-btn {
-  width: 100%;
   padding: 10px 16px;
   background-color: #F5F5F5;
   border: 1px solid #E0E0E0;
@@ -368,11 +365,13 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  text-align: left;
+  text-align: center;
   transition: all 0.25s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
   position: relative;
   overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .toolbar-btn::before {
@@ -450,6 +449,11 @@
   border: 1px solid #E0E0E0;
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  grid-column: span 2;
+}
+
+.toolbar-counter-wide {
+  grid-column: span 2;
 }
 
 /* EXIF信息区域样式 */
