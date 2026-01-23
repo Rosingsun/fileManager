@@ -1,0 +1,83 @@
+.scan-results {
+  width: 100%;
+}
+
+.similarity-group {
+  margin-bottom: 16px;
+  transition: all 0.3s;
+}
+
+.similarity-group.selected {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.group-images {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.image-item {
+  border: 2px solid #d9d9d9;
+  border-radius: 8px;
+  padding: 8px;
+  transition: all 0.3s;
+  background: #fff;
+}
+
+.image-item.kept {
+  border-color: #52c41a;
+  background: #f6ffed;
+}
+
+.image-item.to-delete {
+  border-color: #ff4d4f;
+  background: #fff2f0;
+  opacity: 0.7;
+}
+
+.image-item.recommended {
+  border-color: #1890ff;
+  box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+}
+
+.image-checkbox {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.image-thumbnail {
+  width: 100%;
+  height: 150px;
+  overflow: hidden;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
+.image-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.image-thumbnail:hover img {
+  transform: scale(1.05);
+}
+
+.image-info {
+  font-size: 12px;
+}
+
+.image-info .ant-typography {
+  margin-bottom: 4px;
+}
+

@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react'
-import { Layout, Alert } from 'antd'
+import { Layout, Alert, Tabs } from 'antd'
 import FileTree from './components/FileTree'
 import FileList from './components/FileList'
 import ControlPanel from './components/ControlPanel'
 import AppHeader from './components/AppHeader'
+import SimilarityDetection from './components/SimilarityDetection/SimilarityDetection'
 import './styles/App.css'
 
 const { Content } = Layout
 
 const App: React.FC = () => {
   const [electronAPIStatus, setElectronAPIStatus] = useState<'checking' | 'available' | 'unavailable'>('checking')
+  const [activeTab, setActiveTab] = useState<string>('organize')
 
   useEffect(() => {
     const checkElectronAPI = () => {
@@ -45,17 +47,38 @@ const App: React.FC = () => {
         />
       )}
       <Content className="app-content">
-        <div className="app-main">
-          <div className="app-sidebar">
-            <FileTree />
-          </div>
-          <div className="app-center">
-            <FileList />
-          </div>
-          <div className="app-panel">
-            <ControlPanel />
-          </div>
-        </div>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              key: 'organize',
+              label: '文件整理',
+              children: (
+                <div className="app-main">
+                  <div className="app-sidebar">
+                    <FileTree />
+                  </div>
+                  <div className="app-center">
+                    <FileList />
+                  </div>
+                  <div className="app-panel">
+                    <ControlPanel />
+                  </div>
+                </div>
+              )
+            },
+            {
+              key: 'similarity',
+              label: '相似照片检测',
+              children: (
+                <div style={{ padding: '2px', height: '700px', overflow: 'auto' }}>
+                  <SimilarityDetection />
+                </div>
+              )
+            }
+          ]}
+        />
       </Content>
     </Layout>
   )

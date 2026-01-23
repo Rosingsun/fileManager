@@ -4,7 +4,8 @@ import { mkdirSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
 import sharp from 'sharp'
-import type { OrganizeConfig, FileInfo } from '../../src/types'
+import crypto from 'crypto'
+import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanProgress, SimilarityScanResult } from '../../src/types'
 
 const { readdir, stat, mkdir, move, existsSync } = fs
 
@@ -726,5 +727,302 @@ ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: 
       return ''
     }
   }
+})
+
+// ==================== 相似照片检测功能 ====================
+
+// 支持的图片格式
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif']
+
+// 计算文件MD5哈希
+function calculateFileHash(fileBuffer: Buffer): string {
+  return crypto.createHash('md5').update(fileBuffer).digest('hex')
+}
+
+// 计算感知哈希（pHash）
+async function calculatePerceptualHash(imageBuffer: Buffer): Promise<string> {
+  try {
+    const resized = await sharp(imageBuffer)
+      .resize(8, 8, { fit: 'fill' })
+      .greyscale()
+      .raw()
+      .toBuffer()
+
+    let sum = 0
+    for (let i = 0; i < resized.length; i++) {
+      sum += resized[i]
+    }
+    const average = sum / resized.length
+
+    let hash = ''
+    for (let i = 0; i < resized.length; i++) {
+      hash += resized[i] > average ? '1' : '0'
+    }
+
+    return hash
+  } catch (error) {
+    console.error('[Main] 计算感知哈希失败:', error)
+    return ''
+  }
+}
+
+// 计算两个哈希值的相似度
+function calculateSimilarity(hash1: string, hash2: string): number {
+  if (hash1.length !== hash2.length) return 0
+
+  let differences = 0
+  for (let i = 0; i < hash1.length; i++) {
+    if (hash1[i] !== hash2[i]) differences++
+  }
+
+  return Math.round(((hash1.length - differences) / hash1.length) * 10000) / 100
+}
+
+// 推荐保留的照片
+function recommendKeepImage(images: ImageHash[]): string {
+  if (images.length === 0) return ''
+  if (images.length === 1) return images[0].filePath
+
+  const scores = images.map(img => {
+    let score = 0
+    if (img.width && img.height) {
+      const pixels = img.width * img.height
+      const maxPixels = Math.max(...images.map(i => (i.width || 0) * (i.height || 0)))
+      score += (pixels / maxPixels) * 40
+    }
+    const maxSize = Math.max(...images.map(i => i.size))
+    score += (img.size / maxSize) * 30
+    const maxTime = Math.max(...images.map(i => i.modifiedTime))
+    score += (img.modifiedTime / maxTime) * 20
+    if (img.perceptualHash) score += 10
+    return { path: img.filePath, score }
+  })
+
+  scores.sort((a, b) => b.score - a.score)
+  return scores[0].path
+}
+
+// 分组相似照片
+function groupSimilarImages(images: ImageHash[], threshold: number, usePerceptualHash: boolean): SimilarityGroup[] {
+  const groups: SimilarityGroup[] = []
+  const processed = new Set<string>()
+
+  for (let i = 0; i < images.length; i++) {
+    if (processed.has(images[i].filePath)) continue
+
+    const group: ImageHash[] = [images[i]]
+    processed.add(images[i].filePath)
+
+    for (let j = i + 1; j < images.length; j++) {
+      if (processed.has(images[j].filePath)) continue
+
+      let similarity = 0
+      if (images[i].fileHash === images[j].fileHash) {
+        similarity = 100
+      } else if (usePerceptualHash && images[i].perceptualHash && images[j].perceptualHash) {
+        similarity = calculateSimilarity(images[i].perceptualHash!, images[j].perceptualHash!)
+      }
+
+      if (similarity >= threshold) {
+        group.push(images[j])
+        processed.add(images[j].filePath)
+      }
+    }
+
+    if (group.length >= 2) {
+      let totalSimilarity = 0
+      let count = 0
+      for (let k = 0; k < group.length; k++) {
+        for (let l = k + 1; l < group.length; l++) {
+          if (group[k].fileHash === group[l].fileHash) {
+            totalSimilarity += 100
+          } else if (usePerceptualHash && group[k].perceptualHash && group[l].perceptualHash) {
+            totalSimilarity += calculateSimilarity(group[k].perceptualHash!, group[l].perceptualHash!)
+          }
+          count++
+        }
+      }
+      const avgSimilarity = count > 0 ? totalSimilarity / count : 0
+
+      groups.push({
+        id: `group-${groups.length + 1}`,
+        images: group,
+        similarity: Math.round(avgSimilarity * 100) / 100,
+        recommendedKeep: recommendKeepImage(group)
+      })
+    }
+  }
+
+  return groups
+}
+
+// 扫描图片文件
+async function scanImageFiles(config: SimilarityScanConfig): Promise<string[]> {
+  const imageFiles: string[] = []
+  const excludedPaths = new Set(config.excludedFolders || [])
+  const excludedExts = new Set((config.excludedExtensions || []).map(ext => ext.toLowerCase()))
+
+  async function traverse(currentPath: string) {
+    try {
+      const items = await readdir(currentPath)
+      
+      for (const item of items) {
+        const fullPath = join(currentPath, item)
+        const stats = await stat(fullPath)
+        
+        if (stats.isDirectory()) {
+          // 检查是否在排除列表中
+          if (!excludedPaths.has(fullPath) && config.includeSubdirectories) {
+            await traverse(fullPath)
+          }
+        } else {
+          const ext = item.split('.').pop()?.toLowerCase() || ''
+          if (IMAGE_EXTENSIONS.includes(ext) && !excludedExts.has(ext)) {
+            // 检查文件大小限制
+            if (config.minFileSize && stats.size < config.minFileSize) continue
+            if (config.maxFileSize && stats.size > config.maxFileSize) continue
+            imageFiles.push(fullPath)
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`[Main] 遍历目录失败 ${currentPath}:`, error)
+    }
+  }
+
+  await traverse(config.scanPath)
+  return imageFiles
+}
+
+// IPC 处理器：扫描相似照片
+let currentScanWindow: BrowserWindow | null = null
+
+ipcMain.handle('similarity:scan', async (event, config: SimilarityScanConfig): Promise<SimilarityScanResult> => {
+  const startTime = Date.now()
+  let currentProgress = 0
+  let totalFiles = 0
+  currentScanWindow = BrowserWindow.fromWebContents(event.sender) || null
+
+  const sendProgress = (progress: Partial<SimilarityScanProgress>) => {
+    if (currentScanWindow && !currentScanWindow.isDestroyed()) {
+      currentScanWindow.webContents.send('similarity:progress', {
+        current: currentProgress,
+        total: totalFiles,
+        status: 'scanning',
+        groupsFound: 0,
+        ...progress
+      } as SimilarityScanProgress)
+    }
+  }
+
+  try {
+    // 1. 扫描图片文件
+    sendProgress({ status: 'scanning', currentFile: '正在扫描图片文件...' })
+    const imageFiles = await scanImageFiles(config)
+    totalFiles = imageFiles.length
+    console.log(`[Main] 找到 ${totalFiles} 张图片`)
+
+    if (totalFiles === 0) {
+      return {
+        groups: [],
+        totalImages: 0,
+        totalGroups: 0,
+        potentialSpaceSaved: 0,
+        scanTime: Date.now() - startTime
+      }
+    }
+
+    // 2. 计算哈希值
+    sendProgress({ status: 'hashing', currentFile: '正在计算哈希值...' })
+    const imageHashes: ImageHash[] = []
+    const usePerceptualHash = config.algorithm === 'phash' || config.algorithm === 'both'
+
+    for (let i = 0; i < imageFiles.length; i++) {
+      const filePath = imageFiles[i]
+      currentProgress = i + 1
+      sendProgress({ 
+        status: 'hashing', 
+        currentFile: filePath,
+        current: currentProgress,
+        total: totalFiles
+      })
+
+      try {
+        const fileBuffer = await fs.readFile(filePath)
+        const fileHash = calculateFileHash(fileBuffer)
+        const stats = await stat(filePath)
+
+        let perceptualHash: string | undefined
+        let width: number | undefined
+        let height: number | undefined
+
+        if (usePerceptualHash) {
+          try {
+            const metadata = await sharp(fileBuffer).metadata()
+            width = metadata.width
+            height = metadata.height
+            perceptualHash = await calculatePerceptualHash(fileBuffer)
+          } catch (error) {
+            console.warn(`[Main] 无法处理图片 ${filePath}:`, error)
+          }
+        }
+
+        imageHashes.push({
+          filePath,
+          fileHash,
+          perceptualHash,
+          width,
+          height,
+          size: stats.size,
+          modifiedTime: stats.mtime.getTime()
+        })
+      } catch (error) {
+        console.error(`[Main] 处理文件失败 ${filePath}:`, error)
+      }
+    }
+
+    // 3. 分组相似照片
+    sendProgress({ status: 'comparing', currentFile: '正在对比相似照片...' })
+    const groups = groupSimilarImages(imageHashes, config.similarityThreshold, usePerceptualHash)
+
+    // 计算可释放空间
+    let potentialSpaceSaved = 0
+    for (const group of groups) {
+      const keepPath = group.recommendedKeep || group.images[0].filePath
+      for (const img of group.images) {
+        if (img.filePath !== keepPath) {
+          potentialSpaceSaved += img.size
+        }
+      }
+    }
+
+    sendProgress({ 
+      status: 'completed', 
+      groupsFound: groups.length,
+      current: totalFiles,
+      total: totalFiles
+    })
+
+    const result = {
+      groups,
+      totalImages: imageHashes.length,
+      totalGroups: groups.length,
+      potentialSpaceSaved,
+      scanTime: Date.now() - startTime
+    }
+
+    currentScanWindow = null
+    return result
+  } catch (error) {
+    console.error('[Main] 相似照片扫描失败:', error)
+    sendProgress({ status: 'error', currentFile: `错误: ${error}` })
+    currentScanWindow = null
+    throw error
+  }
+})
+
+// IPC 处理器：取消扫描
+ipcMain.on('similarity:cancel', () => {
+  currentScanWindow = null
 })
 

@@ -100,6 +100,25 @@ try {
     // 打开文件
     openFile: (filePath: string): Promise<boolean> => {
       return ipcRenderer.invoke('file:open', filePath)
+    },
+
+    // 相似照片检测
+    scanSimilarImages: (config: import('../../src/types').SimilarityScanConfig): Promise<import('../../src/types').SimilarityScanResult> => {
+      return ipcRenderer.invoke('similarity:scan', config)
+    },
+
+    onSimilarityScanProgress: (callback: (progress: import('../../src/types').SimilarityScanProgress) => void): (() => void) => {
+      const handler = (_event: any, progress: import('../../src/types').SimilarityScanProgress) => {
+        callback(progress)
+      }
+      ipcRenderer.on('similarity:progress', handler)
+      return () => {
+        ipcRenderer.removeListener('similarity:progress', handler)
+      }
+    },
+
+    cancelSimilarityScan: (): void => {
+      ipcRenderer.send('similarity:cancel')
     }
   }
   

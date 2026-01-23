@@ -62,6 +62,20 @@ const FileList: React.FC = () => {
   const [pageSize, setPageSize] = useState(15)
   const [pageSizeOptions] = useState(['15', '30', '75', '150', '300']) // 页码选择范围
 
+  // 当目录切换时，清空图片预览缓存
+  useEffect(() => {
+    setImagePreviews(new Map())
+    setVisibleImages(new Set())
+    setLoadingImages(new Set())
+    // 清理之前的观察
+    if (observerRef.current) {
+      imageRefs.current.forEach((element) => {
+        observerRef.current?.unobserve(element)
+      })
+    }
+    imageRefs.current.clear()
+  }, [currentPath])
+
   // 加载图片预览（懒加载版本）
   useEffect(() => {
     if (!previewEnabled) {
@@ -582,8 +596,8 @@ const FileList: React.FC = () => {
   const handleDoubleClick = async (file: FileInfo) => {
     try {
       if (file.isDirectory) {
-        // 如果是文件夹，切换到该文件夹
-        loadDirectory(file.path)
+        // 如果是文件夹，切换到该文件夹，但不记录到历史
+        loadDirectory(file.path, false)
       } else {
         // 如果是媒体文件，调用系统默认打开程序
         if (isPreviewable(file)) {

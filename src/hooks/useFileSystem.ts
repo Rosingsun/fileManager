@@ -6,7 +6,7 @@ export function useFileSystem() {
   const { setCurrentPath, setFileList, setLoading, addHistory } = useFileStore()
 
   // 加载目录内容
-  const loadDirectory = useCallback(async (path: string) => {
+  const loadDirectory = useCallback(async (path: string, addToHistory: boolean = true) => {
     try {
       if (!window.electronAPI) {
         message.error('Electron API 未初始化，请确保在 Electron 环境中运行')
@@ -17,7 +17,9 @@ export function useFileSystem() {
       const files = await window.electronAPI.readDirectory(normalizedPath)
       setFileList(files)
       setCurrentPath(normalizedPath)
-      addHistory(normalizedPath) // 添加或更新历史记录
+      if (addToHistory) {
+        addHistory(normalizedPath) // 添加或更新历史记录
+      }
     } catch (error: any) {
       message.error(`加载目录失败: ${error.message}`)
       setFileList([])

@@ -69,3 +69,48 @@ export interface HistoryItem {
   name: string // 显示名称
   timestamp: number // 访问时间戳
 }
+
+// 相似照片检测相关类型
+export interface SimilarityScanConfig {
+  scanPath: string // 扫描路径
+  includeSubdirectories: boolean // 包含子文件夹
+  minFileSize?: number // 最小文件大小（字节）
+  maxFileSize?: number // 最大文件大小（字节）
+  excludedFolders?: string[] // 排除的文件夹路径
+  excludedExtensions?: string[] // 排除的文件扩展名
+  similarityThreshold: number // 相似度阈值（0-100）
+  algorithm: 'hash' | 'phash' | 'both' // 检测算法
+}
+
+export interface ImageHash {
+  filePath: string
+  fileHash: string // MD5文件哈希
+  perceptualHash?: string // 感知哈希（pHash）
+  width?: number
+  height?: number
+  size: number
+  modifiedTime: number
+}
+
+export interface SimilarityGroup {
+  id: string
+  images: ImageHash[]
+  similarity: number // 平均相似度
+  recommendedKeep?: string // 推荐保留的文件路径
+}
+
+export interface SimilarityScanProgress {
+  current: number
+  total: number
+  currentFile?: string
+  status: 'scanning' | 'hashing' | 'comparing' | 'completed' | 'error'
+  groupsFound: number
+}
+
+export interface SimilarityScanResult {
+  groups: SimilarityGroup[]
+  totalImages: number
+  totalGroups: number
+  potentialSpaceSaved: number // 字节
+  scanTime: number // 扫描耗时（毫秒）
+}
