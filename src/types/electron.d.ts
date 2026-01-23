@@ -18,6 +18,7 @@ declare global {
       deleteFile: (filePath: string) => Promise<boolean>
       moveFile: (oldPath: string, newPath: string) => Promise<boolean>
       getImageBase64: (filePath: string) => Promise<string>
+      getImageDimensions: (filePath: string) => Promise<{ width: number; height: number } | null>
       getImageThumbnail: (filePath: string, size?: number, quality?: number) => Promise<string>
       scanSimilarImages: (config: import('./index').SimilarityScanConfig) => Promise<import('./index').SimilarityScanResult>
       onSimilarityScanProgress: (callback: (progress: import('./index').SimilarityScanProgress) => void) => () => void

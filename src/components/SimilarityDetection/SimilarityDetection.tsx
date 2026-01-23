@@ -73,7 +73,7 @@ const SimilarityDetection: React.FC = () => {
 
   return (
     <div className="similarity-detection">
-      <Card className="main-card" bordered={false}>
+      <Card className="main-card" variant="borderless">
         <div className="header-section">
           <Title level={3} className="main-title">相似照片检测</Title>
           <p className="description">

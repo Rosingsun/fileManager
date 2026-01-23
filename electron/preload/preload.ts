@@ -92,6 +92,11 @@ try {
       return ipcRenderer.invoke('file:getImageBase64', filePath)
     },
 
+    // 获取图片尺寸信息
+    getImageDimensions: (filePath: string): Promise<{ width: number; height: number } | null> => {
+      return ipcRenderer.invoke('file:getImageDimensions', filePath)
+    },
+
     // 获取图片缩略图base64用于预览
     getImageThumbnail: (filePath: string, size?: number, quality?: number): Promise<string> => {
       return ipcRenderer.invoke('file:getImageThumbnail', filePath, size, quality)

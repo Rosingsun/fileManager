@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { Form, Input, Button, Switch, Slider, Select, Space, Card, Divider, InputNumber } from 'antd'
-import { FolderOpenOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, EyeOutlined } from '@ant-design/icons'
 import type { SimilarityScanConfig } from '../../types'
+import FormPreview from '../../components/FormPreview'
 
 interface ScanConfigProps {
   onStart: (config: SimilarityScanConfig) => void
@@ -10,6 +11,7 @@ interface ScanConfigProps {
 const ScanConfig: React.FC<ScanConfigProps> = ({ onStart }) => {
   const [form] = Form.useForm()
   const [scanPath, setScanPath] = useState<string>('')
+  const [previewVisible, setPreviewVisible] = useState<boolean>(false)
 
   const handleSelectPath = async () => {
     if (!window.electronAPI) return
@@ -205,10 +207,35 @@ const ScanConfig: React.FC<ScanConfigProps> = ({ onStart }) => {
       </div>
 
       <Form.Item className="submit-btn-item">
-        <Button type="primary" htmlType="submit" size="large" block className="start-scan-btn">
-          开始扫描
-        </Button>
+        <Space style={{ width: '100%' }}>
+          <Button 
+            type="primary" 
+            htmlType="submit" 
+            size="large" 
+            block 
+            className="start-scan-btn"
+          >
+            开始扫描
+          </Button>
+          <Button 
+            type="default" 
+            size="large" 
+            block 
+            icon={<EyeOutlined />}
+            onClick={() => setPreviewVisible(true)}
+          >
+            预览配置
+          </Button>
+        </Space>
       </Form.Item>
+
+      {/* 表单预览组件 */}
+      <FormPreview
+        visible={previewVisible}
+        onClose={() => setPreviewVisible(false)}
+        formInstance={form}
+        title="相似照片检测配置预览"
+      />
     </Form>
   )
 }

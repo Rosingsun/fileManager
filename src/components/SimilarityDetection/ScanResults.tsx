@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react'
-import { Card, List, Button, Space, Typography, Progress, Checkbox, Modal, message, Statistic, Row, Col } from 'antd'
+import { Card, Button, Space, Typography, Progress, Checkbox, Modal, message, Statistic, Row, Col } from 'antd'
 import { DeleteOutlined, ReloadOutlined, CheckCircleOutlined, PictureOutlined } from '@ant-design/icons'
 import type { SimilarityScanResult, SimilarityScanConfig } from '../../types'
 import { formatFileSize, formatDateTime } from '../../utils/fileUtils'
+import ImagePreview, { type ImageSource } from '../ImagePreview/ImagePreview'
 import './ScanResults.css'
 
 const { Text } = Typography
@@ -16,10 +17,14 @@ interface ScanResultsProps {
 const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [groupSelections, setGroupSelections] = useState<Map<string, Set<string>>>(new Map())
-  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [previewVisible, setPreviewVisible] = useState(false)
+  const [previewImages, setPreviewImages] = useState<ImageSource[]>([])
+  const [previewCurrentIndex, setPreviewCurrentIndex] = useState(0)
   const [imageThumbnails, setImageThumbnails] = useState<Map<string, string>>(new Map())
+  const [imageBase64Cache, setImageBase64Cache] = useState<Map<string, string>>(new Map())
   const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set())
   const loadingRef = useRef<Set<string>>(new Set())
+  const loadingBase64Ref = useRef<Set<string>>(new Set())
 
   // 初始化：所有组都选中，每组默认保留推荐的照片
   React.useEffect(() => {
@@ -206,22 +211,103 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
     })
   }
 
-  const handlePreviewImage = async (imagePath: string) => {
+  // 加载图片的 base64 数据
+  const loadImageBase64 = React.useCallback(async (filePath: string): Promise<string | null> => {
+    if (!window.electronAPI) return null
+
+    // 检查缓存
+    if (imageBase64Cache.has(filePath)) {
+      return imageBase64Cache.get(filePath) || null
+    }
+
+    // 检查是否正在加载
+    if (loadingBase64Ref.current.has(filePath)) {
+      // 等待加载完成
+      return new Promise((resolve) => {
+        const checkInterval = setInterval(() => {
+          if (imageBase64Cache.has(filePath)) {
+            clearInterval(checkInterval)
+            resolve(imageBase64Cache.get(filePath) || null)
+          } else if (!loadingBase64Ref.current.has(filePath)) {
+            clearInterval(checkInterval)
+            resolve(null)
+          }
+        }, 100)
+      })
+    }
+
+    loadingBase64Ref.current.add(filePath)
+    try {
+      const base64 = await window.electronAPI.getImageBase64(filePath)
+      if (base64) {
+        setImageBase64Cache(prev => new Map(prev).set(filePath, base64))
+        return base64
+      }
+      return null
+    } catch (error) {
+      console.error('加载图片 base64 失败:', filePath, error)
+      return null
+    } finally {
+      loadingBase64Ref.current.delete(filePath)
+    }
+  }, [imageBase64Cache])
+
+  // 预览图片（支持组内导航）
+  const handlePreviewImage = React.useCallback(async (imagePath: string, groupId?: string) => {
     if (!window.electronAPI) return
 
     try {
-      // 使用 getImageBase64 API 获取图片的 base64 数据
-      const base64 = await window.electronAPI.getImageBase64(imagePath)
-      if (base64) {
-        setPreviewImage(base64)
-      } else {
-        message.error('预览图片失败：无法加载图片数据')
+      // 找到图片所在的组
+      let targetGroup = result.groups.find(g => 
+        g.images.some(img => img.filePath === imagePath)
+      )
+
+      // 如果提供了 groupId，优先使用
+      if (groupId) {
+        targetGroup = result.groups.find(g => g.id === groupId)
       }
+
+      if (!targetGroup) {
+        message.error('未找到图片所在的组')
+        return
+      }
+
+      // 加载该组所有图片的 base64 数据
+      const imageSources: ImageSource[] = []
+      let currentIndex = 0
+
+      for (let i = 0; i < targetGroup.images.length; i++) {
+        const img = targetGroup.images[i]
+        const base64 = await loadImageBase64(img.filePath)
+        
+        if (base64) {
+          const fileName = img.filePath.split(/[/\\]/).pop() || '未知文件'
+          imageSources.push({
+            src: base64,
+            title: fileName,
+            description: `${formatFileSize(img.size)} | ${img.width && img.height ? `${img.width}×${img.height}` : '未知尺寸'}`
+          })
+
+          // 记录当前点击的图片索引
+          if (img.filePath === imagePath) {
+            currentIndex = imageSources.length - 1
+          }
+        }
+      }
+
+      if (imageSources.length === 0) {
+        message.error('预览图片失败：无法加载图片数据')
+        return
+      }
+
+      setPreviewImages(imageSources)
+      setPreviewCurrentIndex(currentIndex)
+      setPreviewVisible(true)
     } catch (error) {
       console.error('预览图片失败:', error)
       message.error('预览图片失败')
     }
-  }
+  }, [result.groups, loadImageBase64])
 
   const calculateSpaceToSave = (): number => {
     let totalSize = 0
@@ -241,7 +327,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
     <div className="scan-results">
       <Space direction="vertical" style={{ width: '100%' }} size="large">
         {/* 统计信息 */}
-        <Card className="stat-card" bordered={false}>
+        <Card className="stat-card" variant="borderless">
           <Row gutter={[16, 16]}>
             <Col xs={12} sm={12} md={6}>
               <div className="stat-item">
@@ -283,7 +369,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
         </Card>
 
         {/* 批量操作 */}
-        <Card className="batch-actions-card" bordered={false}>
+        <Card className="batch-actions-card" variant="borderless">
           <div className="batch-actions">
             <Button 
               icon={<CheckCircleOutlined />} 
@@ -320,7 +406,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
             <div key={group.id} className="group-list-item">
               <Card
                 className={`similarity-group ${selectedGroups.has(group.id) ? 'selected' : ''}`}
-                bordered={false}
+                variant="borderless"
                 title={
                   <div className="group-card-header">
                     <div className="group-card-title">
@@ -374,7 +460,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
                         </div>
                         <div
                           className="image-thumbnail"
-                          onClick={() => handlePreviewImage(img.filePath)}
+                          onClick={() => handlePreviewImage(img.filePath, group.id)}
                           title="点击预览"
                         >
                           {getThumbnail(img.filePath) ? (
@@ -422,32 +508,18 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
         </div>
       </Space>
 
-      {/* 图片预览模态框 */}
-      <Modal
-        open={!!previewImage}
-        onCancel={() => setPreviewImage(null)}
-        footer={null}
+      {/* 图片预览组件 */}
+      <ImagePreview
+        visible={previewVisible}
+        images={previewImages}
+        currentIndex={previewCurrentIndex}
+        onClose={() => setPreviewVisible(false)}
+        onIndexChange={setPreviewCurrentIndex}
         width={900}
-        centered
-        className="preview-modal"
-        styles={{
-          body: { padding: 0 },
-          content: { borderRadius: '16px', overflow: 'hidden' }
-        }}
-      >
-        {previewImage && (
-          <div className="preview-content">
-            <img 
-              src={previewImage} 
-              alt="预览" 
-              className="preview-image"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="#ff4d4f" font-size="18">图片加载失败</text></svg>'
-              }}
-            />
-          </div>
-        )}
-      </Modal>
+        showToolbar={true}
+        showNavigation={previewImages.length > 1}
+        enableKeyboard={true}
+      />
     </div>
   )
 }

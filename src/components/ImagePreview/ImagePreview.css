@@ -1,0 +1,131 @@
+.image-preview-modal .ant-modal-content {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.image-preview-modal .ant-modal-body {
+  padding: 0;
+}
+
+.image-preview-container {
+  text-align: center;
+  width: 100%;
+  height: calc(100% - 50px);
+  min-height: 400px;
+  background-color: #f0f0f0;
+  overflow: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-preview-status {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  z-index: 10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
+}
+
+.image-preview-loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.9);
+  padding: 16px 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.image-preview-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #1890ff;
+  border-top: 3px solid transparent;
+  border-radius: 50%;
+  animation: image-preview-spin 1s linear infinite;
+}
+
+@keyframes image-preview-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.image-preview-img {
+  max-width: 100%;
+  max-height: calc(100vh - 200px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+  transform-origin: center center;
+  user-select: none;
+  -webkit-user-drag: none;
+  visibility: visible;
+}
+
+.image-preview-error {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #ff4d4f;
+  gap: 16px;
+  padding: 40px;
+}
+
+.image-preview-error-icon {
+  font-size: 48px;
+  line-height: 1;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .image-preview-status {
+    top: 8px;
+    left: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .image-preview-container {
+    min-height: 300px;
+  }
+}
+
+/* 暗色模式支持（可选） */
+@media (prefers-color-scheme: dark) {
+  .image-preview-container {
+    background-color: #1f1f1f;
+  }
+
+  .image-preview-status {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+  }
+
+  .image-preview-loading {
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+  }
+}
+

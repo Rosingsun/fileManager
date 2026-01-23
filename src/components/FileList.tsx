@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Table, Card, Tag, Space, Empty, Modal, Input, message, Button, Switch, AutoComplete, Checkbox } from 'antd'
+import { Table, Card, Tag, Space, Empty, Modal, Input, message, Button, AutoComplete, Checkbox } from 'antd'
 import { Button as AntButton } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -15,17 +15,14 @@ import {
   DeleteOutlined,
   EditOutlined,
   FolderOpenOutlined,
-  ZoomInOutlined,
-  ZoomOutOutlined,
-  RotateLeftOutlined,
-  RotateRightOutlined,
-  ReloadOutlined
+  LeftOutlined
 } from '@ant-design/icons'
-import { LeftOutlined, RightOutlined } from '@ant-design/icons'
 import { useFileStore } from '../stores/fileStore'
 import { useFileSystem } from '../hooks/useFileSystem'
 import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../utils/fileUtils'
 import type { FileInfo } from '../types'
+import ImageViewer from './ImageViewer'
+import type { Image } from './ImageViewer'
 
 const FileList: React.FC = () => {
   const { fileList, loading, currentPath } = useFileStore()
@@ -42,9 +39,8 @@ const FileList: React.FC = () => {
   const imageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
   const [previewIndex, setPreviewIndex] = useState<number>(0)
-  const [currentImageBase64, setCurrentImageBase64] = useState<string | null>(null)
-  const [isLoadingHighRes, setIsLoadingHighRes] = useState(false)
-  const [imageLoadError, setImageLoadError] = useState(false)
+  const [previewImages, setPreviewImages] = useState<Image[]>([])
+  const [previewableFiles, setPreviewableFiles] = useState<FileInfo[]>([])
   const [previewEnabled] = useState(true) // 预览开关，默认打开
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
   const [selectedRows, setSelectedRows] = useState<FileInfo[]>([])
@@ -54,9 +50,6 @@ const FileList: React.FC = () => {
   const [batchRenameSuffix, setBatchRenameSuffix] = useState('')
   const [moveModalVisible, setMoveModalVisible] = useState(false)
   const [moveTargetPath, setMoveTargetPath] = useState('')
-  // 图片预览操作状态
-  const [scale, setScale] = useState(100) // 当前缩放比例，默认100%
-  const [rotation, setRotation] = useState(0) // 当前旋转角度，默认0度
   // 分页相关状态
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(15)
@@ -255,41 +248,100 @@ const FileList: React.FC = () => {
     return previewableTypes.includes(ext)
   }
 
+  // 将FileInfo转换为Image格式
+  const convertFileToImage = async (file: FileInfo, imageUrl: string): Promise<Image> => {
+    // 获取图片尺寸 - 优先从 electron 端获取，失败则从前端加载图片获取
+    let width = 0
+    let height = 0
+    
+    // 首先尝试从 electron 端获取尺寸（更准确）
+    try {
+      const dimensions = await window.electronAPI?.getImageDimensions(file.path)
+      if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
+        width = dimensions.width
+        height = dimensions.height
+      } else {
+        throw new Error('无法从 electron 端获取尺寸')
+      }
+    } catch (error) {
+      // 如果 electron 端获取失败，尝试从前端加载图片获取
+      console.warn('从 electron 端获取图片尺寸失败，尝试从前端获取:', error)
+      try {
+        const img = new Image()
+        img.src = imageUrl
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('加载超时'))
+          }, 10000)
+          
+          img.onload = () => {
+            clearTimeout(timeout)
+            width = img.naturalWidth || img.width || 0
+            height = img.naturalHeight || img.height || 0
+            if (width > 0 && height > 0) {
+              resolve()
+            } else {
+              reject(new Error('无法获取图片尺寸'))
+            }
+          }
+          
+          img.onerror = () => {
+            clearTimeout(timeout)
+            reject(new Error('图片加载失败'))
+          }
+        })
+      } catch (imgError) {
+        console.error('从前端获取图片尺寸也失败:', imgError)
+        // 如果都失败了，使用默认值（但应该尽量避免这种情况）
+        width = 1920
+        height = 1080
+      }
+    }
+
+    return {
+      id: file.path,
+      url: imageUrl,
+      filename: file.name,
+      width,
+      height,
+      size: file.size,
+      format: getFileExtension(file.name).toLowerCase() || 'unknown',
+      createdAt: new Date(file.createdTime).toISOString(),
+      modifiedAt: new Date(file.modifiedTime).toISOString(),
+      description: '',
+      tags: []
+    }
+  }
+
   // 预览文件
   const handlePreview = async (file: FileInfo) => {
     // 在应用内弹出模态预览，并支持上一张/下一张
-    const previewableFiles = fileList.filter(f => !f.isDirectory && isPreviewable(f) && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(f.name).toLowerCase()))
-    const index = previewableFiles.findIndex(f => f.path === file.path)
+    const files = fileList.filter(f => !f.isDirectory && isPreviewable(f) && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(f.name).toLowerCase()))
+    const index = files.findIndex(f => f.path === file.path)
     if (index >= 0) {
+      setPreviewableFiles(files)
+      
+      // 构建初始图片列表（使用占位符）
+      const initialImages: Image[] = files.map((f) => ({
+        id: f.path,
+        url: '', // 初始为空，将在组件中异步加载
+        filename: f.name,
+        width: 0,
+        height: 0,
+        size: f.size,
+        format: getFileExtension(f.name).toLowerCase() || 'unknown',
+        createdAt: new Date(f.createdTime).toISOString(),
+        modifiedAt: new Date(f.modifiedTime).toISOString(),
+        description: '',
+        tags: []
+      }))
+      
+      setPreviewImages(initialImages)
       setPreviewIndex(index)
       setPreviewModalVisible(true)
 
-      // 重置状态
-      setImageLoadError(false)
-
-      // 先尝试获取缩略图作为占位符
-      const previewData = imagePreviews.get(previewableFiles[index].path)
-      if (previewData?.thumbnail) {
-        setCurrentImageBase64(previewData.thumbnail)
-      } else {
-        setCurrentImageBase64(null)
-      }
-
-      // 加载高清图片
-      setIsLoadingHighRes(true)
-      try {
-        const highResB64 = await window.electronAPI?.getImageBase64(previewableFiles[index].path)
-        if (highResB64) {
-          setCurrentImageBase64(highResB64)
-        } else {
-          setImageLoadError(true)
-        }
-      } catch (e) {
-        console.error('加载高清图片失败:', e)
-        setImageLoadError(true)
-      } finally {
-        setIsLoadingHighRes(false)
-      }
+      // 预加载当前图片
+      await loadImageForPreview(index, files[index].path)
     } else {
       // 回退到系统预览
       if (window.electronAPI && window.electronAPI.previewFile) {
@@ -298,128 +350,73 @@ const FileList: React.FC = () => {
     }
   }
 
-  // 获取当前预览文件列表（路径数组）
-  const getPreviewablePaths = () => {
-    return fileList
-      .filter(f => !f.isDirectory && isPreviewable(f) && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(getFileExtension(f.name).toLowerCase()))
-      .map(f => f.path)
-  }
-
-  const showPreviewAt = async (index: number) => {
-    const paths = getPreviewablePaths()
-    if (index < 0 || index >= paths.length) return
-    setPreviewIndex(index)
-    const path = paths[index]
-
-    // 重置状态
-    setImageLoadError(false)
-
-    // 先尝试获取缩略图作为占位符
-    const previewData = imagePreviews.get(path)
-    if (previewData?.thumbnail) {
-      setCurrentImageBase64(previewData.thumbnail)
-    } else {
-      // 没有缩略图时显示加载状态
-      setCurrentImageBase64(null)
-    }
-
-    // 加载高清图片
-    setIsLoadingHighRes(true)
+  // 加载图片数据（异步）
+  const loadImageForPreview = async (index: number, filePath: string) => {
     try {
-      const highResB64 = await window.electronAPI?.getImageBase64(path)
-      if (highResB64) {
-        setCurrentImageBase64(highResB64)
+      const highResB64 = await window.electronAPI?.getImageBase64(filePath)
+      if (highResB64 && highResB64.trim() !== '') {
+        const file = previewableFiles[index]
+        if (file) {
+          console.log(`[FileList] 加载图片 ${index}: ${file.name}, URL长度: ${highResB64.length}`)
+          const image = await convertFileToImage(file, highResB64)
+          console.log(`[FileList] 图片尺寸: ${image.width}x${image.height}`)
+          setPreviewImages(prev => {
+            const newImages = [...prev]
+            newImages[index] = image
+            return newImages
+          })
+        }
       } else {
-        setImageLoadError(true)
+        console.warn(`[FileList] 获取图片base64失败: ${filePath}`)
+        // 如果加载失败，尝试使用缩略图
+        const previewData = imagePreviews.get(filePath)
+        if (previewData?.thumbnail) {
+          const file = previewableFiles[index]
+          if (file) {
+            console.log(`[FileList] 使用缩略图: ${file.name}`)
+            const image = await convertFileToImage(file, previewData.thumbnail)
+            setPreviewImages(prev => {
+              const newImages = [...prev]
+              newImages[index] = image
+              return newImages
+            })
+          }
+        }
       }
     } catch (e) {
-      console.error('加载高清图片失败:', e)
-      setImageLoadError(true)
-    } finally {
-      setIsLoadingHighRes(false)
-    }
-  }
-
-  const handlePrev = () => {
-    if (previewIndex > 0) {
-      showPreviewAt(previewIndex - 1)
-    }
-  }
-
-  const handleNext = () => {
-    const paths = getPreviewablePaths()
-    if (previewIndex < paths.length - 1) {
-      showPreviewAt(previewIndex + 1)
-    }
-  }
-
-  // 图片缩放功能
-  const handleZoomIn = () => {
-    setScale(prevScale => Math.min(prevScale + 20, 300)) // 每次增加20%，上限300%
-  }
-
-  const handleZoomOut = () => {
-    setScale(prevScale => Math.max(prevScale - 20, 20)) // 每次减少20%，下限20%
-  }
-
-  const handleResetScale = () => {
-    setScale(100) // 重置缩放为100%
-  }
-
-  // 图片旋转功能
-  const handleRotateLeft = () => {
-    setRotation(prevRotation => prevRotation - 90) // 向左旋转90度
-  }
-
-  const handleRotateRight = () => {
-    setRotation(prevRotation => prevRotation + 90) // 向右旋转90度
-  }
-
-  const handleResetRotation = () => {
-    setRotation(0) // 重置旋转为0度
-  }
-
-  // 重置所有图片操作状态
-  const handleResetAll = () => {
-    setScale(100) // 重置缩放为100%
-    setRotation(0) // 重置旋转为0度
-  }
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!previewModalVisible) return
-
-      // 导航快捷键
-      if (e.key === 'ArrowLeft') handlePrev()
-      if (e.key === 'ArrowRight') handleNext()
-
-      // 缩放和旋转快捷键
-      if (e.ctrlKey || e.metaKey) {
-        switch (e.key) {
-          case '+':
-          case '=':
-            e.preventDefault()
-            handleZoomIn()
-            break
-          case '-':
-          case '_':
-            e.preventDefault()
-            handleZoomOut()
-            break
-          case 'ArrowLeft':
-            e.preventDefault()
-            handleRotateLeft()
-            break
-          case 'ArrowRight':
-            e.preventDefault()
-            handleRotateRight()
-            break
+      console.error('[FileList] 加载图片失败:', e)
+      // 尝试使用缩略图作为后备
+      const previewData = imagePreviews.get(filePath)
+      if (previewData?.thumbnail) {
+        const file = previewableFiles[index]
+        if (file) {
+          try {
+            console.log(`[FileList] 错误后使用缩略图: ${file.name}`)
+            const image = await convertFileToImage(file, previewData.thumbnail)
+            setPreviewImages(prev => {
+              const newImages = [...prev]
+              newImages[index] = image
+              return newImages
+            })
+          } catch (err) {
+            console.error('[FileList] 使用缩略图也失败:', err)
+          }
         }
       }
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [previewModalVisible, previewIndex, imagePreviews, fileList, scale, rotation])
+  }
+
+  // 处理图片索引变化（当用户切换图片时）
+  const handlePreviewIndexChange = async (newIndex: number) => {
+    setPreviewIndex(newIndex)
+    if (previewableFiles[newIndex]) {
+      // 如果该图片还未加载，则加载它
+      const currentImage = previewImages[newIndex]
+      if (!currentImage || !currentImage.url) {
+        await loadImageForPreview(newIndex, previewableFiles[newIndex].path)
+      }
+    }
+  }
 
   // 重命名文件
   const handleRename = (file: FileInfo) => {
@@ -837,6 +834,30 @@ const FileList: React.FC = () => {
     setCurrentPage(1)
   }, [fileList, pageSize])
 
+  // 响应式网格列数计算
+  const [gridColumns, setGridColumns] = useState(5)
+
+  useEffect(() => {
+    const calculateGridColumns = () => {
+      const width = window.innerWidth
+      if (width < 768) return 2
+      if (width < 1024) return 3
+      if (width < 1440) return 4
+      return 5
+    }
+
+    const updateGridColumns = () => {
+      setGridColumns(calculateGridColumns())
+    }
+
+    // 初始化
+    updateGridColumns()
+    // 监听窗口大小变化
+    window.addEventListener('resize', updateGridColumns)
+    // 清理
+    return () => window.removeEventListener('resize', updateGridColumns)
+  }, [])
+
   if (!currentPath) {
     return (
       <Card title="文件列表" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -865,13 +886,22 @@ const FileList: React.FC = () => {
             </span>
           </Space>
           <Space size="middle">
-            <Switch
-              checkedChildren="网格"
-              unCheckedChildren="列表"
-              checked={viewMode === 'grid'}
-              onChange={(checked) => setViewMode(checked ? 'grid' : 'list')}
-              title={viewMode === 'list' ? '切换到网格视图' : '切换到列表视图'}
-            />
+            <Button
+              type={viewMode === 'list' ? 'primary' : 'default'}
+              size="small"
+              onClick={() => setViewMode('list')}
+              style={{ transition: 'all 0.3s ease' }}
+            >
+              列表视图
+            </Button>
+            <Button
+              type={viewMode === 'grid' ? 'primary' : 'default'}
+              size="small"
+              onClick={() => setViewMode('grid')}
+              style={{ transition: 'all 0.3s ease' }}
+            >
+              网格视图
+            </Button>
           </Space>
         </div>
       }
@@ -916,16 +946,26 @@ const FileList: React.FC = () => {
             style: { cursor: record.isDirectory ? 'pointer' : 'default', height: '40px' }
           })}
           pagination={false}
+          style={{
+            transition: 'all 0.3s ease-in-out',
+            opacity: 1,
+            transform: 'translateX(0)',
+            animation: 'fadeIn 0.3s ease-in-out'
+          }}
         />
       ) : (
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(5, 1fr)',
+            gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
             gap: '10px',
             padding: '10px',
             overflowY: 'auto',
-            maxHeight: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 220px)'
+            maxHeight: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 220px)',
+            transition: 'all 0.3s ease-in-out',
+            opacity: 1,
+            transform: 'translateX(0)',
+            animation: 'fadeIn 0.3s ease-in-out'
           }}
         >
           {paginatedFileList.map(file => (
@@ -938,20 +978,30 @@ const FileList: React.FC = () => {
                 transition: 'all 0.3s ease',
                 cursor: file.isDirectory ? 'pointer' : 'default',
                 position: 'relative',
-                backgroundColor: selectedRowKeys.includes(file.path) ? '#e6f7ff' : '#fff'
+                backgroundColor: selectedRowKeys.includes(file.path) ? '#e6f7ff' : '#fff',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                transform: 'scale(1)',
+                opacity: 1
               }}
               onClick={(e) => {
-                // 防止点击复选框时触发预览
-                // 防止点击预览区域时重复触发（预览区域有自己的点击事件）
                 if (!(e.target as HTMLElement).closest('.ant-checkbox-wrapper') && 
                     !(e.target as HTMLElement).closest('[data-preview-area]')) {
-                  // 只有非文件夹且可预览的文件才执行预览操作
                   if (!file.isDirectory && isPreviewable(file)) {
                     handlePreview(file)
                   }
                 }
               }}
               onDoubleClick={() => handleDoubleClick(file)}
+              onMouseEnter={(e) => {
+                const target = e.currentTarget as HTMLElement
+                target.style.transform = 'scale(1.02)'
+                target.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)'
+              }}
+              onMouseLeave={(e) => {
+                const target = e.currentTarget as HTMLElement
+                target.style.transform = 'scale(1)'
+                target.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)'
+              }}
             >
               {/* 复选框 */}
               <div style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 10, backgroundColor: 'rgba(255, 255, 255, 0.8)' }}>
@@ -1131,158 +1181,38 @@ const FileList: React.FC = () => {
           </div>
         </div>
       )}
-      <Modal
-        title={
-          <Space>
-            图片预览
-            <span style={{ fontSize: 12, color: '#999' }}>{getPreviewablePaths()[previewIndex]?.split('/').pop()}</span>
-          </Space>
-        }
-        open={previewModalVisible}
-        onCancel={() => { 
-          setPreviewModalVisible(false)
-          setCurrentImageBase64(null)
-          handleResetAll() // 关闭时重置所有状态
-        }}
-        footer={[
-          <Space key="zoom-controls">
-            <Button key="zoom-out" icon={<ZoomOutOutlined />} onClick={handleZoomOut} disabled={scale <= 20} title="缩小" />,
-            <Button key="zoom-in" icon={<ZoomInOutlined />} onClick={handleZoomIn} disabled={scale >= 300} title="放大" />,
-            <Button key="reset-scale" onClick={handleResetScale} title="重置缩放">重置缩放</Button>
-          </Space>,
-          <Space key="rotate-controls">
-            <Button key="rotate-left" icon={<RotateLeftOutlined />} onClick={handleRotateLeft} title="向左旋转" />,
-            <Button key="rotate-right" icon={<RotateRightOutlined />} onClick={handleRotateRight} title="向右旋转" />,
-            <Button key="reset-rotation" onClick={handleResetRotation} title="重置旋转">重置旋转</Button>
-          </Space>,
-          <Button key="reset-all" icon={<ReloadOutlined />} onClick={handleResetAll} title="重置所有">重置所有</Button>,
-          <Space key="nav-controls" style={{ marginLeft: 'auto' }}>
-            <Button key="prev" icon={<LeftOutlined />} onClick={handlePrev} disabled={previewIndex <= 0} title="上一张" />,
-            <Button key="next" icon={<RightOutlined />} onClick={handleNext} disabled={previewIndex >= getPreviewablePaths().length - 1} title="下一张" />,
-            <Button key="close" onClick={() => { 
-              setPreviewModalVisible(false)
-              setCurrentImageBase64(null)
-              handleResetAll() // 关闭时重置所有状态
-            }}>关闭</Button>
-          </Space>
-        ]}
-        width="800px"
-        height="80%"
-        style={{ top: '10%', position: 'relative' }}
-      >
-        <div style={{
-          textAlign: 'center',
-          width: '100%',
-          height: 'calc(100% - 50px)',
-          backgroundColor: '#f0f0f0',
-          overflow: 'auto'
-        }}>
-          {/* 当前状态显示 */}
-          <div style={{
-            position: 'absolute',
-            top: '60px',
-            left: '35px',
-            backgroundColor: 'rgba(255, 255, 255, 0.8)',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            fontSize: '14px',
-            zIndex: 10,
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
-          }}>
-            <Space>
-              <span>缩放：{scale}%</span>
-              <span>旋转：{((rotation % 360) + 360) % 360}°</span>
-            </Space>
-          </div>
-          {/* 加载状态指示器 */}
-          {isLoadingHighRes && (
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              zIndex: 10,
-              backgroundColor: 'rgba(255, 255, 255, 0.8)',
-              padding: '16px 32px',
-              borderRadius: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}>
-              <div style={{
-                width: '20px',
-                height: '20px',
-                border: '3px solid #1890ff',
-                borderTop: '3px solid transparent',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }}></div>
-              <span>正在加载高清图片...</span>
-              <style>{`
-                @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
+      {/* 图片查看器组件 */}
+      {previewModalVisible && (
+        <ImageViewer
+          images={previewImages}
+          currentIndex={previewIndex}
+          onClose={() => {
+            setPreviewModalVisible(false)
+            setPreviewImages([])
+            setPreviewableFiles([])
+          }}
+          onIndexChange={handlePreviewIndexChange}
+          onImageDelete={async (imageId) => {
+            const file = previewableFiles.find(f => f.path === imageId)
+            if (file) {
+              const success = await window.electronAPI?.deleteFile(file.path)
+              if (success) {
+                message.success('删除成功')
+                // 重新加载目录
+                if (currentPath) {
+                  loadDirectory(currentPath)
                 }
-              `}</style>
-            </div>
-          )}
-
-          {/* 图片显示 */}
-          {currentImageBase64 ? (
-            <img
-              src={currentImageBase64}
-              alt="preview"
-              style={{
-                maxWidth: '100%',
-                height: '450px',
-                objectFit: 'contain',
-                display: 'block',
-                margin: '0 auto',
-                transition: 'opacity 0.3s ease-in-out, transform 0.3s ease-in-out',
-                opacity: isLoadingHighRes ? 0.7 : 1,
-                transform: `scale(${scale / 100}) rotate(${rotation}deg)`,
-                transformOrigin: 'center center'
-              }}
-              onError={() => setImageLoadError(true)}
-            />
-          ) : <Empty description="加载中或不支持的图片" />}
-
-          {/* 错误处理 */}
-          {imageLoadError && (
-            <div style={{
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#ff4d4f',
-              gap: '16px'
-            }}>
-              <div style={{ fontSize: '48px' }}>❌</div>
-              <div>图片加载失败</div>
-              <Button
-                type="primary"
-                onClick={() => showPreviewAt(previewIndex)}
-              >
-                重试
-              </Button>
-            </div>
-          )}
-
-          {/* 初始加载状态 */}
-          {!currentImageBase64 && !isLoadingHighRes && !imageLoadError && (
-            <div style={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#999'
-            }}>
-              准备加载图片...
-            </div>
-          )}
-        </div>
-      </Modal>
+                // 关闭查看器
+                setPreviewModalVisible(false)
+                setPreviewImages([])
+                setPreviewableFiles([])
+              } else {
+                message.error('删除失败')
+              }
+            }
+          }}
+        />
+      )}
       <Modal
         title="重命名文件"
         open={renameModalVisible}

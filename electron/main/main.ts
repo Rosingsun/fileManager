@@ -700,6 +700,23 @@ ipcMain.handle('file:getImageBase64', async (_event, filePath: string): Promise<
   }
 })
 
+// IPC 处理器：获取图片尺寸信息
+ipcMain.handle('file:getImageDimensions', async (_event, filePath: string): Promise<{ width: number; height: number } | null> => {
+  try {
+    const metadata = await sharp(filePath).metadata()
+    if (metadata.width && metadata.height) {
+      return {
+        width: metadata.width,
+        height: metadata.height
+      }
+    }
+    return null
+  } catch (error) {
+    console.error('[Main] 获取图片尺寸失败:', error)
+    return null
+  }
+})
+
 // IPC 处理器：获取图片缩略图base64用于预览
 ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 80): Promise<string> => {
   try {
