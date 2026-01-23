@@ -1,11 +1,8 @@
 .image-canvas {
   flex: 1;
   position: relative;
-  overflow: hidden;
+  /* overflow: hidden; */
   background-color: #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   cursor: grab;
 }
 
@@ -78,14 +75,11 @@
 }
 
 .image-canvas-img {
-  max-width: none;
-  max-height: none;
-  width: auto;
-  height: auto;
+  max-width: none !important;
+  max-height: none !important;
   display: block;
   user-select: none;
   -webkit-user-drag: none;
-  opacity: 1;
-  visibility: visible;
+  /* width 和 height 由内联样式控制，不在这里设置 */
 }
 

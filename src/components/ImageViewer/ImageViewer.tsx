@@ -44,6 +44,23 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   }, [currentImage?.url])
 
   const { isLoading, isError, retry } = useImageLoader(imageUrl)
+  
+  // 当图片切换时，重置状态
+  useEffect(() => {
+    if (currentImage) {
+      // 如果图片有 URL 但尺寸为 0，说明图片信息可能还未加载完成
+      // 这种情况不需要特殊处理，因为图片加载完成后会自动更新
+      // 但我们需要确保在图片切换时重置视图状态
+      if (imageUrl) {
+        // 图片 URL 存在，重置视图状态
+        setScale(100)
+        setRotation(0)
+        setFlipHorizontal(false)
+        setFlipVertical(false)
+        setViewMode('fit')
+      }
+    }
+  }, [currentImage?.id, imageUrl])
 
   // 当外部传入的currentIndex变化时，更新内部状态
   useEffect(() => {

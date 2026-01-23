@@ -356,10 +356,18 @@ const FileList: React.FC = () => {
 
       setPreviewImages(initialImages)
       setPreviewIndex(index)
-      setPreviewModalVisible(true)
-
-      // 预加载当前图片
-      await loadImageForPreview(index, files[index].path)
+      
+      // 先加载第一张图片，然后再打开查看器
+      try {
+        // 直接传入 file 对象，避免依赖 previewableFiles 状态
+        await loadImageForPreview(index, files[index].path, files[index])
+        // 图片加载完成后再打开查看器，确保第一张图片能正确显示
+        setPreviewModalVisible(true)
+      } catch (error) {
+        console.error('[FileList] 加载第一张图片失败:', error)
+        // 即使加载失败也打开查看器，让用户看到错误提示
+        setPreviewModalVisible(true)
+      }
     } else {
       // 回退到系统预览
       if (window.electronAPI && window.electronAPI.previewFile) {
@@ -369,53 +377,57 @@ const FileList: React.FC = () => {
   }
 
   // 加载图片数据（异步）
-  const loadImageForPreview = async (index: number, filePath: string) => {
+  const loadImageForPreview = async (index: number, filePath: string, file?: FileInfo) => {
     try {
-      const file = previewableFiles[index]
+      // 优先使用传入的 file 参数，如果没有则从 previewableFiles 获取
+      const targetFile = file || previewableFiles[index]
+      if (!targetFile) {
+        console.warn(`[FileList] 无法找到文件信息: index=${index}, path=${filePath}`)
+        return
+      }
+      
       // 检查文件大小，超过50MB的图片不加载原图
-      if (file && file.size > MAX_IMAGE_SIZE) {
-        console.log(`跳过大于50MB的图片加载: ${file.name}`)
+      if (targetFile.size > MAX_IMAGE_SIZE) {
+        console.log(`跳过大于50MB的图片加载: ${targetFile.name}`)
         return
       }
       
       const highResB64 = await window.electronAPI?.getImageBase64(filePath)
       if (highResB64 && highResB64.trim() !== '') {
-        if (file) {
-          console.log(`[FileList] 加载图片 ${index}: ${file.name}, URL长度: ${highResB64.length}`)
-          const image = await convertFileToImage(file, highResB64)
-          console.log(`[FileList] 图片尺寸: ${image.width}x${image.height}`)
-          setPreviewImages(prev => {
-            const newImages = [...prev]
-            newImages[index] = image
-            return newImages
-          })
-        }
+        console.log(`[FileList] 加载图片 ${index}: ${targetFile.name}, URL长度: ${highResB64.length}`)
+        const image = await convertFileToImage(targetFile, highResB64)
+        console.log(`[FileList] 图片尺寸: ${image.width}x${image.height}`)
+        setPreviewImages(prev => {
+          const newImages = [...prev]
+          newImages[index] = image
+          return newImages
+        })
       } else {
         console.warn(`[FileList] 获取图片base64失败: ${filePath}`)
         // 如果加载失败，尝试使用缩略图
         const previewData = imagePreviews.get(filePath)
         if (previewData?.thumbnail) {
-          if (file) {
-            console.log(`[FileList] 使用缩略图: ${file.name}`)
-            const image = await convertFileToImage(file, previewData.thumbnail)
-            setPreviewImages(prev => {
-              const newImages = [...prev]
-              newImages[index] = image
-              return newImages
-            })
-          }
+          console.log(`[FileList] 使用缩略图: ${targetFile.name}`)
+          const image = await convertFileToImage(targetFile, previewData.thumbnail)
+          setPreviewImages(prev => {
+            const newImages = [...prev]
+            newImages[index] = image
+            return newImages
+          })
+        } else {
+          console.error(`[FileList] 无法获取图片数据: ${filePath}`)
         }
       }
     } catch (e) {
       console.error('[FileList] 加载图片失败:', e)
       // 尝试使用缩略图作为后备
-      const previewData = imagePreviews.get(filePath)
-      if (previewData?.thumbnail) {
-        const file = previewableFiles[index]
-        if (file) {
+      const targetFile = file || previewableFiles[index]
+      if (targetFile) {
+        const previewData = imagePreviews.get(filePath)
+        if (previewData?.thumbnail) {
           try {
-            console.log(`[FileList] 错误后使用缩略图: ${file.name}`)
-            const image = await convertFileToImage(file, previewData.thumbnail)
+            console.log(`[FileList] 错误后使用缩略图: ${targetFile.name}`)
+            const image = await convertFileToImage(targetFile, previewData.thumbnail)
             setPreviewImages(prev => {
               const newImages = [...prev]
               newImages[index] = image
@@ -435,8 +447,8 @@ const FileList: React.FC = () => {
     if (previewableFiles[newIndex]) {
       // 如果该图片还未加载，则加载它
       const currentImage = previewImages[newIndex]
-      if (!currentImage || !currentImage.url) {
-        await loadImageForPreview(newIndex, previewableFiles[newIndex].path)
+      if (!currentImage || !currentImage.url || currentImage.url.trim() === '') {
+        await loadImageForPreview(newIndex, previewableFiles[newIndex].path, previewableFiles[newIndex])
       }
     }
   }
