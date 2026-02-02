@@ -20,6 +20,7 @@ import {
 import { useFileStore } from '../stores/fileStore'
 import { useFileSystem } from '../hooks/useFileSystem'
 import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../utils/fileUtils'
+import { imageLoader } from '../utils/imageLoader'
 import type { FileInfo } from '../types'
 import ImageViewer from './ImageViewer'
 import type { Image } from './ImageViewer'
@@ -63,6 +64,10 @@ const FileList: React.FC = () => {
     setImagePreviews(new Map())
     setVisibleImages(new Set())
     setLoadingImages(new Set())
+    
+    // 清理图片加载器缓存（可选，根据需要）
+    // imageLoader.clearCache()
+    
     // 清理之前的观察
     if (observerRef.current) {
       imageRefs.current.forEach((element) => {
@@ -70,6 +75,11 @@ const FileList: React.FC = () => {
       })
     }
     imageRefs.current.clear()
+    
+    // 输出缓存统计信息
+    const stats = imageLoader.getCacheStats()
+    const hitRate = imageLoader.getHitRate()
+    console.log(`[FileList] 目录切换，缓存统计: 项目数=${stats.itemCount}, 总大小=${(stats.totalSize / 1024 / 1024).toFixed(1)}MB, 命中率=${hitRate}%`)
   }, [currentPath])
 
   // 当文件列表或 observer 变化时，重新观察所有已注册的元素
@@ -90,7 +100,7 @@ const FileList: React.FC = () => {
     return () => clearTimeout(timer)
   }, [fileList, previewEnabled])
 
-  // 加载图片预览（懒加载版本）
+  // 加载图片预览（优化版本 - 智能缓存和批量加载）
   useEffect(() => {
     if (!previewEnabled) {
       setImagePreviews(new Map())
@@ -99,29 +109,27 @@ const FileList: React.FC = () => {
       return
     }
 
-    // 初始化Intersection Observer
+    // 初始化Intersection Observer - 增加预加载距离和优化触发条件
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           const filePath = (entry.target as HTMLElement).dataset.filePath
           if (!filePath) return
 
-          if (entry.isIntersecting) {
-            // 图片进入视口，开始加载
-            setVisibleImages(prev => new Set([...prev, filePath]))
-          } else {
-            // 图片离开视口，可以选择卸载以节省内存
-            // setVisibleImages(prev => {
-            //   const newSet = new Set(prev)
-            //   newSet.delete(filePath)
-            //   return newSet
-            // })
+          if (entry.isIntersecting || entry.intersectionRatio > 0) {
+            // 图片进入视口或部分可见，开始加载
+            setVisibleImages(prev => {
+              if (!prev.has(filePath)) {
+                return new Set([...prev, filePath])
+              }
+              return prev
+            })
           }
         })
       },
       {
-        rootMargin: '50px', // 提前50px开始加载
-        threshold: 0.1
+        rootMargin: '200px', // 增加到200px，提前更多开始加载
+        threshold: 0.01 // 降低阈值，更早触发
       }
     )
 
@@ -135,22 +143,24 @@ const FileList: React.FC = () => {
     })
     imageRefs.current.clear()
 
-    // 延迟观察已存在的元素，确保DOM已渲染
-    // 使用 requestAnimationFrame 确保在下一帧执行
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (observerRef.current) {
-          imageRefs.current.forEach((element) => {
-            if (element && observerRef.current) {
-              try {
-                observerRef.current.observe(element)
-              } catch (error) {
-                console.warn('观察元素失败:', error)
-              }
+    // 立即观察已存在的元素
+    const observeElements = () => {
+      if (observerRef.current) {
+        imageRefs.current.forEach((element) => {
+          if (element && observerRef.current) {
+            try {
+              observerRef.current.observe(element)
+            } catch (error) {
+              console.warn('观察元素失败:', error)
             }
-          })
-        }
-      }, 100)
+          }
+        })
+      }
+    }
+
+    // 使用双重定时器确保DOM完全渲染
+    requestAnimationFrame(() => {
+      setTimeout(observeElements, 50)
     })
 
     return () => {
@@ -158,7 +168,7 @@ const FileList: React.FC = () => {
     }
   }, [previewEnabled])
 
-  // 加载可见图片的缩略图
+  // 加载可见图片的缩略图（优化版本 - 智能缓存和优先级加载）
   useEffect(() => {
     if (!previewEnabled || visibleImages.size === 0) return
 
@@ -174,23 +184,29 @@ const FileList: React.FC = () => {
       // 标记正在加载
       setLoadingImages(prev => new Set([...prev, ...imagesToLoad]))
 
-      // 并发度限制
-      const CONCURRENCY = 3
+      // 优化并发度和批次处理
+      const CONCURRENCY = 4 // 增加并发度
       let index = 0
+
+      // 按文件大小排序，优先加载小图片
+      const sortedImages = imagesToLoad.sort((a, b) => {
+        const fileA = fileList.find(f => f.path === a)
+        const fileB = fileList.find(f => f.path === b)
+        return (fileA?.size || 0) - (fileB?.size || 0)
+      })
 
       const worker = async () => {
         while (true) {
           const i = index
           index += 1
-          if (i >= imagesToLoad.length) break
-          const filePath = imagesToLoad[i]
+          if (i >= sortedImages.length) break
+          const filePath = sortedImages[i]
 
           try {
             // 检查文件大小，只对小于等于50MB的图片生成缩略图
             const file = fileList.find(f => f.path === filePath)
-            if (file && file.size > MAX_IMAGE_SIZE) {
+            if (!file || file.size > MAX_IMAGE_SIZE) {
               console.log(`跳过大于50MB的图片缩略图生成: ${filePath}`)
-              // 即使大于50MB，也要从loadingImages中移除
               if (mounted) {
                 setLoadingImages(prev => {
                   const newSet = new Set(prev)
@@ -201,23 +217,45 @@ const FileList: React.FC = () => {
               continue
             }
             
-            // 对于小于等于50MB的图片，使用sharp生成最低质量的缩略图用于预览
-            // 确保所有不超过50MB的图片都尝试加载预览
-            console.log(`[FileList] 正在加载预览图片: ${filePath} (${file ? (file.size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小'})`)
-            const thumbnail = await window.electronAPI?.getImageThumbnail(filePath, 100, 1) // 使用最低质量(1)
-            if (thumbnail && thumbnail.trim() !== '' && mounted) {
-              setImagePreviews(prev => {
-                const m = new Map(prev)
-                m.set(filePath, { thumbnail, full: thumbnail })
-                return m
+            // 使用优化的图片加载器
+            console.log(`[FileList] 正在加载预览图片: ${filePath} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
+            
+            try {
+              const result = await imageLoader.loadThumbnail(filePath, 120, 60, {
+                useCache: true,
+                timeout: 15000,
+                retryCount: 2
               })
-              console.log(`[FileList] 预览图片加载成功: ${filePath}`)
-            } else if (mounted && file && file.size <= MAX_IMAGE_SIZE) {
-              // 如果加载失败但文件大小在限制内，记录警告但不阻止后续尝试
-              console.warn(`[FileList] 图片缩略图加载失败，但文件大小在限制内: ${filePath} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
+              
+              if (mounted && result.data) {
+                setImagePreviews(prev => {
+                  const m = new Map(prev)
+                  m.set(filePath, { thumbnail: result.data, full: result.data })
+                  return m
+                })
+                console.log(`[FileList] 预览图片加载成功: ${filePath} (来源: ${result.fromCache ? '缓存' : '网络'}, 大小: ${(result.size / 1024).toFixed(1)}KB)`)
+              }
+            } catch (error) {
+              console.error(`[FileList] 图片缩略图加载失败: ${filePath}`, error)
+              
+              if (mounted) {
+                setImagePreviews(prev => {
+                  const m = new Map(prev)
+                  m.set(filePath, { thumbnail: '', full: '' }) // 空字符串标记失败
+                  return m
+                })
+              }
             }
           } catch (error) {
             console.error('加载图片缩略图失败:', filePath, error)
+            // 对于加载失败的图片，设置错误标记，避免重复尝试
+            if (mounted) {
+              setImagePreviews(prev => {
+                const m = new Map(prev)
+                m.set(filePath, { thumbnail: '', full: '' }) // 空字符串标记失败
+                return m
+              })
+            }
           } finally {
             if (mounted) {
               setLoadingImages(prev => {
@@ -228,20 +266,20 @@ const FileList: React.FC = () => {
             }
           }
 
-          // 小延迟，给渲染线程喘息
-          await new Promise(res => setTimeout(res, 2000))
+          // 优化延迟：减少等待时间，提高加载速度
+          await new Promise(res => setTimeout(res, 500))
         }
       }
 
       const workers: Promise<void>[] = []
-      for (let w = 0; w < Math.min(CONCURRENCY, imagesToLoad.length); w++) {
+      for (let w = 0; w < Math.min(CONCURRENCY, sortedImages.length); w++) {
         workers.push(worker())
       }
 
       try {
-        await Promise.all(workers)
+        await Promise.allSettled(workers) // 使用 allSettled 避免单个失败影响全部
       } catch (e) {
-        // 忽略个别 worker 错误
+        console.warn('部分缩略图加载任务失败:', e)
       }
     }
 
@@ -376,7 +414,7 @@ const FileList: React.FC = () => {
     }
   }
 
-  // 加载图片数据（异步）
+  // 加载图片数据（优化版本 - 智能缓存和渐进式加载）
   const loadImageForPreview = async (index: number, filePath: string, file?: FileInfo) => {
     try {
       // 优先使用传入的 file 参数，如果没有则从 previewableFiles 获取
@@ -392,50 +430,95 @@ const FileList: React.FC = () => {
         return
       }
       
-      const highResB64 = await window.electronAPI?.getImageBase64(filePath)
-      if (highResB64 && highResB64.trim() !== '') {
-        console.log(`[FileList] 加载图片 ${index}: ${targetFile.name}, URL长度: ${highResB64.length}`)
-        const image = await convertFileToImage(targetFile, highResB64)
-        console.log(`[FileList] 图片尺寸: ${image.width}x${image.height}`)
+      // 首先尝试使用已缓存的预览数据
+      const previewData = imagePreviews.get(filePath)
+      if (previewData?.thumbnail && previewData.thumbnail.trim() !== '') {
+        console.log(`[FileList] 使用缓存缩略图: ${targetFile.name}`)
+        const image = await convertFileToImage(targetFile, previewData.thumbnail)
         setPreviewImages(prev => {
           const newImages = [...prev]
           newImages[index] = image
           return newImages
         })
-      } else {
-        console.warn(`[FileList] 获取图片base64失败: ${filePath}`)
-        // 如果加载失败，尝试使用缩略图
-        const previewData = imagePreviews.get(filePath)
-        if (previewData?.thumbnail) {
-          console.log(`[FileList] 使用缩略图: ${targetFile.name}`)
-          const image = await convertFileToImage(targetFile, previewData.thumbnail)
+        return
+      }
+      
+      // 使用优化的图片加载器进行智能加载
+      console.log(`[FileList] 正在智能加载图片: ${targetFile.name}`)
+      
+      try {
+        const result = await imageLoader.loadSmart(filePath, MAX_IMAGE_SIZE, targetFile.size, {
+          useCache: true,
+          timeout: 20000,
+          retryCount: 1,
+          fallbackSize: 200,
+          fallbackQuality: 70
+        })
+        
+        if (result.data) {
+          console.log(`[FileList] 加载图片 ${index}: ${targetFile.name} (类型: ${result.isThumbnail ? '缩略图' : '原图'}, 来源: ${result.fromCache ? '缓存' : '网络'}, 大小: ${(result.size / 1024).toFixed(1)}KB)`)
+          const image = await convertFileToImage(targetFile, result.data)
+          console.log(`[FileList] 图片尺寸: ${image.width}x${image.height}`)
           setPreviewImages(prev => {
             const newImages = [...prev]
             newImages[index] = image
             return newImages
           })
+          
+          // 更新缓存
+          setImagePreviews(prev => {
+            const m = new Map(prev)
+            m.set(filePath, { thumbnail: result.data, full: result.data })
+            return m
+          })
         } else {
-          console.error(`[FileList] 无法获取图片数据: ${filePath}`)
+          throw new Error('图片数据为空')
         }
+      } catch (error) {
+        throw new Error(`智能加载失败: ${error}`)
       }
     } catch (e) {
       console.error('[FileList] 加载图片失败:', e)
-      // 尝试使用缩略图作为后备
+      
+      // 降级策略：尝试生成更小的缩略图
       const targetFile = file || previewableFiles[index]
-      if (targetFile) {
-        const previewData = imagePreviews.get(filePath)
-        if (previewData?.thumbnail) {
-          try {
-            console.log(`[FileList] 错误后使用缩略图: ${targetFile.name}`)
-            const image = await convertFileToImage(targetFile, previewData.thumbnail)
+      if (targetFile && targetFile.size <= MAX_IMAGE_SIZE) {
+        try {
+          console.log(`[FileList] 尝试生成降级缩略图: ${targetFile.name}`)
+          const fallbackResult = await imageLoader.loadThumbnail(filePath, 100, 40, {
+            useCache: true,
+            timeout: 10000,
+            retryCount: 1
+          })
+          
+          if (fallbackResult.data) {
+            const image = await convertFileToImage(targetFile, fallbackResult.data)
             setPreviewImages(prev => {
               const newImages = [...prev]
               newImages[index] = image
               return newImages
             })
-          } catch (err) {
-            console.error('[FileList] 使用缩略图也失败:', err)
+            
+            // 更新缓存
+            setImagePreviews(prev => {
+              const m = new Map(prev)
+              m.set(filePath, { thumbnail: fallbackResult.data, full: fallbackResult.data })
+              return m
+            })
+          } else {
+            throw new Error('降级缩略图生成失败')
           }
+        } catch (err) {
+          console.error('[FileList] 降级加载也失败:', err)
+          // 设置错误状态
+          setPreviewImages(prev => {
+            const newImages = [...prev]
+            newImages[index] = {
+              ...newImages[index],
+              url: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="#999" font-size="14">加载失败</text></svg>'
+            }
+            return newImages
+          })
         }
       }
     }

@@ -5,7 +5,7 @@
   "main": "dist-electron/main/main.js",
   "type": "module",
   "scripts": {
-    "dev": "electron-vite dev ",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 chcp 65001 && electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "pack": "electron-builder",

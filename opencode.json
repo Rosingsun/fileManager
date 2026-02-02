@@ -1,0 +1,20 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "myprovider": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Canopy Wave",
+      "options": {
+        "baseURL": "https://inference.canopywave.io/v1",
+        "headers": {
+          "Authorization": "gtGrDDWf-sN8_x7S1hTn4b8wiyMuH7Gi_wIGFZ1Mk9w"
+        }
+      },
+      "models": {
+        "zai/glm-4.7": {
+          "name": "glm47"
+        }
+      }
+    }
+  }
+}

@@ -4,6 +4,7 @@ import { DeleteOutlined, ReloadOutlined, CheckCircleOutlined, PictureOutlined } 
 import type { SimilarityScanResult, SimilarityScanConfig } from '../../types'
 import { formatFileSize, formatDateTime } from '../../utils/fileUtils'
 import ImagePreview, { type ImageSource } from '../ImagePreview/ImagePreview'
+import { imageLoader } from '../../utils/imageLoader'
 import './ScanResults.css'
 
 const { Text } = Typography
@@ -21,10 +22,8 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
   const [previewImages, setPreviewImages] = useState<ImageSource[]>([])
   const [previewCurrentIndex, setPreviewCurrentIndex] = useState(0)
   const [imageThumbnails, setImageThumbnails] = useState<Map<string, string>>(new Map())
-  const [imageBase64Cache, setImageBase64Cache] = useState<Map<string, string>>(new Map())
   const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set())
   const loadingRef = useRef<Set<string>>(new Set())
-  const loadingBase64Ref = useRef<Set<string>>(new Set())
 
   // 初始化：所有组都选中，每组默认保留推荐的照片
   React.useEffect(() => {
@@ -51,10 +50,8 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result])
 
-  // 加载所有图片的缩略图
+  // 加载所有图片的缩略图（优化版本）
   const loadAllThumbnails = React.useCallback(async () => {
-    if (!window.electronAPI) return
-
     const allImages: string[] = []
     result.groups.forEach(group => {
       group.images.forEach(img => {
@@ -62,40 +59,65 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
       })
     })
 
-    // 批量加载缩略图
-    for (const filePath of allImages) {
-      // 检查是否已经在加载
-      if (loadingRef.current.has(filePath)) continue
+    console.log(`[ScanResults] 开始批量加载 ${allImages.length} 张图片的缩略图`)
+    
+    // 使用优化的图片加载器批量预加载
+    try {
+      await imageLoader.preloadBatch(allImages, 'thumbnail', 4)
       
-      // 检查是否已加载（使用函数式更新来获取最新状态）
-      setImageThumbnails(prev => {
-        if (prev.has(filePath)) {
-          return prev
+      // 预加载完成后，更新状态
+      const thumbnails = new Map<string, string>()
+      const loadPromises = allImages.map(async (filePath) => {
+        try {
+          const result = await imageLoader.loadThumbnail(filePath, 300, 85, {
+            useCache: true,
+            timeout: 10000,
+            retryCount: 1
+          })
+          
+          if (result.data) {
+            thumbnails.set(filePath, result.data)
+          }
+        } catch (error) {
+          console.error('加载缩略图失败:', filePath, error)
         }
-        return prev
       })
       
-      loadingRef.current.add(filePath)
-      setLoadingThumbnails(prev => new Set(prev).add(filePath))
+      await Promise.allSettled(loadPromises)
       
-      try {
-        const thumbnail = await window.electronAPI!.getImageThumbnail(filePath, 200, 80)
-        if (thumbnail) {
-          setImageThumbnails(prev => {
-            // 再次检查，避免重复设置
-            if (prev.has(filePath)) return prev
-            return new Map(prev).set(filePath, thumbnail)
+      setImageThumbnails(thumbnails)
+      console.log(`[ScanResults] 缩略图加载完成，成功: ${thumbnails.size}/${allImages.length}`)
+      
+    } catch (error) {
+      console.error('[ScanResults] 批量加载缩略图失败:', error)
+      
+      // 降级到单个加载
+      for (const filePath of allImages) {
+        if (loadingRef.current.has(filePath)) continue
+        
+        loadingRef.current.add(filePath)
+        setLoadingThumbnails(prev => new Set(prev).add(filePath))
+        
+        try {
+          const result = await imageLoader.loadThumbnail(filePath, 300, 85)
+          if (result.data) {
+            setImageThumbnails(prev => {
+              if (!prev.has(filePath)) {
+                return new Map(prev).set(filePath, result.data)
+              }
+              return prev
+            })
+          }
+        } catch (error) {
+          console.error('降级加载缩略图失败:', filePath, error)
+        } finally {
+          loadingRef.current.delete(filePath)
+          setLoadingThumbnails(prev => {
+            const next = new Set(prev)
+            next.delete(filePath)
+            return next
           })
         }
-      } catch (error) {
-        console.error('加载缩略图失败:', filePath, error)
-      } finally {
-        loadingRef.current.delete(filePath)
-        setLoadingThumbnails(prev => {
-          const next = new Set(prev)
-          next.delete(filePath)
-          return next
-        })
       }
     }
   }, [result.groups])
@@ -211,46 +233,28 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
     })
   }
 
-  // 加载图片的 base64 数据
+  // 加载图片的 base64 数据（优化版本）
   const loadImageBase64 = React.useCallback(async (filePath: string): Promise<string | null> => {
-    if (!window.electronAPI) return null
-
-    // 检查缓存
-    if (imageBase64Cache.has(filePath)) {
-      return imageBase64Cache.get(filePath) || null
-    }
-
-    // 检查是否正在加载
-    if (loadingBase64Ref.current.has(filePath)) {
-      // 等待加载完成
-      return new Promise((resolve) => {
-        const checkInterval = setInterval(() => {
-          if (imageBase64Cache.has(filePath)) {
-            clearInterval(checkInterval)
-            resolve(imageBase64Cache.get(filePath) || null)
-          } else if (!loadingBase64Ref.current.has(filePath)) {
-            clearInterval(checkInterval)
-            resolve(null)
-          }
-        }, 100)
-      })
-    }
-
-    loadingBase64Ref.current.add(filePath)
     try {
-      const base64 = await window.electronAPI.getImageBase64(filePath)
-      if (base64) {
-        setImageBase64Cache(prev => new Map(prev).set(filePath, base64))
-        return base64
+      // 使用优化的图片加载器进行智能加载
+      const result = await imageLoader.loadSmart(filePath, 50 * 1024 * 1024, undefined, {
+        useCache: true,
+        timeout: 15000,
+        retryCount: 1,
+        fallbackSize: 400,
+        fallbackQuality: 80
+      })
+      
+      if (result.data) {
+        return result.data
       }
+      
       return null
     } catch (error) {
       console.error('加载图片 base64 失败:', filePath, error)
       return null
-    } finally {
-      loadingBase64Ref.current.delete(filePath)
     }
-  }, [imageBase64Cache])
+  }, [])
 
   // 预览图片（支持组内导航）
   const handlePreviewImage = React.useCallback(async (imagePath: string, groupId?: string) => {

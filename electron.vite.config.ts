@@ -5,6 +5,9 @@ import { resolve } from 'path'
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+    },
     build: {
       outDir: 'dist-electron/main',
       rollupOptions: {
@@ -49,6 +52,12 @@ export default defineConfig({
       modules: {
         localsConvention: 'camelCase'
       }
+    },
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+    },
+    esbuild: {
+      charset: 'utf8'
     }
   }
 })

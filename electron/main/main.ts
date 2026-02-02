@@ -717,8 +717,8 @@ ipcMain.handle('file:getImageDimensions', async (_event, filePath: string): Prom
   }
 })
 
-// IPC 处理器：获取图片缩略图base64用于预览（使用sharp，最低质量压缩）
-ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 1): Promise<string> => {
+// IPC 处理器：获取图片缩略图base64用于预览（使用sharp，动态质量压缩）
+ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 60): Promise<string> => {
   try {
     // 获取文件大小，确保只处理50MB及以下的图片（包括50MB）
     const stats = await stat(filePath)
@@ -737,9 +737,9 @@ ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: 
     const isBmp = mimeType === 'image/bmp'
     const isSvg = mimeType === 'image/svg+xml'
     
-    // 使用Sharp生成缩略图，使用最低质量压缩以减小体积
-    // 强制使用最低质量（quality = 1）用于列表预览
-    const MIN_QUALITY = 1
+    // 根据传入的quality参数动态调整质量，默认60（中等质量）
+    // 提供更好的视觉效果，特别是在相似度检测页面
+    const effectiveQuality = Math.max(Math.min(quality || 60, 100), 1)
     const sharpInstance = sharp(filePath)
       .resize(size, size, {
         fit: 'cover',
@@ -748,47 +748,47 @@ ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: 
     
     let buffer: Buffer
     
-    // 针对不同图片格式进行优化处理，统一使用最低质量
+    // 针对不同图片格式进行优化处理，使用动态质量
     if (isPng) {
       // PNG格式转换为JPEG以减小体积（PNG不支持质量参数，转换为JPEG）
       buffer = await sharpInstance.jpeg({
-        quality: MIN_QUALITY,
-        progressive: false,
-        chromaSubsampling: '4:2:0'
+        quality: effectiveQuality,
+        progressive: effectiveQuality > 80,
+        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
       }).toBuffer()
     } else if (isWebp) {
-      // WebP格式使用最低质量
+      // WebP格式使用动态质量
       buffer = await sharpInstance.webp({
-        quality: MIN_QUALITY,
-        lossless: false
+        quality: effectiveQuality,
+        lossless: effectiveQuality === 100
       }).toBuffer()
     } else if (isGif) {
-      // 对于GIF，使用Sharp生成静态缩略图（保留第一帧），使用最低质量
+      // 对于GIF，使用Sharp生成静态缩略图（保留第一帧），使用动态质量
       buffer = await sharpInstance.jpeg({ 
-        quality: MIN_QUALITY,
-        progressive: false,
-        chromaSubsampling: '4:2:0'
+        quality: effectiveQuality,
+        progressive: effectiveQuality > 80,
+        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
       }).toBuffer()
     } else if (isBmp) {
-      // BMP格式转换为JPEG以减小体积，使用最低质量
+      // BMP格式转换为JPEG以减小体积，使用动态质量
       buffer = await sharpInstance.jpeg({ 
-        quality: MIN_QUALITY,
-        progressive: false,
-        chromaSubsampling: '4:2:0'
+        quality: effectiveQuality,
+        progressive: effectiveQuality > 80,
+        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
       }).toBuffer()
     } else if (isSvg) {
-      // SVG格式转换为JPEG以减小体积，使用最低质量
+      // SVG格式转换为JPEG以减小体积，使用动态质量
       buffer = await sharpInstance.jpeg({ 
-        quality: MIN_QUALITY,
-        progressive: false,
-        chromaSubsampling: '4:2:0'
+        quality: effectiveQuality,
+        progressive: effectiveQuality > 80,
+        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
       }).toBuffer()
     } else {
-      // 默认使用JPEG，适用于JPEG等格式，使用最低质量
+      // 默认使用JPEG，适用于JPEG等格式，使用动态质量
       buffer = await sharpInstance.jpeg({
-        quality: MIN_QUALITY,
-        progressive: false,
-        chromaSubsampling: '4:2:0'
+        quality: effectiveQuality,
+        progressive: effectiveQuality > 80,
+        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
       }).toBuffer()
     }
     

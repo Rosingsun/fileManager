@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { Card, Button, Progress, Alert, Space, Typography, Divider } from 'antd'
-import { StopOutlined, ReloadOutlined } from '@ant-design/icons'
+import { Card, Button, Progress, Alert, Typography } from 'antd'
+import { StopOutlined } from '@ant-design/icons'
 import type { SimilarityScanConfig, SimilarityScanResult, SimilarityScanProgress } from '../../types'
 import ScanConfig from './ScanConfig'
 import ScanResults from './ScanResults'
@@ -15,7 +15,8 @@ const SimilarityDetection: React.FC = () => {
   const [result, setResult] = useState<SimilarityScanResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 监听扫描进度
+  
+
   useEffect(() => {
     if (!window.electronAPI) return
 
@@ -26,11 +27,7 @@ const SimilarityDetection: React.FC = () => {
       }
     })
 
-    return () => {
-      if (unsubscribe) {
-        unsubscribe()
-      }
-    }
+    return unsubscribe
   }, [])
 
   const handleStartScan = async (scanConfig: SimilarityScanConfig) => {
@@ -48,17 +45,15 @@ const SimilarityDetection: React.FC = () => {
     try {
       const scanResult = await window.electronAPI.scanSimilarImages(scanConfig)
       setResult(scanResult)
-      setScanning(false)
     } catch (err: any) {
       setError(err.message || '扫描失败')
+    } finally {
       setScanning(false)
     }
   }
 
   const handleCancelScan = () => {
-    if (window.electronAPI) {
-      window.electronAPI.cancelSimilarityScan()
-    }
+    window.electronAPI?.cancelSimilarityScan()
     setScanning(false)
     setProgress(null)
   }
@@ -119,7 +114,7 @@ const SimilarityDetection: React.FC = () => {
                     <Progress
                       percent={progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0}
                       status={progress.status === 'error' ? 'exception' : 'active'}
-                      format={(percent) => `${progress.current} / ${progress.total}`}
+                      format={() => `${progress.current} / ${progress.total}`}
                       className="main-progress-bar"
                     />
                   </div>
