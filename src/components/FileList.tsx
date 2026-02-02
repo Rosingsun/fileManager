@@ -21,15 +21,17 @@ import { useFileStore } from '../stores/fileStore'
 import { useFileSystem } from '../hooks/useFileSystem'
 import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../utils/fileUtils'
 import { imageLoader } from '../utils/imageLoader'
+import { imageCache } from '../utils/imageCache'
 import type { FileInfo } from '../types'
 import ImageViewer from './ImageViewer'
 import type { Image } from './ImageViewer'
+import CircularProgress from './CircularProgress'
 
 const FileList: React.FC = () => {
   // 图片大小限制：50MB
   const MAX_IMAGE_SIZE = 50 * 1024 * 1024 // 52428800 bytes
   
-  const { fileList, loading, currentPath } = useFileStore()
+  const { fileList, loading, currentPath, historyList } = useFileStore()
   const { loadDirectory } = useFileSystem()
   const [renameModalVisible, setRenameModalVisible] = useState(false)
   const [renamingFile, setRenamingFile] = useState<FileInfo | null>(null)
@@ -39,6 +41,7 @@ const FileList: React.FC = () => {
   const [imagePreviews, setImagePreviews] = useState<Map<string, { thumbnail: string; full: string }>>(new Map())
   const [visibleImages, setVisibleImages] = useState<Set<string>>(new Set())
   const [loadingImages, setLoadingImages] = useState<Set<string>>(new Set())
+  const [imageProgress, setImageProgress] = useState<Map<string, number>>(new Map()) // 图片加载进度
   const observerRef = useRef<IntersectionObserver | null>(null)
   const imageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
@@ -64,6 +67,7 @@ const FileList: React.FC = () => {
     setImagePreviews(new Map())
     setVisibleImages(new Set())
     setLoadingImages(new Set())
+    setImageProgress(new Map())
     
     // 清理图片加载器缓存（可选，根据需要）
     // imageLoader.clearCache()
@@ -168,6 +172,71 @@ const FileList: React.FC = () => {
     }
   }, [previewEnabled])
 
+  // 带进度跟踪的图片加载函数
+  const loadThumbnailWithProgress = async (filePath: string, _file: FileInfo): Promise<{ data: string; fromCache: boolean }> => {
+    // 先检查缓存，如果从缓存加载，直接返回，不显示进度条
+    const cacheKey = `thumb:${filePath}:120:60`
+    const cached = imageCache.get(cacheKey)
+    if (cached) {
+      return { data: cached, fromCache: true }
+    }
+
+    // 初始化进度
+    setImageProgress(prev => {
+      const m = new Map(prev)
+      m.set(filePath, 0)
+      return m
+    })
+
+    // 模拟进度更新（因为 electronAPI 不提供进度回调）
+    const progressInterval = setInterval(() => {
+      setImageProgress(prev => {
+        const m = new Map(prev)
+        const currentProgress = m.get(filePath) || 0
+        if (currentProgress < 90) {
+          // 在0-90%之间缓慢增长
+          m.set(filePath, Math.min(currentProgress + Math.random() * 10, 90))
+        }
+        return m
+      })
+    }, 100)
+
+    try {
+      const result = await imageLoader.loadThumbnail(filePath, 120, 60, {
+        useCache: true,
+        timeout: 15000,
+        retryCount: 2
+      })
+
+      // 加载完成，设置进度为100%
+      clearInterval(progressInterval)
+      setImageProgress(prev => {
+        const m = new Map(prev)
+        m.set(filePath, 100)
+        return m
+      })
+
+      // 短暂延迟后清除进度（让用户看到100%）
+      setTimeout(() => {
+        setImageProgress(prev => {
+          const m = new Map(prev)
+          m.delete(filePath)
+          return m
+        })
+      }, 300)
+
+      return { data: result.data, fromCache: result.fromCache }
+    } catch (error) {
+      clearInterval(progressInterval)
+      setImageProgress(prev => {
+        const m = new Map(prev)
+        m.delete(filePath)
+        return m
+      })
+      throw error
+    }
+  }
+
   // 加载可见图片的缩略图（优化版本 - 智能缓存和优先级加载）
   useEffect(() => {
     if (!previewEnabled || visibleImages.size === 0) return
@@ -217,15 +286,11 @@ const FileList: React.FC = () => {
               continue
             }
             
-            // 使用优化的图片加载器
+            // 使用带进度跟踪的图片加载器
             console.log(`[FileList] 正在加载预览图片: ${filePath} (${(file.size / 1024 / 1024).toFixed(2)}MB)`)
             
             try {
-              const result = await imageLoader.loadThumbnail(filePath, 120, 60, {
-                useCache: true,
-                timeout: 15000,
-                retryCount: 2
-              })
+              const result = await loadThumbnailWithProgress(filePath, file)
               
               if (mounted && result.data) {
                 setImagePreviews(prev => {
@@ -233,7 +298,7 @@ const FileList: React.FC = () => {
                   m.set(filePath, { thumbnail: result.data, full: result.data })
                   return m
                 })
-                console.log(`[FileList] 预览图片加载成功: ${filePath} (来源: ${result.fromCache ? '缓存' : '网络'}, 大小: ${(result.size / 1024).toFixed(1)}KB)`)
+                console.log(`[FileList] 预览图片加载成功: ${filePath} (来源: ${result.fromCache ? '缓存' : '网络'})`)
               }
             } catch (error) {
               console.error(`[FileList] 图片缩略图加载失败: ${filePath}`, error)
@@ -787,6 +852,7 @@ const FileList: React.FC = () => {
           const isLargeImage = isImage && record.size > MAX_IMAGE_SIZE
           const previewData = imagePreviews.get(record.path)
           const isLoading = loadingImages.has(record.path)
+          const progress = imageProgress.get(record.path)
 
           return (
             <div
@@ -838,17 +904,6 @@ const FileList: React.FC = () => {
                   <div>大图片</div>
                   <div style={{ fontSize: '10px' }}>超过50MB</div>
                 </div>
-              ) : isLoading ? (
-                <div style={{
-                  width: '100%',
-                  height: '100%',
-                  backgroundColor: '#f0f0f0',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <PictureOutlined style={{ color: '#ccc' }} />
-                </div>
               ) : previewData && (previewData.thumbnail || previewData.full) ? (
                 <img
                     src={previewData.thumbnail || previewData.full}
@@ -873,6 +928,35 @@ const FileList: React.FC = () => {
                       }
                     }}
                   />
+              ) : isLoading && progress !== undefined ? (
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#f0f0f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <CircularProgress
+                    progress={progress}
+                    size={40}
+                    strokeWidth={3}
+                    color="#1890ff"
+                    backgroundColor="#e8e8e8"
+                    showText={true}
+                  />
+                </div>
+              ) : isLoading ? (
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  backgroundColor: '#f0f0f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <PictureOutlined style={{ color: '#ccc' }} />
+                </div>
               ) : (
                 <div style={{
                   width: '100%',
@@ -1002,24 +1086,30 @@ const FileList: React.FC = () => {
     )
   }
 
+  const isCurrentPathInHistory = currentPath ? historyList.some(item => item.path === currentPath) : false
+
   return (
     <Card
       title={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
           <Space>
-            <Button
-              type="default"
-              size="small"
-              icon={<LeftOutlined />}
-              onClick={handleGoBack}
-              disabled={!currentPath || currentPath === '/'} // 根目录时禁用
-              title="返回上级目录"
-            >
-              返回
-            </Button>
-            <span style={{ fontSize: '14px', color: '#666' }}>
-              当前路径: {currentPath}
-            </span>
+            {!isCurrentPathInHistory && (
+              <Button
+                type="default"
+                size="small"
+                icon={<LeftOutlined />}
+                onClick={handleGoBack}
+                disabled={!currentPath || currentPath === '/'}
+                title="返回上级目录"
+              >
+                返回
+              </Button>
+            )}
+            {!isCurrentPathInHistory && (
+              <span style={{ fontSize: '14px', color: '#666' }}>
+                当前路径: {currentPath}
+              </span>
+            )}
           </Space>
           <Space size="middle">
             <Switch
@@ -1089,6 +1179,7 @@ const FileList: React.FC = () => {
             style: { cursor: record.isDirectory ? 'pointer' : 'default', height: '40px' }
           })}
           pagination={false}
+          locale={{ emptyText: <span style={{ visibility: 'hidden' }}> </span> }}
           style={{
             transition: 'all 0.3s ease-in-out',
             opacity: 1,
@@ -1096,6 +1187,8 @@ const FileList: React.FC = () => {
             animation: 'fadeIn 0.3s ease-in-out'
           }}
         />
+      ) : paginatedFileList.length === 0 ? (
+        <div style={{ width: '100%', height: 'calc(100vh - 220px)' }}></div>
       ) : (
         <div
           style={{
@@ -1222,6 +1315,7 @@ const FileList: React.FC = () => {
                       const isLargeImage = isImage && file.size > MAX_IMAGE_SIZE
                       const previewData = imagePreviews.get(file.path)
                       const isLoading = loadingImages.has(file.path)
+                      const progress = imageProgress.get(file.path)
 
                       if (isLargeImage) {
                         return (
@@ -1245,10 +1339,7 @@ const FileList: React.FC = () => {
                         )
                       }
 
-                      if (isLoading) {
-                        return <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
-                      }
-
+                      // 优先显示已加载的图片（即使还在loading状态）
                       if (previewData && (previewData.thumbnail || previewData.full)) {
                         return (
                           <img
@@ -1276,7 +1367,58 @@ const FileList: React.FC = () => {
                         )
                       }
 
-                      return <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
+                      // 如果正在加载且有进度，显示进度条
+                      if (isLoading && progress !== undefined) {
+                        return (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#f5f5f5',
+                            position: 'relative'
+                          }}>
+                            <CircularProgress
+                              progress={progress}
+                              size={50}
+                              strokeWidth={4}
+                              color="#1890ff"
+                              backgroundColor="#e8e8e8"
+                              showText={true}
+                            />
+                          </div>
+                        )
+                      }
+
+                      // 如果正在加载但没有进度，显示加载图标
+                      if (isLoading) {
+                        return (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            backgroundColor: '#f5f5f5'
+                          }}>
+                            <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div style={{
+                          width: '100%',
+                          height: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: '#f5f5f5'
+                        }}>
+                          <PictureOutlined style={{ fontSize: '32px', color: '#ccc' }} />
+                        </div>
+                      )
                     })()}
                   </>
                 ) : (

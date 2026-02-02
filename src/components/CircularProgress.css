@@ -1,0 +1,30 @@
+.circular-progress {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.circular-progress-svg {
+  transform: rotate(-90deg);
+}
+
+.circular-progress-bg {
+  transition: stroke 0.3s ease;
+}
+
+.circular-progress-fg {
+  transition: stroke-dashoffset 0.3s ease, stroke 0.3s ease;
+}
+
+.circular-progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: 500;
+  color: #666;
+  user-select: none;
+  white-space: nowrap;
+}
+

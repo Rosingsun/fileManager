@@ -25,6 +25,10 @@ export interface ImageCanvasProps {
   onRetry?: () => void
 }
 
+const ELASTIC_BUFFER = 0.2
+const SPRING_STIFFNESS = 0.3
+const DAMPING = 0.8
+
 const ImageCanvas: React.FC<ImageCanvasProps> = ({
   imageUrl,
   imageWidth,
@@ -35,8 +39,6 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
   flipVertical,
   viewMode,
   onScaleChange,
-  onRotationChange,
-  onFlipChange,
   onViewModeChange,
   isLoading = false,
   isError = false,
@@ -48,6 +50,78 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
   const dragStartRef = useRef({ mouseX: 0, mouseY: 0, positionX: 0, positionY: 0 })
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  const velocityRef = useRef({ x: 0, y: 0 })
+  const animationFrameRef = useRef<number | null>(null)
+
+  // 计算旋转后的图片尺寸
+  const getRotatedSize = useCallback((width: number, height: number, rotation: number) => {
+    const radians = (rotation * Math.PI) / 180
+    const absCos = Math.abs(Math.cos(radians))
+    const absSin = Math.abs(Math.sin(radians))
+    return {
+      width: width * absCos + height * absSin,
+      height: width * absSin + height * absCos
+    }
+  }, [])
+
+  // 计算弹性边界
+  const getElasticBounds = useCallback((isDragging: boolean) => {
+    const scaledWidth = (imageWidth * scale) / 100
+    const scaledHeight = (imageHeight * scale) / 100
+    
+    const rotatedSize = getRotatedSize(scaledWidth, scaledHeight, rotation)
+    
+    const contentWidth = Math.max(rotatedSize.width, containerSize.width)
+    const contentHeight = Math.max(rotatedSize.height, containerSize.height)
+    
+    const overflowX = (contentWidth - containerSize.width) / 2
+    const overflowY = (contentHeight - containerSize.height) / 2
+    
+    const bufferX = isDragging ? Math.max(overflowX * ELASTIC_BUFFER, 30) : 0
+    const bufferY = isDragging ? Math.max(overflowY * ELASTIC_BUFFER, 30) : 0
+    
+    return {
+      minX: -(overflowX + bufferX),
+      maxX: overflowX + bufferX,
+      minY: -(overflowY + bufferY),
+      maxY: overflowY + bufferY
+    }
+  }, [imageWidth, imageHeight, scale, containerSize, rotation, getRotatedSize])
+
+  // 弹性回弹动画
+  const startSpringAnimation = useCallback(() => {
+    if (animationFrameRef.current !== null) {
+      cancelAnimationFrame(animationFrameRef.current)
+    }
+    
+    const animate = () => {
+      const bounds = getElasticBounds(false)
+      const isInBounds = position.x >= bounds.minX && position.x <= bounds.maxX && 
+                        position.y >= bounds.minY && position.y <= bounds.maxY
+      
+      if (isInBounds && Math.abs(velocityRef.current.x) < 0.1 && Math.abs(velocityRef.current.y) < 0.1) {
+        animationFrameRef.current = null
+        return
+      }
+      
+      let targetX = clamp(position.x, bounds.minX, bounds.maxX)
+      let targetY = clamp(position.y, bounds.minY, bounds.maxY)
+      
+      velocityRef.current.x += (targetX - position.x) * SPRING_STIFFNESS
+      velocityRef.current.y += (targetY - position.y) * SPRING_STIFFNESS
+      
+      velocityRef.current.x *= DAMPING
+      velocityRef.current.y *= DAMPING
+      
+      const newX = position.x + velocityRef.current.x
+      const newY = position.y + velocityRef.current.y
+      
+      setPosition({ x: newX, y: newY })
+      animationFrameRef.current = requestAnimationFrame(animate)
+    }
+    
+    animate()
+  }, [position, getElasticBounds])
 
   // 监听容器大小变化
   useEffect(() => {
@@ -63,13 +137,23 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
     return () => window.removeEventListener('resize', updateSize)
   }, [])
 
+  // 清理动画
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+    }
+  }, [])
+
   // 计算适应屏幕的缩放比例
   const fitScale = useMemo(() => {
     if (containerSize.width > 0 && containerSize.height > 0 && imageWidth > 0 && imageHeight > 0) {
-      return calculateFitScale(imageWidth, imageHeight, containerSize.width, containerSize.height)
+      const rotatedSize = getRotatedSize(imageWidth, imageHeight, rotation)
+      return calculateFitScale(rotatedSize.width, rotatedSize.height, containerSize.width, containerSize.height)
     }
     return 100
-  }, [containerSize.width, containerSize.height, imageWidth, imageHeight])
+  }, [containerSize.width, containerSize.height, imageWidth, imageHeight, rotation, getRotatedSize])
 
   // 根据视图模式调整缩放
   useEffect(() => {
@@ -100,16 +184,17 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
     if (viewMode === 'free' && containerSize.width > 0 && containerSize.height > 0) {
       const scaledWidth = (imageWidth * scale) / 100
       const scaledHeight = (imageHeight * scale) / 100
+      const rotatedSize = getRotatedSize(scaledWidth, scaledHeight, rotation)
       
-      const maxX = Math.max(0, (scaledWidth - containerSize.width) / 2)
-      const maxY = Math.max(0, (scaledHeight - containerSize.height) / 2)
+      const maxX = Math.max(0, (rotatedSize.width - containerSize.width) / 2)
+      const maxY = Math.max(0, (rotatedSize.height - containerSize.height) / 2)
       
       setPosition(prev => ({
         x: clamp(prev.x, -maxX, maxX),
         y: clamp(prev.y, -maxY, maxY)
       }))
     }
-  }, [scale, imageWidth, imageHeight, containerSize, viewMode])
+  }, [scale, imageWidth, imageHeight, containerSize, viewMode, rotation, getRotatedSize])
 
   // 鼠标滚轮缩放 - 以鼠标位置为中心缩放
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -121,51 +206,41 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
     
     if (!containerRef.current) return
     
-    // 获取容器相对于视口的位置
     const containerRect = containerRef.current.getBoundingClientRect()
-    // 鼠标在容器内的相对位置
     const mouseX = e.clientX - containerRect.left
     const mouseY = e.clientY - containerRect.top
     
-    // 容器中心位置
     const containerCenterX = containerRect.width / 2
     const containerCenterY = containerRect.height / 2
     
-    // 计算缩放前，鼠标相对于图片中心的位置（在原始图片坐标系中）
-    // 图片中心在容器中的位置 = 容器中心 + position偏移
     const imageCenterX = containerCenterX + position.x
     const imageCenterY = containerCenterY + position.y
     
-    // 鼠标相对于图片中心的位置（在缩放后的图片坐标系中）
-    // 需要除以缩放比例，得到在原始图片坐标系中的位置
     const relativeX = (mouseX - imageCenterX) / (scale / 100)
     const relativeY = (mouseY - imageCenterY) / (scale / 100)
     
-    // 计算缩放增量
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
     const newScale = clamp(scale * zoomFactor, 20, 500)
     
-    // 缩放后，鼠标应该仍然指向图片上的同一个点
-    // 新的图片中心位置 = 鼠标位置 - 相对位置 * 新缩放比例
     const newImageCenterX = mouseX - relativeX * (newScale / 100)
     const newImageCenterY = mouseY - relativeY * (newScale / 100)
     
-    // 计算新的位置（相对于容器中心）
     const newPositionX = newImageCenterX - containerCenterX
     const newPositionY = newImageCenterY - containerCenterY
     
-    // 限制位置在边界内
     const newScaledWidth = (imageWidth * newScale) / 100
     const newScaledHeight = (imageHeight * newScale) / 100
-    const maxX = Math.max(0, (newScaledWidth - containerRect.width) / 2)
-    const maxY = Math.max(0, (newScaledHeight - containerRect.height) / 2)
+    const rotatedSize = getRotatedSize(newScaledWidth, newScaledHeight, rotation)
+    
+    const maxX = Math.max(0, (rotatedSize.width - containerRect.width) / 2)
+    const maxY = Math.max(0, (rotatedSize.height - containerRect.height) / 2)
     
     const clampedX = clamp(newPositionX, -maxX, maxX)
     const clampedY = clamp(newPositionY, -maxY, maxY)
     
     setPosition({ x: clampedX, y: clampedY })
     onScaleChange(newScale)
-  }, [scale, viewMode, onScaleChange, onViewModeChange, imageWidth, imageHeight, position])
+  }, [scale, viewMode, onScaleChange, onViewModeChange, imageWidth, imageHeight, position, rotation, getRotatedSize])
 
   // 双击切换视图模式
   const handleDoubleClick = useCallback(() => {
@@ -178,22 +253,26 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
 
   // 拖拽开始
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return // 只处理左键
+    if (e.button !== 0) return
     
     if (!containerRef.current) return
     
     const scaledWidth = (imageWidth * scale) / 100
     const scaledHeight = (imageHeight * scale) / 100
     
-    // 只有当图片超出容器时才允许拖拽
     if (scaledWidth > containerSize.width || scaledHeight > containerSize.height) {
       setIsDragging(true)
-      // 记录鼠标的初始位置和图片的初始位置
       dragStartRef.current = {
         mouseX: e.clientX,
         mouseY: e.clientY,
         positionX: position.x,
         positionY: position.y
+      }
+      velocityRef.current = { x: 0, y: 0 }
+      
+      if (animationFrameRef.current !== null) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
       }
     }
   }, [imageWidth, imageHeight, scale, containerSize, position])
@@ -202,35 +281,34 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !containerRef.current) return
 
-    // 计算鼠标移动的偏移量
     const deltaX = e.clientX - dragStartRef.current.mouseX
     const deltaY = e.clientY - dragStartRef.current.mouseY
 
-    const scaledWidth = (imageWidth * scale) / 100
-    const scaledHeight = (imageHeight * scale) / 100
-    
-    const maxX = Math.max(0, (scaledWidth - containerSize.width) / 2)
-    const maxY = Math.max(0, (scaledHeight - containerSize.height) / 2)
+    velocityRef.current = { x: deltaX - (position.x - dragStartRef.current.positionX), y: deltaY - (position.y - dragStartRef.current.positionY) }
 
-    // 新位置 = 初始位置 + 鼠标移动偏移
+    const bounds = getElasticBounds(true)
+    
     const newX = clamp(
       dragStartRef.current.positionX + deltaX,
-      -maxX,
-      maxX
+      bounds.minX,
+      bounds.maxX
     )
     const newY = clamp(
       dragStartRef.current.positionY + deltaY,
-      -maxY,
-      maxY
+      bounds.minY,
+      bounds.maxY
     )
 
     setPosition({ x: newX, y: newY })
-  }, [isDragging, imageWidth, imageHeight, scale, containerSize])
+  }, [isDragging, position, getElasticBounds])
 
   // 拖拽结束
   const handleMouseUp = useCallback(() => {
-    setIsDragging(false)
-  }, [])
+    if (isDragging) {
+      setIsDragging(false)
+      startSpringAnimation()
+    }
+  }, [isDragging, startSpringAnimation])
 
   useEffect(() => {
     if (isDragging) {

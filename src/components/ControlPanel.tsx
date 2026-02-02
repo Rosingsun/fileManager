@@ -90,7 +90,7 @@ const ControlPanel: React.FC = () => {
 
   const [ruleType, setRuleType] = useState<OrganizeRule['type']>('extension')
   const [dateFormat, setDateFormat] = useState<'year' | 'month' | 'day'>('month')
-  const [customPattern, setCustomPattern] = useState('')
+  const [customPattern, _setCustomPattern] = useState('')
   const [includeSubdirs, setIncludeSubdirs] = useState(false)
   const [conflictAction, setConflictAction] = useState<'skip' | 'overwrite' | 'rename'>('rename')
   const [previewVisible, setPreviewVisible] = useState(false)
@@ -460,7 +460,7 @@ const ControlPanel: React.FC = () => {
           )}
           {previewViewMode === 'tree' && (
             <Tree
-              treeData={buildTreeData(previewResults, currentPath)}
+              treeData={buildTreeData(previewResults, currentPath || '')}
               defaultExpandAll
             />
           )}
@@ -515,7 +515,7 @@ const ControlPanel: React.FC = () => {
             当前档次: {sizeRanges.length} 个 (最多5个，最少1个)
           </div>
           <Space direction="vertical" style={{ width: '100%' }}>
-            {sizeRanges.map((range, index) => (
+            {sizeRanges.map((range) => (
               <Card key={range.id} size="small" style={{ backgroundColor: '#f9f9f9' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>

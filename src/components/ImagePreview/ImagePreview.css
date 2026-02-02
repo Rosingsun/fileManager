@@ -80,6 +80,9 @@
   user-select: none;
   -webkit-user-drag: none;
   visibility: visible;
+  image-rendering: -webkit-optimize-contrast;
+  backface-visibility: hidden;
+  perspective: 1000px;
 }
 
 .image-preview-error {
