@@ -172,28 +172,13 @@ export class OptimizedImageLoader {
    */
   async loadSmart(
     filePath: string,
-    maxSize: number = 50 * 1024 * 1024, // 50MB
-    fileSize?: number,
     options: LoadOptions = {}
   ): Promise<ImageLoadResult> {
-    // 如果文件太大，直接使用缩略图
-    if (fileSize && fileSize > maxSize) {
-      console.log(`[ImageLoader] 大文件使用缩略图: ${filePath} (${(fileSize / 1024 / 1024).toFixed(2)}MB)`)
-      return this.loadThumbnail(
-        filePath, 
-        options.fallbackSize || 200, 
-        options.fallbackQuality || 70,
-        options
-      )
-    }
-
     try {
-      // 尝试加载原图
       return await this.loadOriginal(filePath, options)
     } catch (error) {
       console.warn(`[ImageLoader] 原图加载失败，降级到缩略图: ${filePath}`, error)
       
-      // 降级到缩略图
       return this.loadThumbnail(
         filePath, 
         options.fallbackSize || 200, 
@@ -220,9 +205,9 @@ export class OptimizedImageLoader {
     for (const batch of batches) {
       await Promise.allSettled(
         batch.map(async (filePath) => {
-          const cacheKey = priority === 'thumbnail' 
-            ? `thumb:${filePath}:120:60`
-            : `original:${filePath}`
+            const cacheKey = priority === 'thumbnail'
+              ? `thumb:${filePath}:300:80`
+              : `original:${filePath}`
           
           if (!imageCache.has(cacheKey)) {
             try {

@@ -5,15 +5,18 @@
 
 .image-preview-modal .ant-modal-body {
   padding: 0;
+  max-height: calc(90vh - 60px);
+  overflow: hidden;
 }
 
 .image-preview-container {
   text-align: center;
   width: 100%;
-  height: calc(100% - 50px);
+  height: auto;
   min-height: 400px;
+  max-height: calc(90vh - 110px);
   background-color: #f0f0f0;
-  overflow: auto;
+  overflow: hidden;
   position: relative;
   display: flex;
   align-items: center;
@@ -40,39 +43,32 @@
   transform: translate(-50%, -50%);
   z-index: 10;
   background-color: rgba(255, 255, 255, 0.9);
-  padding: 16px 32px;
-  border-radius: 8px;
+  padding: 24px 40px;
+  border-radius: 12px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 12px;
   backdrop-filter: blur(4px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.image-preview-spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid #1890ff;
-  border-top: 3px solid transparent;
-  border-radius: 50%;
-  animation: image-preview-spin 1s linear infinite;
+.circular-progress {
+  width: 60px;
+  height: 60px;
+  transform: rotate(-90deg);
 }
 
-@keyframes image-preview-spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+.circular-progress-bg {
+  stroke: #e0e0e0;
+}
+
+.circular-progress-fill {
+  stroke: #1890ff;
+  transition: stroke-dasharray 0.3s ease;
 }
 
 .image-preview-img {
-  max-width: 100%;
-  max-height: calc(100vh - 200px);
-  width: auto;
-  height: auto;
-  object-fit: contain;
   display: block;
   margin: 0 auto;
   transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
@@ -83,6 +79,19 @@
   image-rendering: -webkit-optimize-contrast;
   backface-visibility: hidden;
   perspective: 1000px;
+}
+
+.image-preview-img.landscape {
+  width: 100%;
+  height: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.image-preview-img.portrait {
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 200px);
 }
 
 .image-preview-error {

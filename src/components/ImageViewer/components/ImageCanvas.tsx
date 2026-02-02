@@ -159,7 +159,6 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
   useEffect(() => {
     if (viewMode === 'fit') {
       onScaleChange(fitScale)
-      // 延迟重置位置，确保缩放完成后再重置
       requestAnimationFrame(() => {
         setPosition({ x: 0, y: 0 })
       })
@@ -170,6 +169,14 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
       })
     }
   }, [viewMode, fitScale, onScaleChange])
+
+  // 当容器尺寸变化且当前是适应模式时，重新计算适应缩放比例
+  useEffect(() => {
+    if (viewMode === 'fit' && containerSize.width > 0 && containerSize.height > 0) {
+      onScaleChange(fitScale)
+      setPosition({ x: 0, y: 0 })
+    }
+  }, [containerSize, viewMode, fitScale, onScaleChange])
   
   // 当图片切换或尺寸变化时，重置位置到中心
   useEffect(() => {

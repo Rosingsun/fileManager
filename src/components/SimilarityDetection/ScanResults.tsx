@@ -237,7 +237,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
   const loadImageBase64 = React.useCallback(async (filePath: string): Promise<string | null> => {
     try {
       // 使用优化的图片加载器进行智能加载
-      const result = await imageLoader.loadSmart(filePath, 50 * 1024 * 1024, undefined, {
+      const result = await imageLoader.loadSmart(filePath, {
         useCache: true,
         timeout: 15000,
         retryCount: 1,

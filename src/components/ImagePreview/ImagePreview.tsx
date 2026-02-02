@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Modal, Button, Space, Empty } from 'antd'
 import {
   ZoomInOutlined,
@@ -10,6 +10,16 @@ import {
   RightOutlined
 } from '@ant-design/icons'
 import './ImagePreview.css'
+
+function calculateFitScale(imageWidth: number, imageHeight: number, containerWidth: number, containerHeight: number): number {
+  if (imageWidth === 0 || imageHeight === 0) return 100
+  const isLandscape = imageWidth >= imageHeight
+  if (isLandscape) {
+    return Math.min((containerWidth / imageWidth) * 100, 100)
+  } else {
+    return Math.min((containerHeight / imageHeight) * 100, 100)
+  }
+}
 
 export interface ImageSource {
   /** 图片URL或base64数据 */
@@ -101,8 +111,12 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const [scale, setScale] = useState(100)
   const [rotation, setRotation] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
+  const [loadProgress, setLoadProgress] = useState(0)
   const [loadError, setLoadError] = useState(false)
   const [actualIndex, setActualIndex] = useState(currentIndex)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 })
 
   // 当前显示的图片（基于actualIndex）
   const currentImage = React.useMemo(() => {
@@ -135,29 +149,111 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       setRotation(0)
       setLoadError(false)
       setIsLoading(false)
-    } else if (visible && currentImage?.src) {
-      // 当visible变为true且图片已加载时，确保不显示加载状态
-      setIsLoading(false)
+      setLoadProgress(0)
+    } else if (visible) {
       setLoadError(false)
-    } else if (visible && !currentImage?.src) {
-      // 当visible变为true但图片src还未加载时，显示加载状态
-      setIsLoading(true)
-      setLoadError(false)
+      setLoadProgress(0)
     }
   }, [visible, currentImage])
 
-  // 当currentImage的src更新时，重置加载状态
+  // 当currentImage的src更新时，应该显示加载状态
   useEffect(() => {
     if (visible && currentImage?.src) {
-      setIsLoading(false)
       setLoadError(false)
     }
   }, [visible, currentImage?.src])
 
+  // 预加载图片并检查是否已缓存
+  useEffect(() => {
+    if (!visible || !currentImage?.src) return
+
+    setLoadProgress(0)
+    setIsLoading(true)
+
+    const xhr = new XMLHttpRequest()
+    xhr.open('GET', currentImage.src, true)
+    xhr.responseType = 'blob'
+
+    xhr.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100)
+        setLoadProgress(progress)
+      }
+    }
+
+    xhr.onload = () => {
+      setIsLoading(false)
+      setLoadProgress(100)
+      setLoadError(false)
+      const img = new Image()
+      img.onload = () => {
+        setImageNaturalSize({ width: img.naturalWidth, height: img.naturalHeight })
+      }
+      img.src = URL.createObjectURL(xhr.response)
+    }
+
+    xhr.onerror = () => {
+      setIsLoading(false)
+    }
+
+    xhr.send()
+
+    const img = new Image()
+    img.onload = () => {
+      setIsLoading(false)
+      setLoadError(false)
+      setImageNaturalSize({ width: img.naturalWidth, height: img.naturalHeight })
+    }
+    img.onerror = () => {}
+    img.src = currentImage.src
+
+    if (img.complete) {
+      setIsLoading(false)
+      setLoadError(false)
+      setImageNaturalSize({ width: img.naturalWidth, height: img.naturalHeight })
+    }
+  }, [visible, currentImage?.src])
+
+  // 监听容器大小变化
+  useEffect(() => {
+    const updateSize = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        setContainerSize({ width: rect.width, height: rect.height })
+      }
+    }
+
+    updateSize()
+    window.addEventListener('resize', updateSize)
+    return () => window.removeEventListener('resize', updateSize)
+  }, [])
+
+  // 计算适应缩放比例
+  const fitScale = useMemo(() => {
+    if (containerSize.width > 0 && containerSize.height > 0 && imageNaturalSize.width > 0 && imageNaturalSize.height > 0) {
+      return calculateFitScale(imageNaturalSize.width, imageNaturalSize.height, containerSize.width, containerSize.height)
+    }
+    return 100
+  }, [containerSize, imageNaturalSize])
+
+  // 判断图片方向：横向或竖向
+  const isLandscape = imageNaturalSize.width >= imageNaturalSize.height
+
+  // 当容器尺寸和图片尺寸都准备好时，自动设置适应缩放
+  useEffect(() => {
+    if (visible && containerSize.width > 0 && containerSize.height > 0 && imageNaturalSize.width > 0 && imageNaturalSize.height > 0) {
+      setScale(fitScale)
+    }
+  }, [visible, containerSize, imageNaturalSize, fitScale])
+
   // 图片加载处理
-  const handleImageLoad = useCallback(() => {
+  const handleImageLoad = useCallback((e: any) => {
     setIsLoading(false)
     setLoadError(false)
+    const target = e.target
+    if (target.naturalWidth > 0 && target.naturalHeight > 0) {
+      setImageNaturalSize({ width: target.naturalWidth, height: target.naturalHeight })
+    }
     if (onLoad) {
       onLoad(actualIndex)
     }
@@ -213,6 +309,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       setRotation(0)
       setLoadError(false)
       setIsLoading(true)
+      setLoadProgress(0)
       if (onIndexChange) {
         onIndexChange(newIndex)
       }
@@ -227,6 +324,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       setRotation(0)
       setLoadError(false)
       setIsLoading(true)
+      setLoadProgress(0)
       if (onIndexChange) {
         onIndexChange(newIndex)
       }
@@ -237,6 +335,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const handleRetry = useCallback(() => {
     setLoadError(false)
     setIsLoading(true)
+    setLoadProgress(0)
     // 触发图片重新加载
     const img = new Image()
     img.onload = handleImageLoad
@@ -421,10 +520,10 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
           : null
       }
       width={width}
-      style={{ top: '10%', position: 'relative' }}
+      style={{ top: '5%', position: 'relative', height: 'auto', maxHeight: '90vh' }}
       className={`image-preview-modal ${className}`}
     >
-      <div className="image-preview-container">
+      <div ref={containerRef} className="image-preview-container">
         {/* 状态显示 */}
         <div className="image-preview-status">
           <Space>
@@ -436,20 +535,40 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
         {/* 加载状态指示器 */}
         {isLoading && (
           <div className="image-preview-loading">
-            <div className="image-preview-spinner"></div>
-            <span>正在加载图片...</span>
+            <svg className="circular-progress" viewBox="0 0 100 100">
+              <circle
+                className="circular-progress-bg"
+                cx="50"
+                cy="50"
+                r="45"
+                fill="none"
+                strokeWidth="8"
+              />
+              <circle
+                className="circular-progress-fill"
+                cx="50"
+                cy="50"
+                r="45"
+                fill="none"
+                strokeWidth="8"
+                strokeDasharray={`${loadProgress * 2.83} 283`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <span>{loadProgress}%</span>
           </div>
         )}
 
         {/* 图片显示 */}
         {!loadError && currentImage?.src && (
           <img
+            key={currentImage?.src}
             src={currentImage.src}
             alt={currentImage.title || '预览'}
-            className="image-preview-img"
+            className={`image-preview-img ${isLandscape ? 'landscape' : 'portrait'}`}
             style={{
               transform: `scale(${scale / 100}) rotate(${rotation}deg)`,
-              opacity: isLoading ? 0.7 : 1,
+              opacity: isLoading ? 0 : 1,
               display: 'block'
             }}
             onLoad={handleImageLoad}

@@ -60,6 +60,7 @@ const FileList: React.FC = () => {
   // 分页相关状态
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(15)
+  const [previewVersion, setPreviewVersion] = useState(0)
   const [pageSizeOptions] = useState(['15', '30', '75', '150', '300']) // 页码选择范围
 
   // 当目录切换时，清空图片预览缓存
@@ -175,7 +176,7 @@ const FileList: React.FC = () => {
   // 带进度跟踪的图片加载函数
   const loadThumbnailWithProgress = async (filePath: string, _file: FileInfo): Promise<{ data: string; fromCache: boolean }> => {
     // 先检查缓存，如果从缓存加载，直接返回，不显示进度条
-    const cacheKey = `thumb:${filePath}:120:60`
+    const cacheKey = `thumb:${filePath}:300:80`
     const cached = imageCache.get(cacheKey)
     if (cached) {
       return { data: cached, fromCache: true }
@@ -202,7 +203,7 @@ const FileList: React.FC = () => {
     }, 100)
 
     try {
-      const result = await imageLoader.loadThumbnail(filePath, 120, 60, {
+      const result = await imageLoader.loadThumbnail(filePath, 300, 80, {
         useCache: true,
         timeout: 15000,
         retryCount: 2
@@ -295,9 +296,10 @@ const FileList: React.FC = () => {
               if (mounted && result.data) {
                 setImagePreviews(prev => {
                   const m = new Map(prev)
-                  m.set(filePath, { thumbnail: result.data, full: result.data })
+                  m.set(filePath, { thumbnail: result.data, full: '' })
                   return m
                 })
+                setPreviewVersion(v => v + 1)
                 console.log(`[FileList] 预览图片加载成功: ${filePath} (来源: ${result.fromCache ? '缓存' : '网络'})`)
               }
             } catch (error) {
@@ -364,7 +366,7 @@ const FileList: React.FC = () => {
   }
 
   // 将FileInfo转换为Image格式
-  const convertFileToImage = async (file: FileInfo, imageUrl: string): Promise<Image> => {
+  const convertFileToImage = async (file: FileInfo, imageUrl: string, loadFullImageForDimensions: boolean = false): Promise<Image> => {
     // 获取图片尺寸 - 优先从 electron 端获取，失败则从前端加载图片获取
     let width = 0
     let height = 0
@@ -383,7 +385,9 @@ const FileList: React.FC = () => {
       console.warn('从 electron 端获取图片尺寸失败，尝试从前端获取:', error)
       try {
         const img = new Image()
-        img.src = imageUrl
+        // 如果需要获取原图尺寸，优先使用原图 URL（从缓存获取或重新加载）
+        const urlToLoad = loadFullImageForDimensions ? (imageUrl || '') : imageUrl
+        img.src = urlToLoad
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => {
             reject(new Error('加载超时'))
@@ -495,11 +499,11 @@ const FileList: React.FC = () => {
         return
       }
       
-      // 首先尝试使用已缓存的预览数据
+      // 打开大图时优先加载原图
       const previewData = imagePreviews.get(filePath)
-      if (previewData?.thumbnail && previewData.thumbnail.trim() !== '') {
-        console.log(`[FileList] 使用缓存缩略图: ${targetFile.name}`)
-        const image = await convertFileToImage(targetFile, previewData.thumbnail)
+      if (previewData?.full?.trim()) {
+        console.log(`[FileList] 使用缓存原图: ${targetFile.name}`)
+        const image = await convertFileToImage(targetFile, previewData.full)
         setPreviewImages(prev => {
           const newImages = [...prev]
           newImages[index] = image
@@ -507,12 +511,12 @@ const FileList: React.FC = () => {
         })
         return
       }
-      
-      // 使用优化的图片加载器进行智能加载
+
+      // 没有原图缓存，加载原图
       console.log(`[FileList] 正在智能加载图片: ${targetFile.name}`)
       
       try {
-        const result = await imageLoader.loadSmart(filePath, MAX_IMAGE_SIZE, targetFile.size, {
+        const result = await imageLoader.loadSmart(filePath, {
           useCache: true,
           timeout: 20000,
           retryCount: 1,
@@ -533,7 +537,20 @@ const FileList: React.FC = () => {
           // 更新缓存
           setImagePreviews(prev => {
             const m = new Map(prev)
-            m.set(filePath, { thumbnail: result.data, full: result.data })
+            const existingData = m.get(filePath)
+            if (result.isThumbnail) {
+              // 如果是缩略图，只更新 thumbnail，保留 full（原图）
+              m.set(filePath, { 
+                thumbnail: result.data, 
+                full: existingData?.full || '' 
+              })
+            } else {
+              // 如果是原图，同时更新 thumbnail 和 full
+              m.set(filePath, { 
+                thumbnail: result.data, 
+                full: result.data 
+              })
+            }
             return m
           })
         } else {
@@ -550,7 +567,7 @@ const FileList: React.FC = () => {
       if (targetFile && targetFile.size <= MAX_IMAGE_SIZE) {
         try {
           console.log(`[FileList] 尝试生成降级缩略图: ${targetFile.name}`)
-          const fallbackResult = await imageLoader.loadThumbnail(filePath, 100, 40, {
+          const fallbackResult = await imageLoader.loadThumbnail(filePath, 200, 70, {
             useCache: true,
             timeout: 10000,
             retryCount: 1
@@ -564,10 +581,14 @@ const FileList: React.FC = () => {
               return newImages
             })
             
-            // 更新缓存
+            // 更新缓存（降级加载的是缩略图，不要覆盖 full 字段）
             setImagePreviews(prev => {
               const m = new Map(prev)
-              m.set(filePath, { thumbnail: fallbackResult.data, full: fallbackResult.data })
+              const existingData = m.get(filePath)
+              m.set(filePath, {
+                thumbnail: fallbackResult.data,
+                full: existingData?.full || ''
+              })
               return m
             })
           } else {
@@ -905,29 +926,14 @@ const FileList: React.FC = () => {
                   <div style={{ fontSize: '10px' }}>超过50MB</div>
                 </div>
               ) : previewData && (previewData.thumbnail || previewData.full) ? (
-                <img
-                    src={previewData.thumbnail || previewData.full}
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      transition: 'opacity 0.3s ease'
-                    }}
-                    alt="preview"
-                    onError={(e) => {
-                      // 图片加载失败时，隐藏图片，显示占位符
-                      const target = e.target as HTMLImageElement
-                      target.style.display = 'none'
-                      const parent = target.parentElement
-                      if (parent && !parent.querySelector('.error-placeholder')) {
-                        const placeholder = document.createElement('div')
-                        placeholder.className = 'error-placeholder'
-                        placeholder.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;'
-                        placeholder.innerHTML = '<span style="font-size: 20px; color: #ccc;">📷</span>'
-                        parent.appendChild(placeholder)
-                      }
-                    }}
-                  />
+                <div
+                  key={`preview-${record.path}-${previewVersion}`}
+                  ref={(el) => {
+                    if (el && previewData) {
+                      el.innerHTML = `<img src="${previewData.thumbnail || previewData.full}" style="width:100%;height:100%;object-fit:cover;" alt="preview" />`
+                    }
+                  }}
+                />
               ) : isLoading && progress !== undefined ? (
                 <div style={{
                   width: '100%',
@@ -983,7 +989,7 @@ const FileList: React.FC = () => {
       render: (text: string, record: FileInfo) => (
         <Space>
           {getIcon(record)}
-          <span>{text}</span>
+          <span style={{ width: '5em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
           {record.isDirectory && <Tag color="blue">文件夹</Tag>}
         </Space>
       )
@@ -1179,7 +1185,7 @@ const FileList: React.FC = () => {
             style: { cursor: record.isDirectory ? 'pointer' : 'default', height: '40px' }
           })}
           pagination={false}
-          locale={{ emptyText: <span style={{ visibility: 'hidden' }}> </span> }}
+          locale={{ emptyText: <Empty description="该目录暂无文件" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
           style={{
             transition: 'all 0.3s ease-in-out',
             opacity: 1,
@@ -1188,7 +1194,9 @@ const FileList: React.FC = () => {
           }}
         />
       ) : paginatedFileList.length === 0 ? (
-        <div style={{ width: '100%', height: 'calc(100vh - 220px)' }}></div>
+        <div style={{ width: '100%', height: 'calc(100vh - 220px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Empty description="该目录暂无文件" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        </div>
       ) : (
         <div
           style={{
@@ -1342,25 +1350,11 @@ const FileList: React.FC = () => {
                       // 优先显示已加载的图片（即使还在loading状态）
                       if (previewData && (previewData.thumbnail || previewData.full)) {
                         return (
-                          <img
-                            src={previewData.thumbnail || previewData.full}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                              transition: 'opacity 0.3s ease'
-                            }}
-                            alt={file.name}
-                            onError={(e) => {
-                              // 图片加载失败时，隐藏图片，显示占位符
-                              const target = e.target as HTMLImageElement
-                              target.style.display = 'none'
-                              const parent = target.parentElement
-                              if (parent) {
-                                const placeholder = document.createElement('div')
-                                placeholder.style.cssText = 'width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;'
-                                placeholder.innerHTML = '<span style="font-size: 32px; color: #ccc;">📷</span>'
-                                parent.appendChild(placeholder)
+                          <div
+                            key={`preview-${file.path}-${previewVersion}`}
+                            ref={(el) => {
+                              if (el && previewData) {
+                                el.innerHTML = `<img src="${previewData.thumbnail || previewData.full}" style="width:100%;height:100%;object-fit:cover;" alt="${file.name}" />`
                               }
                             }}
                           />
