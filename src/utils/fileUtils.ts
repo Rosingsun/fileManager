@@ -110,3 +110,54 @@ export function sortFileList(files: FileInfo[], sortBy: 'name' | 'size' | 'date'
   return sorted
 }
 
+/**
+ * 根据扩展名获取文件分类
+ */
+export function getFileCategory(extension: string): 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other' {
+  const ext = extension.toLowerCase()
+
+  const categoryExtensions: Record<string, string[]> = {
+    image: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'raw', 'heic', 'psd'],
+    video: ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'm4v', '3gp', 'rmvb'],
+    audio: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'ape', 'aiff'],
+    document: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv', 'rtf', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts'],
+    archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso', 'dmg']
+  }
+
+  for (const [category, extensions] of Object.entries(categoryExtensions)) {
+    if (extensions.includes(ext)) {
+      return category as 'image' | 'video' | 'audio' | 'document' | 'archive'
+    }
+  }
+
+  return 'other'
+}
+
+/**
+ * 筛选文件列表
+ */
+export function filterFiles(
+  files: FileInfo[],
+  category: 'all' | 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other',
+  subExtensions: string[] = []
+): FileInfo[] {
+  if (category === 'all') {
+    return files
+  }
+
+  return files.filter(file => {
+    if (file.isDirectory) return false
+
+    const ext = getFileExtension(file.name)
+    const fileCategory = getFileCategory(ext)
+
+    if (fileCategory !== category) return false
+
+    if (subExtensions.length > 0) {
+      return subExtensions.includes(ext.toLowerCase())
+    }
+
+    return true
+  })
+}
+

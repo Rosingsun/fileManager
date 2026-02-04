@@ -8,6 +8,9 @@ export interface FileInfo {
   createdTime: number
 }
 
+// 文件分类类型
+export type FileCategory = 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other'
+
 // 分类规则类型
 export type OrganizeRuleType = 'extension' | 'date' | 'size' | 'custom'
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { Table, Card, Switch, Tag, Space, Empty, Modal, Input, message, Button, AutoComplete, Checkbox } from 'antd'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { Table, Card, Switch, Tag, Space, Empty, Modal, Input, message, Button, AutoComplete, Checkbox, Select } from 'antd'
 import { Button as AntButton } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -15,11 +15,13 @@ import {
   DeleteOutlined,
   EditOutlined,
   FolderOpenOutlined,
-  LeftOutlined
+  LeftOutlined,
+  FilterOutlined,
+  ClearOutlined
 } from '@ant-design/icons'
-import { useFileStore } from '../stores/fileStore'
+import { useFileStore, FILE_CATEGORIES } from '../stores/fileStore'
 import { useFileSystem } from '../hooks/useFileSystem'
-import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../utils/fileUtils'
+import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon, filterFiles } from '../utils/fileUtils'
 import { imageLoader } from '../utils/imageLoader'
 import { imageCache } from '../utils/imageCache'
 import type { FileInfo } from '../types'
@@ -28,10 +30,9 @@ import type { Image } from './ImageViewer'
 import CircularProgress from './CircularProgress'
 
 const FileList: React.FC = () => {
-  // 图片大小限制：50MB
-  const MAX_IMAGE_SIZE = 50 * 1024 * 1024 // 52428800 bytes
-  
-  const { fileList, loading, currentPath, historyList } = useFileStore()
+  const MAX_IMAGE_SIZE = 50 * 1024 * 1024
+
+  const { fileList, loading, currentPath, historyList, selectedCategory, selectedSubExtensions, setSelectedCategory, setSelectedSubExtensions, resetFilter } = useFileStore()
   const { loadDirectory } = useFileSystem()
   const [renameModalVisible, setRenameModalVisible] = useState(false)
   const [renamingFile, setRenamingFile] = useState<FileInfo | null>(null)
@@ -1052,13 +1053,19 @@ const FileList: React.FC = () => {
   // 分页逻辑
   const startIndex = (currentPage - 1) * pageSize
   const endIndex = startIndex + pageSize
-  const paginatedFileList = fileList.slice(startIndex, endIndex)
-  const total = fileList.length
+
+  // 应用文件筛选
+  const filteredFileList = useMemo(() => {
+    return filterFiles(fileList, selectedCategory, selectedSubExtensions)
+  }, [fileList, selectedCategory, selectedSubExtensions])
+
+  const paginatedFileList = filteredFileList.slice(startIndex, endIndex)
+  const total = filteredFileList.length
 
   // 当文件列表或每页显示数量变化时，重置当前页码为1
   useEffect(() => {
     setCurrentPage(1)
-  }, [fileList, pageSize])
+  }, [fileList, pageSize, selectedCategory, selectedSubExtensions])
 
   // 响应式网格列数计算
   const [gridColumns, setGridColumns] = useState(5)
@@ -1092,13 +1099,32 @@ const FileList: React.FC = () => {
     )
   }
 
+  // 获取当前选中分类的二级选项
+  const currentCategoryInfo = FILE_CATEGORIES.find(c => c.key === selectedCategory)
+  const subExtensions = currentCategoryInfo?.extensions || []
+
+  // 处理一级分类变更
+  const handleCategoryChange = (value: string) => {
+    setSelectedCategory(value as 'all' | 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other')
+  }
+
+  // 处理二级分类变更
+  const handleSubExtensionChange = (value: string[]) => {
+    setSelectedSubExtensions(value)
+  }
+
+  // 重置筛选
+  const handleResetFilter = () => {
+    resetFilter()
+  }
+
   const isCurrentPathInHistory = currentPath ? historyList.some(item => item.path === currentPath) : false
 
   return (
     <Card
       title={
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <Space>
+          <Space size="small">
             {!isCurrentPathInHistory && (
               <Button
                 type="default"
@@ -1114,6 +1140,58 @@ const FileList: React.FC = () => {
             {!isCurrentPathInHistory && (
               <span style={{ fontSize: '14px', color: '#666' }}>
                 当前路径: {currentPath}
+              </span>
+            )}
+            {/* 文件筛选器 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 16, padding: '4px 8px', backgroundColor: '#f5f5f5', borderRadius: 6 }}>
+              <FilterOutlined style={{ color: '#666' }} />
+              <Select
+                value={selectedCategory}
+                onChange={handleCategoryChange}
+                style={{ width: 100 }}
+                size="small"
+                dropdownMatchSelectWidth={false}
+              >
+                {FILE_CATEGORIES.map(cat => (
+                  <Select.Option key={cat.key} value={cat.key}>
+                    {cat.label}
+                  </Select.Option>
+                ))}
+              </Select>
+              {subExtensions.length > 0 && (
+                <>
+                  <span style={{ color: '#999' }}>/</span>
+                  <Select
+                    mode="multiple"
+                    value={selectedSubExtensions}
+                    onChange={handleSubExtensionChange}
+                    placeholder="全部"
+                    style={{ width: 180 }}
+                    size="small"
+                    allowClear
+                    dropdownMatchSelectWidth={false}
+                  >
+                    {subExtensions.map(ext => (
+                      <Select.Option key={ext} value={ext}>
+                        {ext.toUpperCase()}
+                      </Select.Option>
+                    ))}
+                  </Select>
+                </>
+              )}
+              {(selectedCategory !== 'all' || selectedSubExtensions.length > 0) && (
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<ClearOutlined />}
+                  onClick={handleResetFilter}
+                  title="清除筛选"
+                />
+              )}
+            </div>
+            {selectedCategory !== 'all' && (
+              <span style={{ fontSize: 12, color: '#999' }}>
+                ({filteredFileList.length} 项)
               </span>
             )}
           </Space>
