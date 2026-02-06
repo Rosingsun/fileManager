@@ -4,7 +4,6 @@ import { FolderOpenOutlined } from '@ant-design/icons'
 
 const { Header } = Layout
 const { Title } = Typography
-const { TabPane } = Tabs
 
 interface AppHeaderProps {
   activeTab: string
@@ -32,6 +31,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({ activeTab, onTabChange }) => {
           {
             key: 'similarity',
             label: '相似照片检测',
+          },
+          {
+            key: 'classify',
+            label: '图片分类',
           },
         ]}
       />

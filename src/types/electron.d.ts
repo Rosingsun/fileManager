@@ -23,6 +23,16 @@ declare global {
       scanSimilarImages: (config: import('./index').SimilarityScanConfig) => Promise<import('./index').SimilarityScanResult>
       onSimilarityScanProgress: (callback: (progress: import('./index').SimilarityScanProgress) => void) => () => void
       cancelSimilarityScan: () => void
+      classifyImage: (imagePath: string) => Promise<import('./index').ImageClassificationResult>
+      classifyImagesBatch: (config: import('./index').ImageClassificationConfig) => Promise<import('./index').ImageClassificationBatchResult>
+      onImageClassificationProgress: (callback: (progress: import('./index').ImageClassificationProgress) => void) => () => void
+      cancelImageClassification: () => void
+      checkModelExists: (modelId?: string) => Promise<boolean>
+      getAvailableModels: () => Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>>
+      downloadModel: (modelId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal) => Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }>
+      openExternalLink: (url: string) => Promise<boolean>
+      selectAndSaveModelFile: () => Promise<string | null>
+      saveModelFile: (sourcePath: string) => Promise<string | null>
     }
   }
 }

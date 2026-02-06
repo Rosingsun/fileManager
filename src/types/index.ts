@@ -117,3 +117,77 @@ export interface SimilarityScanResult {
   potentialSpaceSaved: number // 字节
   scanTime: number // 扫描耗时（毫秒）
 }
+
+// 图片内容分类相关类型 - 升级版（25个细分类）
+export type ImageContentCategory =
+  // 人物类
+  | 'person'           // 人物
+  | 'portrait'         // 人像
+  | 'selfie'           // 自拍
+  // 动物类
+  | 'dog'              // 狗
+  | 'cat'              // 猫
+  | 'bird'             // 鸟类
+  | 'wild_animal'      // 野生动物
+  | 'marine_animal'    // 海洋生物
+  | 'insect'           // 昆虫
+  | 'pet'              // 宠物
+  // 风景类
+  | 'landscape'        // 风景
+  | 'mountain'         // 山脉
+  | 'beach'            // 海滩
+  | 'sunset'           // 日落
+  | 'forest'           // 森林
+  | 'cityscape'        // 城市风光
+  | 'night_scene'      // 夜景
+  // 建筑类
+  | 'building'         // 建筑
+  | 'landmark'         // 地标
+  | 'interior'         // 室内
+  | 'street'           // 街道
+  // 食物类
+  | 'food'             // 食物
+  | 'drink'            // 饮品
+  | 'dessert'          // 甜点
+  // 交通类
+  | 'vehicle'          // 车辆
+  | 'aircraft'         // 飞机
+  | 'ship'             // 船舶
+  // 其他
+  | 'art'              // 艺术
+  | 'technology'       // 科技产品
+  | 'document'         // 文档图片
+  | 'other'            // 其他
+
+export interface ImageClassificationResult {
+  filePath: string
+  category: ImageContentCategory
+  confidence: number // 置信度 0-1
+  topPredictions?: Array<{
+    category: ImageContentCategory
+    confidence: number
+  }>
+}
+
+export interface ImageClassificationConfig {
+  imagePaths: string[]
+  batchSize?: number // 批处理大小，默认 10
+  includeSubdirectories?: boolean
+  modelId?: string // 使用的模型 ID
+}
+
+export interface ImageClassificationProgress {
+  current: number
+  total: number
+  currentFile?: string
+  status: 'loading' | 'classifying' | 'completed' | 'error'
+  results?: ImageClassificationResult[]
+}
+
+export interface ImageClassificationBatchResult {
+  results: ImageClassificationResult[]
+  totalImages: number
+  successCount: number
+  errorCount: number
+  classificationTime: number // 分类耗时（毫秒）
+}

@@ -124,6 +124,96 @@ try {
 
     cancelSimilarityScan: (): void => {
       ipcRenderer.send('similarity:cancel')
+    },
+
+    // 图片内容分类
+    classifyImage: (imagePath: string): Promise<import('../../src/types').ImageClassificationResult> => {
+      return ipcRenderer.invoke('image:classify', imagePath)
+    },
+
+    classifyImagesBatch: (config: import('../../src/types').ImageClassificationConfig): Promise<import('../../src/types').ImageClassificationBatchResult> => {
+      return ipcRenderer.invoke('image:classifyBatch', config)
+    },
+
+    onImageClassificationProgress: (callback: (progress: import('../../src/types').ImageClassificationProgress) => void): (() => void) => {
+      const handler = (_event: any, progress: import('../../src/types').ImageClassificationProgress) => {
+        callback(progress)
+      }
+      ipcRenderer.on('image:classificationProgress', handler)
+      return () => {
+        ipcRenderer.removeListener('image:classificationProgress', handler)
+      }
+    },
+
+    cancelImageClassification: (): void => {
+      ipcRenderer.send('image:cancelClassification')
+    },
+
+    checkModelExists: (modelId?: string): Promise<boolean> => {
+      return ipcRenderer.invoke('model:checkExists', modelId)
+    },
+
+    getAvailableModels: (): Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>> => {
+      return ipcRenderer.invoke('model:getAvailableModels')
+    },
+
+    downloadModel: (modelId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
+      return new Promise((resolve, reject) => {
+        const downloadChannel = 'model:downloadProgress'
+        const maxWaitTime = 600000
+        let isAborted = false
+
+        const progressHandler = (_event: any, data: { progress: number }) => {
+          onProgress?.(data.progress)
+        }
+
+        let timeoutId: NodeJS.Timeout
+
+        const cleanup = () => {
+          ipcRenderer.removeListener(downloadChannel, progressHandler)
+          clearTimeout(timeoutId)
+        }
+
+        if (signal) {
+          signal.addEventListener?.('abort', () => {
+            isAborted = true
+            ipcRenderer.send('model:cancelDownload')
+          })
+        }
+
+        ipcRenderer.invoke('model:download', modelId)
+          .then((result) => {
+            cleanup()
+            resolve(result)
+          })
+          .catch((error: any) => {
+            cleanup()
+            if (isAborted || (error?.message?.includes('aborted'))) {
+              resolve({ success: false, cancelled: true })
+            } else {
+              reject(error)
+            }
+          })
+
+        ipcRenderer.on(downloadChannel, progressHandler)
+
+        timeoutId = setTimeout(() => {
+          cleanup()
+          resolve({ success: false, error: '下载超时' })
+        }, maxWaitTime)
+      })
+    },
+
+    selectAndSaveModelFile: (): Promise<string | null> => {
+      return ipcRenderer.invoke('model:selectAndSave')
+    },
+
+    saveModelFile: (sourcePath: string): Promise<string | null> => {
+      return ipcRenderer.invoke('model:saveFile', sourcePath)
+    },
+
+    openExternalLink: (url: string): Promise<boolean> => {
+      return ipcRenderer.invoke('shell:openExternal', url)
     }
   }
   

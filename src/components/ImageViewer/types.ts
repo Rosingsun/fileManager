@@ -2,6 +2,8 @@
  * 图片查看器相关类型定义
  */
 
+import type { ImageClassificationResult } from '../../types'
+
 export interface Image {
   id: string
   url: string // 图片URL
@@ -15,6 +17,7 @@ export interface Image {
   modifiedAt: string
   description?: string
   tags?: string[]
+  classification?: ImageClassificationResult // 图片分类结果
   exif?: ExifData
 }
 

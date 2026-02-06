@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { FileInfo, OrganizeConfig, TreeNode, PreviewResultItem, HistoryItem, SizeRange, FileCategory } from '../types'
+import type { FileInfo, OrganizeConfig, TreeNode, PreviewResultItem, HistoryItem, SizeRange, FileCategory, ImageClassificationResult } from '../types'
 
 const HISTORY_STORAGE_KEY = 'filedeal_history'
 const SIZE_RANGES_STORAGE_KEY = 'filedeal_size_ranges'
@@ -94,6 +94,12 @@ interface FileStore {
   setSelectedCategory: (category: FileCategory | 'all') => void
   setSelectedSubExtensions: (extensions: string[]) => void
   resetFilter: () => void
+
+  // 图片分类结果
+  imageClassificationResults: Map<string, ImageClassificationResult>
+  setImageClassificationResults: (results: ImageClassificationResult[]) => void
+  addImageClassificationResult: (result: ImageClassificationResult) => void
+  clearImageClassificationResults: () => void
 }
 
 export const useFileStore = create<FileStore>((set, get) => ({
@@ -204,6 +210,25 @@ export const useFileStore = create<FileStore>((set, get) => ({
     set({ selectedCategory: category, selectedSubExtensions: [] })
   },
   setSelectedSubExtensions: (extensions: string[]) => set({ selectedSubExtensions: extensions }),
-  resetFilter: () => set({ selectedCategory: 'all', selectedSubExtensions: [] })
+  resetFilter: () => set({ selectedCategory: 'all', selectedSubExtensions: [] }),
+
+  imageClassificationResults: new Map(),
+  setImageClassificationResults: (results: ImageClassificationResult[]) => {
+    const map = new Map<string, ImageClassificationResult>()
+    for (const result of results) {
+      map.set(result.filePath, result)
+    }
+    set({ imageClassificationResults: map })
+  },
+  addImageClassificationResult: (result: ImageClassificationResult) => {
+    set((state) => {
+      const newMap = new Map(state.imageClassificationResults)
+      newMap.set(result.filePath, result)
+      return { imageClassificationResults: newMap }
+    })
+  },
+  clearImageClassificationResults: () => {
+    set({ imageClassificationResults: new Map() })
+  }
 
 }))

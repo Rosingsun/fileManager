@@ -246,7 +246,19 @@ const ControlPanel: React.FC = () => {
           选择目录
         </Button>
 
-        {currentPath && (
+        {!currentPath ? (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '40px 20px', 
+            color: '#999',
+            background: '#f5f5f5',
+            borderRadius: 8
+          }}>
+            <FolderOpenOutlined style={{ fontSize: 48, marginBottom: 16, color: '#bfbfbf' }} />
+            <div style={{ fontSize: 14 }}>请先选择要整理的目录</div>
+            <div style={{ fontSize: 12, marginTop: 8 }}>点击上方的"选择目录"按钮开始</div>
+          </div>
+        ) : (
           <>
             <div style={{ fontSize: 12, color: '#666', wordBreak: 'break-all' }}>
               当前目录: {currentPath}

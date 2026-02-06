@@ -31,3 +31,9 @@ release
 
 
 out/
+
+# Model files (too large for git)
+models/*.onnx
+models/*.pt
+models/*.pth
+models/*.pb

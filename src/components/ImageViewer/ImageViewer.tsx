@@ -28,39 +28,96 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   const [flipHorizontal, setFlipHorizontal] = useState(false)
   const [flipVertical, setFlipVertical] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('fit')
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [isLoadingBlob, setIsLoadingBlob] = useState(false)
 
   const currentImage = useMemo(() => {
     return images[currentIndex] || null
   }, [images, currentIndex])
 
-  // 确保 URL 不为空字符串时才传递给 useImageLoader
-  const imageUrl = useMemo(() => {
-    const url = currentImage?.url
-    if (url && url.trim() !== '') {
-      // 允许所有有效的 URL 格式，包括 http/https 和 data URL
-      return url
+  // 处理 file:// URL，转换为 blob URL
+  useEffect(() => {
+    const loadBlobUrl = async () => {
+      if (!currentImage?.url) {
+        setBlobUrl(null)
+        return
+      }
+
+      const url = currentImage.url
+      
+      // 如果已经是 data URL 或 blob URL，直接使用
+      if (url.startsWith('data:') || url.startsWith('blob:')) {
+        setBlobUrl(url)
+        return
+      }
+
+      // 如果是 file:// URL，从主进程读取图片数据
+      if (url.startsWith('file://')) {
+        setIsLoadingBlob(true)
+        try {
+          const filePath = url.replace('file://', '')
+          if (window.electronAPI?.getImageBase64) {
+            const base64Data = await window.electronAPI.getImageBase64(filePath)
+            if (base64Data && base64Data.startsWith('data:image')) {
+              setBlobUrl(base64Data)
+            } else {
+              setBlobUrl(null)
+            }
+          } else {
+            setBlobUrl(null)
+          }
+        } catch (error) {
+          console.error('读取图片文件失败:', error)
+          setBlobUrl(null)
+        } finally {
+          setIsLoadingBlob(false)
+        }
+        return
+      }
+
+      setBlobUrl(null)
     }
-    return null
+
+    loadBlobUrl()
   }, [currentImage?.url])
 
-  const { isLoading, isError, retry } = useImageLoader(imageUrl)
-  
-  // 当图片切换时，重置状态
-  useEffect(() => {
-    if (currentImage) {
-      // 如果图片有 URL 但尺寸为 0，说明图片信息可能还未加载完成
-      // 这种情况不需要特殊处理，因为图片加载完成后会自动更新
-      // 但我们需要确保在图片切换时重置视图状态
-      if (imageUrl) {
-        // 图片 URL 存在，重置视图状态
-        setScale(100)
-        setRotation(0)
-        setFlipHorizontal(false)
-        setFlipVertical(false)
-        setViewMode('fit')
-      }
+  // 确定要传递给 ImageCanvas 的 URL
+  const displayImageUrl = useMemo(() => {
+    if (isLoadingBlob) {
+      return null
     }
-  }, [currentImage?.id, imageUrl])
+    if (blobUrl) {
+      return blobUrl
+    }
+    return currentImage?.url || null
+  }, [blobUrl, isLoadingBlob, currentImage?.url])
+
+  // 调试日志
+  useEffect(() => {
+    console.log('[ImageViewer] currentImage:', {
+      id: currentImage?.id,
+      url: currentImage?.url?.substring(0, 50) + '...',
+      filename: currentImage?.filename,
+      width: currentImage?.width,
+      height: currentImage?.height
+    })
+    console.log('[ImageViewer] displayImageUrl:', displayImageUrl)
+    console.log('[ImageViewer] blobUrl:', blobUrl)
+  }, [currentImage, displayImageUrl, blobUrl])
+
+  const { isLoading, isError, retry } = useImageLoader(displayImageUrl)
+
+  // 当图片切换或 URL 变化时，重置状态
+  useEffect(() => {
+    if (currentImage && displayImageUrl) {
+      // 图片 URL 存在，重置视图状态
+      setScale(100)
+      setRotation(0)
+      setFlipHorizontal(false)
+      setFlipVertical(false)
+      setViewMode('fit')
+    }
+  }, [currentImage?.id, displayImageUrl])
 
   // 当外部传入的currentIndex变化时，更新内部状态
   useEffect(() => {
@@ -213,7 +270,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         {/* 左侧：图片展示区域 */}
         <div className="image-viewer-canvas-wrapper">
           <ImageCanvas
-            imageUrl={imageUrl}
+            imageUrl={displayImageUrl}
             imageWidth={currentImage?.width || 0}
             imageHeight={currentImage?.height || 0}
             scale={scale}
@@ -228,7 +285,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
               setFlipVertical(v)
             }}
             onViewModeChange={setViewMode}
-            isLoading={isLoading}
+            isLoading={isLoading || isLoadingBlob}
             isError={isError}
             onRetry={retry}
           />

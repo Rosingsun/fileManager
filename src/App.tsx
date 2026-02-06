@@ -5,6 +5,7 @@ import FileList from './components/FileList'
 import ControlPanel from './components/ControlPanel'
 import AppHeader from './components/AppHeader'
 import SimilarityDetection from './components/SimilarityDetection/SimilarityDetection'
+import ImageClassification from './components/ImageClassification/ImageClassification'
 import './styles/App.css'
 
 const { Content } = Layout
@@ -63,6 +64,11 @@ const App: React.FC = () => {
         {activeTab === 'similarity' && (
           <div style={{ padding: '2px', height: '100%', overflow: 'scroll' }}>
             <SimilarityDetection />
+          </div>
+        )}
+        {activeTab === 'classify' && (
+          <div style={{ padding: '2px', height: '100%', overflow: 'scroll' }}>
+            <ImageClassification />
           </div>
         )}
       </Content>

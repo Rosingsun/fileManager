@@ -20,6 +20,7 @@ import {
   ClearOutlined
 } from '@ant-design/icons'
 import { useFileStore, FILE_CATEGORIES } from '../stores/fileStore'
+import { useImageClassificationStore } from '../stores/useImageClassificationStore'
 import { useFileSystem } from '../hooks/useFileSystem'
 import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon, filterFiles } from '../utils/fileUtils'
 import { imageLoader } from '../utils/imageLoader'
@@ -29,11 +30,40 @@ import ImageViewer from './ImageViewer'
 import type { Image } from './ImageViewer'
 import CircularProgress from './CircularProgress'
 
+const CATEGORY_COLORS: Record<string, string> = {
+  animal: '#52c41a',
+  vehicle: '#1890ff',
+  person: '#eb2f96',
+  landscape: '#13c2c2',
+  architecture: '#fa8c16',
+  food: '#f5222d',
+  other: '#8c8c8c'
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  animal: '动物',
+  vehicle: '车辆',
+  person: '人物',
+  landscape: '风景',
+  architecture: '建筑',
+  food: '食物',
+  other: '其他'
+}
+
 const FileList: React.FC = () => {
   const MAX_IMAGE_SIZE = 50 * 1024 * 1024
 
-  const { fileList, loading, currentPath, historyList, selectedCategory, selectedSubExtensions, setSelectedCategory, setSelectedSubExtensions, resetFilter } = useFileStore()
+  const { fileList, loading, currentPath, historyList, selectedCategory, selectedSubExtensions, setSelectedCategory, setSelectedSubExtensions, resetFilter, imageClassificationResults, setImageClassificationResults } = useFileStore()
   const { loadDirectory } = useFileSystem()
+  const { results: classificationResultsFromStore } = useImageClassificationStore()
+  const [selectedImageCategory, setSelectedImageCategory] = useState<string>('all')
+
+  useEffect(() => {
+    if (classificationResultsFromStore.size > 0) {
+      const results = Array.from(classificationResultsFromStore.values())
+      setImageClassificationResults(results)
+    }
+  }, [classificationResultsFromStore, setImageClassificationResults])
   const [renameModalVisible, setRenameModalVisible] = useState(false)
   const [renamingFile, setRenamingFile] = useState<FileInfo | null>(null)
   const [newFileName, setNewFileName] = useState('')
@@ -49,7 +79,7 @@ const FileList: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState<number>(0)
   const [previewImages, setPreviewImages] = useState<Image[]>([])
   const [previewableFiles, setPreviewableFiles] = useState<FileInfo[]>([])
-  const [previewEnabled] = useState(true) // 预览开关，默认打开
+  const previewEnabled = true // 预览开关，默认打开
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
   const [selectedRows, setSelectedRows] = useState<FileInfo[]>([])
   const [batchRenameModalVisible, setBatchRenameModalVisible] = useState(false)
@@ -62,7 +92,7 @@ const FileList: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(15)
   const [previewVersion, setPreviewVersion] = useState(0)
-  const [pageSizeOptions] = useState(['15', '30', '75', '150', '300']) // 页码选择范围
+  const pageSizeOptions = ['15', '30', '75', '150', '300'] // 页码选择范围
 
   // 当目录切换时，清空图片预览缓存
   useEffect(() => {
@@ -418,6 +448,26 @@ const FileList: React.FC = () => {
       }
     }
 
+    // 加载分类结果
+    let classification = undefined
+    try {
+      const savedResults = localStorage.getItem('image_classification_results')
+      if (savedResults) {
+        const resultsMap: Record<string, { filePath: string; category: string; confidence: number; topPredictions?: Array<{ category: string; confidence: number }> }> = JSON.parse(savedResults)
+        const classificationResult = resultsMap[file.path]
+        if (classificationResult) {
+          classification = {
+            filePath: classificationResult.filePath,
+            category: classificationResult.category as any,
+            confidence: classificationResult.confidence,
+            topPredictions: classificationResult.topPredictions as any
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('加载分类结果失败:', e)
+    }
+
     return {
       id: file.path,
       url: imageUrl,
@@ -429,7 +479,8 @@ const FileList: React.FC = () => {
       createdAt: new Date(file.createdTime).toISOString(),
       modifiedAt: new Date(file.modifiedTime).toISOString(),
       description: '',
-      tags: []
+      tags: [],
+      classification
     }
   }
 
@@ -459,7 +510,8 @@ const FileList: React.FC = () => {
         createdAt: new Date(f.createdTime).toISOString(),
         modifiedAt: new Date(f.modifiedTime).toISOString(),
         description: '',
-        tags: []
+        tags: [],
+        classification: undefined
       }))
 
       setPreviewImages(initialImages)
@@ -505,10 +557,18 @@ const FileList: React.FC = () => {
       if (previewData?.full?.trim()) {
         console.log(`[FileList] 使用缓存原图: ${targetFile.name}`)
         const image = await convertFileToImage(targetFile, previewData.full)
-        setPreviewImages(prev => {
-          const newImages = [...prev]
-          newImages[index] = image
-          return newImages
+        await new Promise<void>(resolve => {
+          setPreviewImages(prev => {
+            const newImages = [...prev]
+            newImages[index] = image
+            return newImages
+          })
+          // 强制状态更新完成后再继续
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              resolve()
+            })
+          })
         })
         return
       }
@@ -529,27 +589,34 @@ const FileList: React.FC = () => {
           console.log(`[FileList] 加载图片 ${index}: ${targetFile.name} (类型: ${result.isThumbnail ? '缩略图' : '原图'}, 来源: ${result.fromCache ? '缓存' : '网络'}, 大小: ${(result.size / 1024).toFixed(1)}KB)`)
           const image = await convertFileToImage(targetFile, result.data)
           console.log(`[FileList] 图片尺寸: ${image.width}x${image.height}`)
-          setPreviewImages(prev => {
-            const newImages = [...prev]
-            newImages[index] = image
-            return newImages
+          await new Promise<void>(resolve => {
+            setPreviewImages(prev => {
+              const newImages = [...prev]
+              newImages[index] = image
+              return newImages
+            })
+            // 强制状态更新完成后再继续
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                resolve()
+              })
+            })
           })
-          
           // 更新缓存
           setImagePreviews(prev => {
             const m = new Map(prev)
             const existingData = m.get(filePath)
             if (result.isThumbnail) {
               // 如果是缩略图，只更新 thumbnail，保留 full（原图）
-              m.set(filePath, { 
-                thumbnail: result.data, 
-                full: existingData?.full || '' 
+              m.set(filePath, {
+                thumbnail: result.data,
+                full: existingData?.full || ''
               })
             } else {
               // 如果是原图，同时更新 thumbnail 和 full
-              m.set(filePath, { 
-                thumbnail: result.data, 
-                full: result.data 
+              m.set(filePath, {
+                thumbnail: result.data,
+                full: result.data
               })
             }
             return m
@@ -576,12 +643,19 @@ const FileList: React.FC = () => {
           
           if (fallbackResult.data) {
             const image = await convertFileToImage(targetFile, fallbackResult.data)
-            setPreviewImages(prev => {
-              const newImages = [...prev]
-              newImages[index] = image
-              return newImages
+            await new Promise<void>(resolve => {
+              setPreviewImages(prev => {
+                const newImages = [...prev]
+                newImages[index] = image
+                return newImages
+              })
+              // 强制状态更新完成后再继续
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  resolve()
+                })
+              })
             })
-            
             // 更新缓存（降级加载的是缩略图，不要覆盖 full 字段）
             setImagePreviews(prev => {
               const m = new Map(prev)
@@ -1007,8 +1081,24 @@ const FileList: React.FC = () => {
       title: '修改时间',
       dataIndex: 'modifiedTime',
       key: 'modifiedTime',
-      width: previewEnabled ? '25%' : '30%',
+      width: previewEnabled ? '20%' : '25%',
       render: (time: number) => formatDateTime(time)
+    },
+    {
+      title: '分类',
+      key: 'classification',
+      width: '10%',
+      render: (_: any, record: FileInfo) => {
+        const classification = imageClassificationResults.get(record.path)
+        if (classification) {
+          return (
+            <Tag color={CATEGORY_COLORS[classification.category] || CATEGORY_COLORS.other}>
+              {CATEGORY_LABELS[classification.category] || classification.category}
+            </Tag>
+          )
+        }
+        return '-'
+      }
     },
     {
       title: '操作',
@@ -1056,8 +1146,17 @@ const FileList: React.FC = () => {
 
   // 应用文件筛选
   const filteredFileList = useMemo(() => {
-    return filterFiles(fileList, selectedCategory, selectedSubExtensions)
-  }, [fileList, selectedCategory, selectedSubExtensions])
+    let files = filterFiles(fileList, selectedCategory, selectedSubExtensions)
+
+    if (selectedImageCategory !== 'all') {
+      files = files.filter(file => {
+        const classification = imageClassificationResults.get(file.path)
+        return classification && classification.category === selectedImageCategory
+      })
+    }
+
+    return files
+  }, [fileList, selectedCategory, selectedSubExtensions, imageClassificationResults, selectedImageCategory])
 
   const paginatedFileList = filteredFileList.slice(startIndex, endIndex)
   const total = filteredFileList.length
@@ -1193,6 +1292,37 @@ const FileList: React.FC = () => {
               <span style={{ fontSize: 12, color: '#999' }}>
                 ({filteredFileList.length} 项)
               </span>
+            )}
+            {/* 图片分类筛选器 */}
+            {imageClassificationResults.size > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', backgroundColor: '#f0f5ff', borderRadius: 6, marginLeft: 8 }}>
+                <span style={{ fontSize: 12, color: '#1890ff' }}>内容分类:</span>
+                <Select
+                  value={selectedImageCategory}
+                  onChange={setSelectedImageCategory}
+                  style={{ width: 100 }}
+                  size="small"
+                  dropdownMatchSelectWidth={false}
+                >
+                  <Select.Option value="all">全部</Select.Option>
+                  <Select.Option value="animal">动物</Select.Option>
+                  <Select.Option value="vehicle">车辆</Select.Option>
+                  <Select.Option value="person">人物</Select.Option>
+                  <Select.Option value="landscape">风景</Select.Option>
+                  <Select.Option value="architecture">建筑</Select.Option>
+                  <Select.Option value="food">食物</Select.Option>
+                  <Select.Option value="other">其他</Select.Option>
+                </Select>
+                {selectedImageCategory !== 'all' && (
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<ClearOutlined />}
+                    onClick={() => setSelectedImageCategory('all')}
+                    title="清除分类筛选"
+                  />
+                )}
+              </div>
             )}
           </Space>
           <Space size="middle">

@@ -70,6 +70,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
         <DescriptionEditor
           description={image.description || ''}
           onSave={onDescriptionSave}
+          classification={image.classification}
         />
         <TagManager
           tags={image.tags || []}

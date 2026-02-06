@@ -379,11 +379,12 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
 
       {isError && (
         <div className="image-canvas-error">
-          <div className="image-canvas-error-icon">❌</div>
-          <div>图片加载失败</div>
+          <div className="image-canvas-error-icon">⚠️</div>
+          <div className="image-canvas-error-text">图片加载失败</div>
+          <div className="image-canvas-error-hint">请检查文件是否存在或权限是否正确</div>
           {onRetry && (
             <button className="image-canvas-retry-btn" onClick={onRetry}>
-              重试
+              重新加载
             </button>
           )}
         </div>
