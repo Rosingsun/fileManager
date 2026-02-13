@@ -19,12 +19,12 @@ import {
   FilterOutlined,
   ClearOutlined
 } from '@ant-design/icons'
-import { useFileStore, FILE_CATEGORIES } from '../stores/fileStore'
-import { useImageClassificationStore } from '../stores/useImageClassificationStore'
-import { useFileSystem } from '../hooks/useFileSystem'
-import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon, filterFiles } from '../utils/fileUtils'
-import { imageLoader } from '../utils/imageLoader'
-import { imageCache } from '../utils/imageCache'
+import { useFileStore, FILE_CATEGORIES } from '../stores'
+import { useImageClassificationStore } from '../stores'
+import { useFileSystem } from '../hooks'
+import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon, filterFiles } from '../utils'
+import { imageLoader } from '../utils'
+import { imageCache } from '../utils'
 import type { FileInfo } from '../types'
 import ImageViewer from './ImageViewer'
 import type { Image } from './ImageViewer'

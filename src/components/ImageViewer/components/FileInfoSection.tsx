@@ -4,7 +4,7 @@
 
 import React from 'react'
 import type { Image } from '../types'
-import { formatFileSize, formatDateTime } from '../utils/imageUtils'
+import { formatFileSize, formatDateTime } from '../../../utils'
 import './InfoPanel.css'
 
 export interface FileInfoSectionProps {

@@ -28,3 +28,35 @@
 - 严格按规则执行，不得跳过任何步骤
 - 保持代码简洁，避免不必要的注释
 - 遵循项目的 lint 和 typecheck 要求
+
+## 统一导出规则
+
+### 目录结构
+- 所有工具函数放在 `src/utils/`
+- 所有 Hooks 放在 `src/hooks/`
+- 所有 Stores 放在 `src/stores/`
+- 所有组件放在 `src/components/`
+
+### 导入规则
+1. **必须从统一导出文件导入**：所有导入必须从 index.ts 引入，禁止直接从具体模块导入
+   - ✅ `import { xxx } from '@/utils'` 或 `import { xxx } from '../utils'`
+   - ❌ `import { xxx } from '@/utils/fileUtils'`
+
+2. **新增内容导出**：添加新模块后必须在对应 index.ts 中导出
+   - 工具函数 → `src/utils/index.ts`
+   - Hooks → `src/hooks/index.ts`
+   - Stores → `src/stores/index.ts`
+   - 组件 → `src/components/index.ts`
+
+3. **示例**：
+   ```typescript
+   // 正确 ✅
+   import { formatFileSize, formatDateTime } from '../utils'
+   import { useFileSystem } from '../hooks'
+   import { useFileStore } from '../stores'
+
+   // 错误 ❌
+   import { formatFileSize } from '../utils/fileUtils'
+   import { useFileSystem } from '../hooks/useFileSystem'
+   import { useFileStore } from '../stores/fileStore'
+   ```

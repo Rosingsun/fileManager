@@ -4,7 +4,7 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import type { ViewMode } from '../types'
-import { calculateFitScale, clamp } from '../utils/imageUtils'
+import { calculateFitScale, clamp } from '../../../utils'
 import './ImageCanvas.css'
 
 export interface ImageCanvasProps {
@@ -28,6 +28,7 @@ export interface ImageCanvasProps {
 const ELASTIC_BUFFER = 0.2
 const SPRING_STIFFNESS = 0.3
 const DAMPING = 0.8
+const DRAG_STEP = 30
 
 const ImageCanvas: React.FC<ImageCanvasProps> = ({
   imageUrl,
@@ -284,6 +285,13 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
     }
   }, [imageWidth, imageHeight, scale, containerSize, position])
 
+  // 计算步进后的位置（实现"一卡一卡"效果）
+  const getSteppedPosition = useCallback((_currentPos: number, startPos: number, delta: number): number => {
+    const totalDelta = startPos + delta
+    const stepped = Math.round(totalDelta / DRAG_STEP) * DRAG_STEP
+    return stepped
+  }, [])
+
   // 拖拽中
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!isDragging || !containerRef.current) return
@@ -291,23 +299,18 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
     const deltaX = e.clientX - dragStartRef.current.mouseX
     const deltaY = e.clientY - dragStartRef.current.mouseY
 
-    velocityRef.current = { x: deltaX - (position.x - dragStartRef.current.positionX), y: deltaY - (position.y - dragStartRef.current.positionY) }
+    const steppedX = getSteppedPosition(position.x, dragStartRef.current.positionX, deltaX)
+    const steppedY = getSteppedPosition(position.y, dragStartRef.current.positionY, deltaY)
 
     const bounds = getElasticBounds(true)
     
-    const newX = clamp(
-      dragStartRef.current.positionX + deltaX,
-      bounds.minX,
-      bounds.maxX
-    )
-    const newY = clamp(
-      dragStartRef.current.positionY + deltaY,
-      bounds.minY,
-      bounds.maxY
-    )
+    const newX = clamp(steppedX, bounds.minX, bounds.maxX)
+    const newY = clamp(steppedY, bounds.minY, bounds.maxY)
+
+    velocityRef.current = { x: newX - position.x, y: newY - position.y }
 
     setPosition({ x: newX, y: newY })
-  }, [isDragging, position, getElasticBounds])
+  }, [isDragging, position, getElasticBounds, getSteppedPosition])
 
   // 拖拽结束
   const handleMouseUp = useCallback(() => {
@@ -370,12 +373,27 @@ const ImageCanvas: React.FC<ImageCanvasProps> = ({
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
-      {isLoading && (
+      {isLoading && imageWidth > 0 && imageHeight > 0 ? (
+        <div 
+          className="image-canvas-loading"
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: `translate(-50%, -50%) translate(${position.x}px, ${position.y}px) scale(${scale / 100})`,
+            transformOrigin: 'center center',
+            zIndex: 10
+          }}
+        >
+          <div className="image-canvas-spinner"></div>
+          <span>正在加载图片...</span>
+        </div>
+      ) : isLoading ? (
         <div className="image-canvas-loading">
           <div className="image-canvas-spinner"></div>
           <span>正在加载图片...</span>
         </div>
-      )}
+      ) : null}
 
       {isError && (
         <div className="image-canvas-error">

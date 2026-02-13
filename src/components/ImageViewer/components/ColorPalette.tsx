@@ -3,8 +3,8 @@
  */
 
 import React, { useState } from 'react'
-import { useColorExtractor } from '../hooks/useColorExtractor'
-import { copyToClipboard } from '../utils/colorUtils'
+import { useColorExtractor } from '../../../hooks'
+import { copyToClipboard } from '../../../utils'
 import './InfoPanel.css'
 
 export interface ColorPaletteProps {

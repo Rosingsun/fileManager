@@ -10,7 +10,6 @@ import {
 } from '@ant-design/icons'
 import type { ImageContentCategory, ImageClassificationResult, ImageClassificationProgress } from '../../types'
 import { useFileStore } from '../../stores/fileStore'
-import { useFileSystem } from '../../hooks/useFileSystem'
 import ImageViewer from '../ImageViewer/ImageViewer'
 import type { Image } from '../ImageViewer/types'
 
@@ -199,8 +198,32 @@ interface ClassificationResult {
 }
 
 const ImageClassification: React.FC = () => {
-  const { currentPath } = useFileStore()
-  const { selectDirectory } = useFileSystem()
+  const { currentPath: globalCurrentPath } = useFileStore()
+
+  const [classificationPath, setClassificationPath] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (globalCurrentPath) {
+      setClassificationPath(globalCurrentPath)
+    }
+  }, [globalCurrentPath])
+
+  const handleSelectClassificationDirectory = useCallback(async () => {
+    if (!window.electronAPI?.openDirectory) {
+      message.error('选择目录功能不可用')
+      return
+    }
+    try {
+      const path = await window.electronAPI.openDirectory()
+      if (path) {
+        const normalizedPath = path.replace(/\\/g, '/')
+        setClassificationPath(normalizedPath)
+        message.success('已选择分类目录')
+      }
+    } catch (error) {
+      message.error('选择目录失败')
+    }
+  }, [])
 
   const [results, setResults] = useState<Map<string, ImageClassificationResult>>(new Map())
   const [isClassifying, setIsClassifying] = useState(false)
@@ -338,9 +361,20 @@ const ImageClassification: React.FC = () => {
   }
 
   const handleClassify = async () => {
+    if (!classificationPath) {
+      const path = await window.electronAPI?.openDirectory()
+      if (path) {
+        const normalizedPath = path.replace(/\\/g, '/')
+        setClassificationPath(normalizedPath)
+        message.success('已选择分类目录')
+      } else {
+        return
+      }
+    }
+    
     console.log('[分类] handleClassify 被调用')
     console.log('[分类] modelExists:', modelExists)
-    console.log('[分类] currentPath:', currentPath)
+    console.log('[分类] classificationPath:', classificationPath)
     console.log('[分类] selectedModel:', selectedModel)
     
     if (!window.electronAPI?.classifyImagesBatch) {
@@ -355,7 +389,7 @@ const ImageClassification: React.FC = () => {
       return
     }
 
-    if (!currentPath) {
+    if (!classificationPath) {
       console.warn('[分类] 未选择目录')
       message.warning('请先选择目录')
       return
@@ -388,8 +422,8 @@ const ImageClassification: React.FC = () => {
         }
       }
       
-      console.log('[分类] 开始扫描目录:', currentPath)
-      await scanImages(currentPath)
+      console.log('[分类] 开始扫描目录:', classificationPath)
+      await scanImages(classificationPath)
       console.log('[分类] 扫描完成，找到', imagePaths.length, '张图片')
 
       if (imagePaths.length === 0) {
@@ -641,11 +675,11 @@ const ImageClassification: React.FC = () => {
             icon={<ApiOutlined />}
             onClick={handleClassify}
             loading={isClassifying}
-            disabled={!modelExists || !currentPath}
+            disabled={!modelExists}
           >
             {isClassifying ? '分类中...' : '开始分类'}
           </Button>
-          {!currentPath && (
+          {!classificationPath && (
             <span style={{ color: '#999', fontSize: 12, marginLeft: 8 }}>
               (请先选择目录)
             </span>
@@ -655,7 +689,7 @@ const ImageClassification: React.FC = () => {
       style={{ height: '100%', overflow: 'auto' }}
       bodyStyle={{ padding: '16px' }}
     >
-      {!currentPath ? (
+      {!classificationPath ? (
         <div style={{ 
           textAlign: 'center', 
           padding: '60px 20px', 
@@ -671,7 +705,7 @@ const ImageClassification: React.FC = () => {
             type="primary" 
             icon={<FolderOpenOutlined />} 
             size="large"
-            onClick={selectDirectory}
+            onClick={handleSelectClassificationDirectory}
           >
             选择目录
           </Button>
@@ -725,10 +759,20 @@ const ImageClassification: React.FC = () => {
             </Card>
           )}
 
-          {currentPath && (
-            <div style={{ marginBottom: 16, padding: '8px 12px', background: '#e6f7ff', borderRadius: 6, border: '1px solid #91d5ff' }}>
-              <Text strong style={{ color: '#1890ff' }}>当前目录: </Text>
-              <Text code style={{ fontSize: 12 }}>{currentPath}</Text>
+          {classificationPath && (
+            <div style={{ marginBottom: 16, padding: '8px 12px', background: '#e6f7ff', borderRadius: 6, border: '1px solid #91d5ff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div>
+                <Text strong style={{ color: '#1890ff' }}>当前目录: </Text>
+                <Text code style={{ fontSize: 12 }}>{classificationPath}</Text>
+              </div>
+              <Button 
+                size="small" 
+                icon={<FolderOpenOutlined />} 
+                onClick={handleSelectClassificationDirectory}
+                disabled={isClassifying}
+              >
+                重新选择
+              </Button>
             </div>
           )}
 

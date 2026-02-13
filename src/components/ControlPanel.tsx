@@ -20,9 +20,9 @@ import {
   EyeOutlined,
   ExportOutlined
 } from '@ant-design/icons'
-import { useFileStore } from '../stores/fileStore'
-import { useFileSystem } from '../hooks/useFileSystem'
-import { generatePreview } from '../utils/organizer'
+import { useFileStore } from '../stores'
+import { useFileSystem } from '../hooks'
+import { generatePreview } from '../utils'
 import type { OrganizeRule, OrganizeConfig, PreviewResultItem, SizeRange } from '../types'
 
 const { Option } = Select

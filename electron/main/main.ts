@@ -217,6 +217,7 @@ ipcMain.handle('dialog:openDirectory', async () => {
   if (result.canceled) {
     return null
   }
+  return result.filePaths[0]
 })
 
 // IPC 处理器：打开外部链接

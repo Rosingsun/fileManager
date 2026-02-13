@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { Modal, Button, Space, Empty } from 'antd'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { Modal, Button, Space, Empty, Tooltip } from 'antd'
 import {
   ZoomInOutlined,
   ZoomOutOutlined,
@@ -10,16 +10,6 @@ import {
   RightOutlined
 } from '@ant-design/icons'
 import './ImagePreview.css'
-
-function calculateFitScale(imageWidth: number, imageHeight: number, containerWidth: number, containerHeight: number): number {
-  if (imageWidth === 0 || imageHeight === 0) return 100
-  const isLandscape = imageWidth >= imageHeight
-  if (isLandscape) {
-    return Math.min((containerWidth / imageWidth) * 100, 100)
-  } else {
-    return Math.min((containerHeight / imageHeight) * 100, 100)
-  }
-}
 
 export interface ImageSource {
   /** 图片URL或base64数据 */
@@ -115,8 +105,10 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const [loadError, setLoadError] = useState(false)
   const [actualIndex, setActualIndex] = useState(currentIndex)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 })
+  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartRef = useRef({ x: 0, y: 0, offsetX: 0, offsetY: 0 })
 
   // 当前显示的图片（基于actualIndex）
   const currentImage = React.useMemo(() => {
@@ -214,37 +206,8 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     }
   }, [visible, currentImage?.src])
 
-  // 监听容器大小变化
-  useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        setContainerSize({ width: rect.width, height: rect.height })
-      }
-    }
-
-    updateSize()
-    window.addEventListener('resize', updateSize)
-    return () => window.removeEventListener('resize', updateSize)
-  }, [])
-
-  // 计算适应缩放比例
-  const fitScale = useMemo(() => {
-    if (containerSize.width > 0 && containerSize.height > 0 && imageNaturalSize.width > 0 && imageNaturalSize.height > 0) {
-      return calculateFitScale(imageNaturalSize.width, imageNaturalSize.height, containerSize.width, containerSize.height)
-    }
-    return 100
-  }, [containerSize, imageNaturalSize])
-
   // 判断图片方向：横向或竖向
   const isLandscape = imageNaturalSize.width >= imageNaturalSize.height
-
-  // 当容器尺寸和图片尺寸都准备好时，自动设置适应缩放
-  useEffect(() => {
-    if (visible && containerSize.width > 0 && containerSize.height > 0 && imageNaturalSize.width > 0 && imageNaturalSize.height > 0) {
-      setScale(fitScale)
-    }
-  }, [visible, containerSize, imageNaturalSize, fitScale])
 
   // 图片加载处理
   const handleImageLoad = useCallback((e: any) => {
@@ -277,10 +240,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     setScale(prev => Math.max(prev - scaleStep, minScale))
   }, [scaleStep, minScale])
 
-  const handleResetScale = useCallback(() => {
-    setScale(100)
-  }, [])
-
   // 旋转功能
   const handleRotateLeft = useCallback(() => {
     setRotation(prev => prev - rotationStep)
@@ -290,14 +249,11 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
     setRotation(prev => prev + rotationStep)
   }, [rotationStep])
 
-  const handleResetRotation = useCallback(() => {
-    setRotation(0)
-  }, [])
-
   // 重置所有
   const handleResetAll = useCallback(() => {
     setScale(100)
     setRotation(0)
+    setImageOffset({ x: 0, y: 0 })
   }, [])
 
   // 导航功能
@@ -307,6 +263,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       setActualIndex(newIndex)
       setScale(100)
       setRotation(0)
+      setImageOffset({ x: 0, y: 0 })
       setLoadError(false)
       setIsLoading(true)
       setLoadProgress(0)
@@ -322,6 +279,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       setActualIndex(newIndex)
       setScale(100)
       setRotation(0)
+      setImageOffset({ x: 0, y: 0 })
       setLoadError(false)
       setIsLoading(true)
       setLoadProgress(0)
@@ -348,10 +306,38 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   // 关闭处理
   const handleClose = useCallback(() => {
     handleResetAll()
+    setImageOffset({ x: 0, y: 0 })
     if (onClose) {
       onClose()
     }
   }, [onClose, handleResetAll])
+
+  // 拖拽功能
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    setIsDragging(true)
+    dragStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      offsetX: imageOffset.x,
+      offsetY: imageOffset.y
+    }
+  }, [imageOffset])
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging) return
+    const deltaX = e.clientX - dragStartRef.current.x
+    const deltaY = e.clientY - dragStartRef.current.y
+    setImageOffset({
+      x: dragStartRef.current.offsetX + deltaX,
+      y: dragStartRef.current.offsetY + deltaY
+    })
+  }, [isDragging])
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false)
+  }, [])
 
   // 键盘快捷键
   useEffect(() => {
@@ -448,77 +434,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       }
       open={visible}
       onCancel={handleClose}
-      footer={
-        showToolbar
-          ? [
-              <Space key="zoom-controls">
-                <Button
-                  key="zoom-out"
-                  icon={<ZoomOutOutlined />}
-                  onClick={handleZoomOut}
-                  disabled={scale <= minScale}
-                  title="缩小"
-                />
-                <Button
-                  key="zoom-in"
-                  icon={<ZoomInOutlined />}
-                  onClick={handleZoomIn}
-                  disabled={scale >= maxScale}
-                  title="放大"
-                />
-                <Button key="reset-scale" onClick={handleResetScale} title="重置缩放">
-                  重置缩放
-                </Button>
-              </Space>,
-              <Space key="rotate-controls">
-                <Button
-                  key="rotate-left"
-                  icon={<RotateLeftOutlined />}
-                  onClick={handleRotateLeft}
-                  title="向左旋转"
-                />
-                <Button
-                  key="rotate-right"
-                  icon={<RotateRightOutlined />}
-                  onClick={handleRotateRight}
-                  title="向右旋转"
-                />
-                <Button key="reset-rotation" onClick={handleResetRotation} title="重置旋转">
-                  重置旋转
-                </Button>
-              </Space>,
-              <Button
-                key="reset-all"
-                icon={<ReloadOutlined />}
-                onClick={handleResetAll}
-                title="重置所有"
-              >
-                重置所有
-              </Button>,
-              hasMultipleImages && showNavigation ? (
-                <Space key="nav-controls" style={{ marginLeft: 'auto' }}>
-                  <Button
-                    key="prev"
-                    icon={<LeftOutlined />}
-                    onClick={handlePrev}
-                    disabled={actualIndex <= 0}
-                    title="上一张"
-                  />
-                  <Button
-                    key="next"
-                    icon={<RightOutlined />}
-                    onClick={handleNext}
-                    disabled={actualIndex >= imageList.length - 1}
-                    title="下一张"
-                  />
-                </Space>
-              ) : null,
-              <Button key="close" onClick={handleClose}>
-                关闭
-              </Button>
-            ].filter(Boolean)
-          : null
-      }
+      footer={null}
       width={width}
       style={{ top: '5%', position: 'relative', height: 'auto', maxHeight: '90vh' }}
       className={`image-preview-modal ${className}`}
@@ -565,14 +481,19 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
             key={currentImage?.src}
             src={currentImage.src}
             alt={currentImage.title || '预览'}
-            className={`image-preview-img ${isLandscape ? 'landscape' : 'portrait'}`}
+            className={`image-preview-img ${isLandscape ? 'landscape' : 'portrait'} ${isDragging ? 'dragging' : ''}`}
             style={{
-              transform: `scale(${scale / 100}) rotate(${rotation}deg)`,
+              transform: `translate(${imageOffset.x}px, ${imageOffset.y}px) scale(${scale / 100}) rotate(${rotation}deg)`,
               opacity: isLoading ? 0 : 1,
-              display: 'block'
+              display: 'block',
+              cursor: isDragging ? 'grabbing' : 'grab'
             }}
             onLoad={handleImageLoad}
             onError={handleImageError}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
           />
         )}
 
@@ -592,6 +513,101 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
           <Empty description="准备加载图片..." />
         )}
       </div>
+
+      {/* 底部卡片化操作工具栏 */}
+      {showToolbar && (
+        <div className="image-preview-footer">
+          {/* 缩放控制组 */}
+          <div className="image-preview-toolbar-group">
+            <Tooltip title="缩小">
+              <Button
+                icon={<ZoomOutOutlined />}
+                onClick={handleZoomOut}
+                disabled={scale <= minScale}
+              />
+            </Tooltip>
+            <span className="image-preview-toolbar-label">{scale}%</span>
+            <Tooltip title="放大">
+              <Button
+                icon={<ZoomInOutlined />}
+                onClick={handleZoomIn}
+                disabled={scale >= maxScale}
+              />
+            </Tooltip>
+          </div>
+
+          <div className="image-preview-toolbar-divider" />
+
+          {/* 旋转控制组 */}
+          <div className="image-preview-toolbar-group">
+            <Tooltip title="向左旋转">
+              <Button
+                icon={<RotateLeftOutlined />}
+                onClick={handleRotateLeft}
+              />
+            </Tooltip>
+            <span className="image-preview-toolbar-label">{normalizedRotation}°</span>
+            <Tooltip title="向右旋转">
+              <Button
+                icon={<RotateRightOutlined />}
+                onClick={handleRotateRight}
+              />
+            </Tooltip>
+          </div>
+
+          <div className="image-preview-toolbar-divider" />
+
+          {/* 重置按钮 */}
+          <div className="image-preview-toolbar-group">
+            <Tooltip title="重置缩放和旋转">
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleResetAll}
+              />
+            </Tooltip>
+          </div>
+
+          {hasMultipleImages && showNavigation && (
+            <>
+              <div className="image-preview-toolbar-divider" />
+
+              {/* 导航控制 */}
+              <div className="image-preview-nav-buttons">
+                <Tooltip title="上一张">
+                  <Button
+                    icon={<LeftOutlined />}
+                    onClick={handlePrev}
+                    disabled={actualIndex <= 0}
+                  >
+                    上一张
+                  </Button>
+                </Tooltip>
+                <div className="image-preview-info-badge">
+                  {actualIndex + 1} / {imageList.length}
+                </div>
+                <Tooltip title="下一张">
+                  <Button
+                    icon={<RightOutlined />}
+                    onClick={handleNext}
+                    disabled={actualIndex >= imageList.length - 1}
+                  >
+                    下一张
+                  </Button>
+                </Tooltip>
+              </div>
+            </>
+          )}
+
+          <div className="image-preview-toolbar-divider" />
+
+          {/* 关闭按钮 */}
+          <div className="image-preview-close-btn">
+            <Button type="primary" onClick={handleClose}>
+              关闭
+            </Button>
+          </div>
+        </div>
+      )}
     </Modal>
   )
 }

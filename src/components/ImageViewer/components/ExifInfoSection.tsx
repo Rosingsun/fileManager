@@ -3,7 +3,7 @@
  */
 
 import React, { useState } from 'react'
-import { useExifParser } from '../hooks/useExifParser'
+import { useExifParser } from '../../../hooks'
 import type { Image } from '../types'
 import './InfoPanel.css'
 

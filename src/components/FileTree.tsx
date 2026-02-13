@@ -1,9 +1,9 @@
 import React from 'react'
 import { Card, Empty, Button, Popconfirm, Tooltip, List } from 'antd'
 import { DeleteOutlined, ClearOutlined } from '@ant-design/icons'
-import { useFileStore } from '../stores/fileStore'
-import { useFileSystem } from '../hooks/useFileSystem'
-import { formatDateTime } from '../utils/fileUtils'
+import { useFileStore } from '../stores'
+import { useFileSystem } from '../hooks'
+import { formatDateTime } from '../utils'
 import type { HistoryItem } from '../types'
 
 const FileTree: React.FC = () => {
