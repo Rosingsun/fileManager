@@ -162,12 +162,53 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.color-swatch {
+.color-item-selected {
+  background-color: rgba(33, 150, 243, 0.1);
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.3);
+}
+
+.color-item-selected:hover {
+  background-color: rgba(33, 150, 243, 0.15);
+}
+
+.color-swatch-wrapper {
+  position: relative;
   width: 100%;
   aspect-ratio: 1;
+}
+
+.color-swatch {
+  width: 100%;
+  height: 100%;
   border-radius: 4px;
   border: 1px solid #E0E0E0;
   flex-shrink: 0;
+}
+
+.color-remove-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: #F44336;
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: bold;
+  line-height: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s;
+}
+
+.color-remove-btn:hover {
+  background-color: #D32F2F;
+  transform: scale(1.1);
 }
 
 .color-info {
@@ -187,6 +228,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+  transition: background-color 0.2s;
+}
+
+.color-hex:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .color-copied {

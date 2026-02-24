@@ -19,6 +19,8 @@ export interface InfoPanelProps {
   rotation: number
   flipHorizontal: boolean
   flipVertical: boolean
+  backgroundColor: string | null
+  onBackgroundColorChange: (color: string | null) => void
   onDescriptionSave: (description: string) => void
   onTagsChange: (tags: string[]) => void
   onPrev: () => void
@@ -40,6 +42,8 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
   rotation,
   flipHorizontal,
   flipVertical,
+  backgroundColor,
+  onBackgroundColorChange,
   onDescriptionSave,
   onTagsChange,
   onPrev,
@@ -66,7 +70,11 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
       <div className="info-panel-content">
         <FileInfoSection image={image} />
         <ExifInfoSection image={image} />
-        <ColorPalette imageUrl={image.url} />
+        <ColorPalette 
+            imageUrl={image.url} 
+            backgroundColor={backgroundColor}
+            onBackgroundColorChange={onBackgroundColorChange}
+          />
         <DescriptionEditor
           description={image.description || ''}
           onSave={onDescriptionSave}

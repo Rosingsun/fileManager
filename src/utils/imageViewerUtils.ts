@@ -6,11 +6,12 @@ export function calculateFitScale(
   imageWidth: number,
   imageHeight: number,
   containerWidth: number,
-  containerHeight: number
+  containerHeight: number,
+  targetRatio: number = 1
 ): number {
-  const scaleX = containerWidth / imageWidth
-  const scaleY = containerHeight / imageHeight
-  return Math.min(scaleX, scaleY, 1) * 100
+  const scaleX = (containerWidth * targetRatio) / imageWidth
+  const scaleY = (containerHeight * targetRatio) / imageHeight
+  return Math.min(scaleX, scaleY) * 100
 }
 
 export function clamp(value: number, min: number, max: number): number {

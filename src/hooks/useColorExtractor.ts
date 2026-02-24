@@ -3,7 +3,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import type { ColorInfo } from '../types'
+import type { ColorInfo } from '../components/ImageViewer/types'
 import { extractDominantColors } from '../utils/colorUtils'
 
 export function useColorExtractor(imageUrl: string | null, colorCount: number = 4) {

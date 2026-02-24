@@ -30,6 +30,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>('fit')
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [isLoadingBlob, setIsLoadingBlob] = useState(false)
+  const [backgroundColor, setBackgroundColor] = useState<string | null>(null)
 
   const currentImage = useMemo(() => {
     return images[currentIndex] || null
@@ -255,8 +256,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     onKeyR: handleRotate,
     onKeyF: () => setViewMode(viewMode === 'fit' ? 'free' : 'fit'),
     onKey1: () => setViewMode('actual'),
-    onPlus: () => setScale(prev => Math.min(prev + 10, 500)),
-    onMinus: () => setScale(prev => Math.max(prev - 10, 20)),
+    onPlus: () => setScale(prev => Math.min(prev + 10, 400)),
+    onMinus: () => setScale(prev => Math.max(prev - 10, 25)),
     enabled: true
   })
 
@@ -278,6 +279,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             flipHorizontal={flipHorizontal}
             flipVertical={flipVertical}
             viewMode={viewMode}
+            backgroundColor={backgroundColor}
             onScaleChange={setScale}
             onRotationChange={setRotation}
             onFlipChange={(h, v) => {
@@ -291,7 +293,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
           />
         </div>
 
-        {/* 右侧：信息面板 */}
+{/* 右侧：信息面板 */}
         <div className="image-viewer-info-wrapper">
           <InfoPanel
             image={currentImage}
@@ -300,6 +302,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             rotation={rotation}
             flipHorizontal={flipHorizontal}
             flipVertical={flipVertical}
+            backgroundColor={backgroundColor}
+            onBackgroundColorChange={setBackgroundColor}
             onDescriptionSave={handleDescriptionSave}
             onTagsChange={handleTagsChange}
             onPrev={handlePrev}

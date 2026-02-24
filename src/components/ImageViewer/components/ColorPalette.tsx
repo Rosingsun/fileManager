@@ -9,9 +9,15 @@ import './InfoPanel.css'
 
 export interface ColorPaletteProps {
   imageUrl: string | null
+  backgroundColor: string | null
+  onBackgroundColorChange: (color: string | null) => void
 }
 
-const ColorPalette: React.FC<ColorPaletteProps> = ({ imageUrl }) => {
+const ColorPalette: React.FC<ColorPaletteProps> = ({ 
+  imageUrl,
+  backgroundColor,
+  onBackgroundColorChange 
+}) => {
   const { colors, isLoading } = useColorExtractor(imageUrl, 8)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
 
@@ -21,6 +27,25 @@ const ColorPalette: React.FC<ColorPaletteProps> = ({ imageUrl }) => {
       setCopiedIndex(index)
       setTimeout(() => setCopiedIndex(null), 2000)
     }
+  }
+
+  const handleSetBackground = async (hex: string, index: number) => {
+    const success = await copyToClipboard(hex)
+    if (success) {
+      setCopiedIndex(index)
+      setTimeout(() => setCopiedIndex(null), 2000)
+    }
+    onBackgroundColorChange(hex)
+  }
+
+  const handleRemoveBackground = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    onBackgroundColorChange(null)
+  }
+
+  const isSelected = (hex: string) => {
+    if (!backgroundColor) return false
+    return backgroundColor.toLowerCase() === hex.toLowerCase()
   }
 
   if (isLoading) {
@@ -53,16 +78,35 @@ const ColorPalette: React.FC<ColorPaletteProps> = ({ imageUrl }) => {
           {colors.map((color, index) => (
             <div
               key={index}
-              className="color-item"
-              onClick={() => handleColorClick(color.hex, index)}
-              title={`点击复制 ${color.hex}`}
+              className={`color-item ${isSelected(color.hex) ? 'color-item-selected' : ''}`}
+              onClick={() => handleSetBackground(color.hex, index)}
+              title={`点击复制颜色并设为背景色`}
             >
-              <div
-                className="color-swatch"
-                style={{ backgroundColor: color.hex }}
-              />
+              <div className="color-swatch-wrapper">
+                <div
+                  className="color-swatch"
+                  style={{ backgroundColor: color.hex }}
+                />
+                {isSelected(color.hex) && (
+                  <button
+                    className="color-remove-btn"
+                    onClick={handleRemoveBackground}
+                    title="移除背景色"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
               <div className="color-info">
-                <div className="color-hex">{color.hex}</div>
+                <div 
+                  className="color-hex"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleColorClick(color.hex, index)
+                  }}
+                >
+                  {color.hex}
+                </div>
                 {copiedIndex === index && (
                   <div className="color-copied">已复制</div>
                 )}
