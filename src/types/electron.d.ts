@@ -20,6 +20,11 @@ declare global {
       getImageBase64: (filePath: string) => Promise<string>
       getImageDimensions: (filePath: string) => Promise<{ width: number; height: number } | null>
       getImageThumbnail: (filePath: string, size?: number, quality?: number) => Promise<string>
+      // image editing operations
+      applyEdits: (paths: string[] | string, settings: import('./index').ImageEditSettings) => Promise<import('./index').BatchOperationResult[]>
+      convertFormat: (paths: string[] | string, options: import('./index').FormatConversionOptions) => Promise<import('./index').BatchOperationResult[]>
+      compressImage: (paths: string[] | string, options: import('./index').CompressionOptions) => Promise<import('./index').BatchOperationResult[]>
+      estimateCompressedSize: (path: string, options: import('./index').CompressionOptions) => Promise<number>
       scanSimilarImages: (config: import('./index').SimilarityScanConfig) => Promise<import('./index').SimilarityScanResult>
       onSimilarityScanProgress: (callback: (progress: import('./index').SimilarityScanProgress) => void) => () => void
       cancelSimilarityScan: () => void

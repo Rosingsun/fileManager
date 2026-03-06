@@ -1,13 +1,26 @@
 import React from 'react'
 import { Empty, Pagination } from 'antd'
+import {
+  FolderOutlined,
+  FileOutlined,
+  FilePdfOutlined,
+  FileWordOutlined,
+  FileExcelOutlined,
+  VideoCameraOutlined,
+  SoundOutlined,
+  FileZipOutlined
+} from '@ant-design/icons'
 import { ImageThumbnail } from './ImageThumbnail'
 import { MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
+import { getFileExtension, getFileTypeIcon } from '../../utils'
 import type { FileInfo } from '../../types'
 import type { PreviewData } from './types'
 
 interface FileListGridProps {
   dataSource: FileInfo[]
   total: number
+  current: number
+  pageSize: number
   previewVersion: number
   gridColumns: number
   previews: Map<string, PreviewData>
@@ -26,6 +39,8 @@ interface FileListGridProps {
 export const FileListGrid: React.FC<FileListGridProps> = ({
   dataSource,
   total,
+  current,
+  pageSize,
   previewVersion,
   gridColumns,
   previews,
@@ -40,6 +55,26 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
   onPageChange,
   isPreviewable
 }) => {
+  const getFileIcon = (file: FileInfo) => {
+    if (file.isDirectory) {
+      return <FolderOutlined style={{ fontSize: 48, color: '#1890ff' }} />
+    }
+
+    const ext = getFileExtension(file.name)
+    const iconType = getFileTypeIcon(ext, false)
+
+    const iconMap: Record<string, React.ReactNode> = {
+      'file-pdf': <FilePdfOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />,
+      'file-word': <FileWordOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
+      'file-excel': <FileExcelOutlined style={{ fontSize: 48, color: '#52c41a' }} />,
+      'video': <VideoCameraOutlined style={{ fontSize: 48, color: '#faad14' }} />,
+      'audio': <SoundOutlined style={{ fontSize: 48, color: '#722ed1' }} />,
+      'file-zip': <FileZipOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
+    }
+
+    return iconMap[iconType] || <FileOutlined style={{ fontSize: 48, color: '#8c8c8c' }} />
+  }
+
   if (dataSource.length === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -119,7 +154,7 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
                     onRef={(el) => onRegisterRef(file.path, el)}
                   />
                 ) : (
-                  <span style={{ color: '#999', fontSize: '12px' }}>无预览</span>
+                  getFileIcon(file)
                 )}
               </div>
               <div
@@ -162,6 +197,8 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
       <div style={{ padding: '10px', borderTop: '1px solid #f0f0f0', textAlign: 'right' }}>
         <Pagination
           total={total}
+          current={current}
+          pageSize={pageSize}
           showSizeChanger
           showQuickJumper
           pageSizeOptions={PAGE_SIZE_OPTIONS}

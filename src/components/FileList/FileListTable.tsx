@@ -34,6 +34,7 @@ interface FileListTableProps {
   selectedRows: FileInfo[]
   maxImageSize?: number
   onPreview: (file: FileInfo) => void
+  onEdit?: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
   onDelete: (file: FileInfo) => void
   onDoubleClick: (file: FileInfo) => void
@@ -59,6 +60,7 @@ export const FileListTable: React.FC<FileListTableProps> = ({
   selectedRows,
   maxImageSize = MAX_IMAGE_SIZE,
   onPreview,
+  onEdit,
   onRename,
   onDelete,
   onDoubleClick,
@@ -127,7 +129,7 @@ export const FileListTable: React.FC<FileListTableProps> = ({
       render: (text: string, record: FileInfo) => (
         <Space>
           {getIcon(record)}
-          <span style={{ maxWidth: '15em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ maxWidth: '10em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline-block' }} title={text}>
             {text}
           </span>
           {record.isDirectory && <Tag color="blue">文件夹</Tag>}
@@ -178,6 +180,15 @@ export const FileListTable: React.FC<FileListTableProps> = ({
           >
             查看
           </span>
+          {isPreviewable(record) && onEdit && (
+            <span
+              style={{ color: '#1890ff', cursor: 'pointer' }}
+              onClick={() => onEdit(record)}
+              title="编辑"
+            >
+              编辑
+            </span>
+          )}
           <span
             style={{ color: '#1890ff', cursor: 'pointer' }}
             onClick={() => onRename(record)}

@@ -16,6 +16,8 @@ import { FileListTable } from './FileListTable'
 import { FileListGrid } from './FileListGrid'
 import ImageViewer from '../ImageViewer/ImageViewer'
 import type { Image } from '../ImageViewer/types'
+import ImageEditor from '../ImageEditor/ImageEditor'
+import BatchEditModal from '../ImageEditor/BatchEditModal'
 import type { FileInfo } from '../../types'
 import { MAX_IMAGE_SIZE } from './types'
 
@@ -59,6 +61,11 @@ const FileList: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0)
   const [previewImages, setPreviewImages] = useState<Image[]>([])
   const [previewableFiles, setPreviewableFiles] = useState<FileInfo[]>([])
+
+  // 编辑器
+  const [editorVisible, setEditorVisible] = useState(false)
+  const [editorFilePath, setEditorFilePath] = useState<string | null>(null)
+  const [batchEditorVisible, setBatchEditorVisible] = useState(false)
 
   const previewEnabled = true
 
@@ -222,6 +229,17 @@ const FileList: React.FC = () => {
       console.error('加载图片失败:', error)
     }
   }, [previews, convertFileToImage])
+
+  const handleEdit = useCallback((file: FileInfo) => {
+    setEditorFilePath(file.path)
+    setEditorVisible(true)
+  }, [])
+
+  const handleBatchEdit = useCallback(() => {
+    if (selectedRows.length > 0) {
+      setBatchEditorVisible(true)
+    }
+  }, [selectedRows])
 
   const handlePreview = useCallback(async (file: FileInfo) => {
     const imageFiles = getImageFiles()
@@ -515,6 +533,9 @@ const FileList: React.FC = () => {
               <AntButton size="small" icon={<FolderOpenOutlined />} onClick={handleBatchMove}>
                 批量移动
               </AntButton>
+              <AntButton size="small" icon={<EditOutlined />} onClick={handleBatchEdit}>
+                批量编辑
+              </AntButton>
               <AntButton size="small" onClick={() => { setSelectedRowKeys([]); setSelectedRows([]) }}>
                 取消选择
               </AntButton>
@@ -540,6 +561,7 @@ const FileList: React.FC = () => {
               selectedRows={selectedRows}
               maxImageSize={maxImageSize}
               onPreview={handlePreview}
+              onEdit={handleEdit}
               onRename={handleRename}
               onDelete={handleDelete}
               onDoubleClick={handleDoubleClick}
@@ -552,6 +574,8 @@ const FileList: React.FC = () => {
             <FileListGrid
               dataSource={paginatedFileList}
               total={filteredFileList.length}
+              current={currentPage}
+              pageSize={pageSize}
               previewVersion={previewVersion}
               gridColumns={gridColumns}
               previews={previews}
@@ -632,6 +656,23 @@ const FileList: React.FC = () => {
           currentIndex={previewIndex}
           onIndexChange={handlePreviewIndexChange}
           onClose={() => setPreviewModalVisible(false)}
+        />
+      )}
+
+      {editorVisible && editorFilePath && (
+        <ImageEditor
+          visible={editorVisible}
+          filePath={editorFilePath}
+          onClose={() => setEditorVisible(false)}
+          onSaved={() => { /* optional refresh actions */ }}
+        />
+      )}
+
+      {batchEditorVisible && (
+        <BatchEditModal
+          visible={batchEditorVisible}
+          filePaths={selectedRows.map(r => r.path)}
+          onClose={() => setBatchEditorVisible(false)}
         />
       )}
     </>

@@ -107,6 +107,20 @@ try {
       return ipcRenderer.invoke('file:open', filePath)
     },
 
+    // 图片编辑/转换/压缩
+    applyEdits: (paths: string[] | string, settings: import('../../src/types').ImageEditSettings): Promise<import('../../src/types').BatchOperationResult[]> => {
+      return ipcRenderer.invoke('image:applyEdits', paths, settings)
+    },
+    convertFormat: (paths: string[] | string, options: import('../../src/types').FormatConversionOptions): Promise<import('../../src/types').BatchOperationResult[]> => {
+      return ipcRenderer.invoke('image:convertFormat', paths, options)
+    },
+    compressImage: (paths: string[] | string, options: import('../../src/types').CompressionOptions): Promise<import('../../src/types').BatchOperationResult[]> => {
+      return ipcRenderer.invoke('image:compress', paths, options)
+    },
+    estimateCompressedSize: (path: string, options: import('../../src/types').CompressionOptions): Promise<number> => {
+      return ipcRenderer.invoke('image:estimateCompressedSize', path, options)
+    },
+
     // 相似照片检测
     scanSimilarImages: (config: import('../../src/types').SimilarityScanConfig): Promise<import('../../src/types').SimilarityScanResult> => {
       return ipcRenderer.invoke('similarity:scan', config)

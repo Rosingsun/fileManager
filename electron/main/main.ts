@@ -1888,6 +1888,62 @@ ipcMain.on('image:cancelClassification', () => {
   currentClassificationWindow = null
 })
 
+// IPC 处理器：应用编辑设置（可用于单图或批量）
+ipcMain.handle('image:applyEdits', async (_event, paths: string[] | string, settings: any): Promise<BatchOperationResult[]> => {
+  const filePaths = Array.isArray(paths) ? paths : [paths]
+  const results: BatchOperationResult[] = []
+  for (const p of filePaths) {
+    try {
+      await import('./utils/imageUtils').then(mod => mod.applyEdits(p, settings))
+      results.push({ filePath: p, success: true })
+    } catch (err: any) {
+      results.push({ filePath: p, success: false, error: err.message })
+    }
+  }
+  return results
+})
+
+// IPC 处理器：格式转换
+ipcMain.handle('image:convertFormat', async (_event, paths: string[] | string, options: any): Promise<BatchOperationResult[]> => {
+  const filePaths = Array.isArray(paths) ? paths : [paths]
+  const results: BatchOperationResult[] = []
+  for (const p of filePaths) {
+    try {
+      await import('./utils/imageUtils').then(mod => mod.convertFormat(p, options))
+      results.push({ filePath: p, success: true })
+    } catch (err: any) {
+      results.push({ filePath: p, success: false, error: err.message })
+    }
+  }
+  return results
+})
+
+// IPC 处理器：压缩图片
+ipcMain.handle('image:compress', async (_event, paths: string[] | string, options: any): Promise<BatchOperationResult[]> => {
+  const filePaths = Array.isArray(paths) ? paths : [paths]
+  const results: BatchOperationResult[] = []
+  for (const p of filePaths) {
+    try {
+      await import('./utils/imageUtils').then(mod => mod.compressImage(p, options))
+      results.push({ filePath: p, success: true })
+    } catch (err: any) {
+      results.push({ filePath: p, success: false, error: err.message })
+    }
+  }
+  return results
+})
+
+// IPC 处理器：预估压缩大小，仅返回单张结果
+ipcMain.handle('image:estimateCompressedSize', async (_event, path: string, options: any): Promise<number> => {
+  try {
+    const size = await import('./utils/imageUtils').then(mod => mod.estimateCompressedSize(path, options))
+    return size
+  } catch (err) {
+    console.error('[Main] 估算压缩大小失败:', err)
+    return 0
+  }
+})
+
 // ==================== 模型下载功能 ====================
 
 let downloadCancelled = false

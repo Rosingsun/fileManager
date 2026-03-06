@@ -171,3 +171,102 @@ export async function preprocessImage(imagePath: string, inputSize: number = 224
     throw error
   }
 }
+
+// ---------- image editing / format / compression helpers -----------
+import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../src/types'
+
+async function applySharpSettings(sharpInstance: any, settings: ImageEditSettings) {
+  if (settings.brightness != null || settings.contrast != null || settings.saturation != null || settings.hue != null) {
+    const brightness = settings.brightness != null ? settings.brightness / 100 : 1
+    const contrast = settings.contrast != null ? settings.contrast / 100 : 1
+    const saturation = settings.saturation != null ? settings.saturation / 100 : 1
+    const hue = settings.hue != null ? settings.hue : 0
+    sharpInstance = sharpInstance.modulate({ brightness, saturation, hue, contrast })
+  }
+  if (settings.exposure != null) {
+    const exposure = settings.exposure / 100
+    sharpInstance = sharpInstance.modulate({ brightness: exposure })
+  }
+  if (settings.rotation) {
+    sharpInstance = sharpInstance.rotate(settings.rotation)
+  }
+  if (settings.flipHorizontal) {
+    sharpInstance = sharpInstance.flip()
+  }
+  if (settings.flipVertical) {
+    sharpInstance = sharpInstance.flop()
+  }
+  if (settings.crop) {
+    sharpInstance = sharpInstance.extract({
+      left: Math.round(settings.crop.x),
+      top: Math.round(settings.crop.y),
+      width: Math.round(settings.crop.width),
+      height: Math.round(settings.crop.height)
+    })
+  }
+  return sharpInstance
+}
+
+export async function applyEdits(filePath: string, settings: ImageEditSettings, outputPath?: string): Promise<void> {
+  let instance = sharp(filePath)
+  instance = await applySharpSettings(instance, settings)
+  if (outputPath) {
+    await instance.toFile(outputPath)
+  } else {
+    await instance.toFile(filePath)
+  }
+}
+
+export async function convertFormat(filePath: string, options: FormatConversionOptions, outputPath?: string): Promise<void> {
+  let instance = sharp(filePath)
+  const fmt = options.targetFormat.toLowerCase()
+  if (fmt === 'jpeg' || fmt === 'jpg') {
+    instance = instance.jpeg({ quality: options.quality || 80 })
+  } else if (fmt === 'png') {
+    instance = instance.png({ quality: options.quality || 80 })
+  } else if (fmt === 'webp') {
+    instance = instance.webp({ quality: options.quality || 80 })
+  } else if (fmt === 'bmp') {
+    instance = instance.bmp()
+  } else if (fmt === 'tiff' || fmt === 'tif') {
+    instance = instance.tiff({ quality: options.quality || 80 })
+  }
+  if (outputPath) {
+    await instance.toFile(outputPath)
+  } else {
+    await instance.toFile(filePath)
+  }
+}
+
+export async function compressImage(filePath: string, options: CompressionOptions, outputPath?: string): Promise<void> {
+  const mimeType = getMimeType(filePath)
+  let instance = sharp(filePath)
+  const quality = Math.max(Math.min(options.qualityPercentage || 80, 100), 1)
+  if (mimeType === 'image/png') {
+    instance = instance.png({ quality })
+  } else if (mimeType === 'image/webp') {
+    instance = instance.webp({ quality })
+  } else {
+    instance = instance.jpeg({ quality })
+  }
+  if (outputPath) {
+    await instance.toFile(outputPath)
+  } else {
+    await instance.toFile(filePath)
+  }
+}
+
+export async function estimateCompressedSize(filePath: string, options: CompressionOptions): Promise<number> {
+  const mimeType = getMimeType(filePath)
+  let instance = sharp(filePath)
+  const quality = Math.max(Math.min(options.qualityPercentage || 80, 100), 1)
+  if (mimeType === 'image/png') {
+    instance = instance.png({ quality })
+  } else if (mimeType === 'image/webp') {
+    instance = instance.webp({ quality })
+  } else {
+    instance = instance.jpeg({ quality })
+  }
+  const buffer = await instance.toBuffer()
+  return buffer.length
+}

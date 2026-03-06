@@ -190,4 +190,41 @@ export interface ImageClassificationBatchResult {
   successCount: number
   errorCount: number
   classificationTime: number // 鍒嗙被鑰楁椂锛堟绉掞級
+}// 图片编辑相关类型
+export interface ImageEditSettings {
+  brightness?: number // 百分比，100为原始
+  contrast?: number
+  saturation?: number
+  hue?: number
+  exposure?: number
+  rotation?: number // 角度
+  flipHorizontal?: boolean
+  flipVertical?: boolean
+  crop?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+}
+
+export interface ImagePreset {
+  id: string
+  name: string
+  settings: ImageEditSettings
+}
+
+export interface FormatConversionOptions {
+  targetFormat: string // e.g. 'jpeg','png','webp','bmp'
+  quality?: number // 1-100
+}
+
+export interface CompressionOptions {
+  qualityPercentage: number // 1-100
+}
+
+export interface BatchOperationResult {
+  filePath: string
+  success: boolean
+  error?: string
 }
