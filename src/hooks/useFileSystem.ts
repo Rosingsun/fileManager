@@ -71,7 +71,7 @@ export function useFileSystem() {
 
   const extractFiles = useCallback(async (
     targetPath: string,
-    extensions: string[],
+    filters: { extensions: string[]; minSize?: number; maxSize?: number; category?: string },
     conflictAction: 'skip' | 'overwrite' | 'rename' = 'rename'
   ) => {
     if (!checkElectronAPI()) return
@@ -79,7 +79,7 @@ export function useFileSystem() {
     try {
       setLoading(true)
       const normalizedPath = normalizePath(targetPath)
-      const results = await window.electronAPI!.extractFiles(normalizedPath, extensions, conflictAction)
+      const results = await window.electronAPI!.extractFiles(normalizedPath, filters, conflictAction)
       
       const successCount = results.filter(r => r.success).length
       const failCount = results.length - successCount

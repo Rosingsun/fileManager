@@ -173,21 +173,40 @@ export async function organizeFiles(config: OrganizeConfig): Promise<Array<{ fro
 
 export async function extractFiles(
   targetPath: string,
-  extensions: string[],
+  filters: { extensions: string[]; minSize?: number; maxSize?: number },
   conflictAction: 'skip' | 'overwrite' | 'rename'
 ): Promise<Array<{ from: string; to: string; success: boolean; error?: string }>> {
   if (!existsSync(targetPath)) {
     throw new Error('目标目录不存在')
   }
 
+  const { extensions, minSize, maxSize } = filters
   const results: Array<{ from: string; to: string; success: boolean; error?: string }> = []
   
-  const allFiles = await getAllFiles(targetPath, extensions)
+  let allFiles = await getAllFiles(targetPath, extensions || [])
   
-  const filesToExtract = allFiles.filter(file => {
+  let filesToExtract = allFiles.filter(file => {
     const fileDir = file.path.substring(0, file.path.lastIndexOf(file.name) - 1)
     return fileDir !== targetPath
   })
+
+  if (minSize !== undefined) {
+    filesToExtract = filesToExtract.filter(f => {
+      try {
+        const stats = fs.statSync(f.path)
+        return stats.size >= minSize
+      } catch {
+        return false
+      }
+    })
+  }
+  if (maxSize !== undefined) {
+    filesToExtract = filesToExtract.filter(f => {
+      try {
+        const stats = fs.statSync(f.path)
+      }
+    })
+  }
 
   for (const file of filesToExtract) {
     const targetFile = join(targetPath, file.name)

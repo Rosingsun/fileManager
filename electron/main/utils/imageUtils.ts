@@ -176,17 +176,62 @@ export async function preprocessImage(imagePath: string, inputSize: number = 224
 import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../src/types'
 
 async function applySharpSettings(sharpInstance: any, settings: ImageEditSettings) {
+  // 基础色彩调整
   if (settings.brightness != null || settings.contrast != null || settings.saturation != null || settings.hue != null) {
     const brightness = settings.brightness != null ? settings.brightness / 100 : 1
-    const contrast = settings.contrast != null ? settings.contrast / 100 : 1
     const saturation = settings.saturation != null ? settings.saturation / 100 : 1
     const hue = settings.hue != null ? settings.hue : 0
-    sharpInstance = sharpInstance.modulate({ brightness, saturation, hue, contrast })
+    sharpInstance = sharpInstance.modulate({ brightness, saturation, hue })
   }
+  
+  // 对比度调整
+  if (settings.contrast != null) {
+    const factor = settings.contrast / 100
+    sharpInstance = sharpInstance.linear(factor, -(128 * (factor - 1)))
+  }
+  
+  // 曝光调整
   if (settings.exposure != null) {
     const exposure = settings.exposure / 100
     sharpInstance = sharpInstance.modulate({ brightness: exposure })
   }
+  
+  // 滤镜效果
+  if (settings.grayscale) {
+    sharpInstance = sharpInstance.grayscale()
+  }
+  
+  if (settings.blur != null && settings.blur > 0) {
+    sharpInstance = sharpInstance.blur(settings.blur)
+  }
+  
+  if (settings.sharpen != null && settings.sharpen > 0) {
+    const sigma = Math.max(settings.sharpen / 50, 0.3)
+    sharpInstance = sharpInstance.sharpen(sigma, 1, 0)
+  }
+  
+  if (settings.vintage != null && settings.vintage > 0) {
+    const sepiaAmount = settings.vintage / 100
+    sharpInstance = sharpInstance.recomb([
+      [0.393 + 0.607 * (1 - sepiaAmount), 0.769 - 0.769 * (1 - sepiaAmount), 0.189 - 0.189 * (1 - sepiaAmount)],
+      [0.349 - 0.349 * (1 - sepiaAmount), 0.686 + 0.314 * (1 - sepiaAmount), 0.168 - 0.168 * (1 - sepiaAmount)],
+      [0.272 - 0.272 * (1 - sepiaAmount), 0.534 - 0.534 * (1 - sepiaAmount), 0.131 + 0.869 * (1 - sepiaAmount)]
+    ])
+  }
+  
+  // 高级调整 - 阴影
+  if (settings.shadows != null && settings.shadows !== 0) {
+    const shadowFactor = 1 + settings.shadows / 200
+    sharpInstance = sharpInstance.modulate({ brightness: shadowFactor })
+  }
+  
+  // 高级调整 - 清晰度（通过局部对比度增强）
+  if (settings.clarity != null && settings.clarity !== 0) {
+    const clarityFactor = 1 + settings.clarity / 200
+    sharpInstance = sharpInstance.linear(clarityFactor, -(128 * (clarityFactor - 1)))
+  }
+  
+  // 变换操作
   if (settings.rotation) {
     sharpInstance = sharpInstance.rotate(settings.rotation)
   }
@@ -196,6 +241,8 @@ async function applySharpSettings(sharpInstance: any, settings: ImageEditSetting
   if (settings.flipVertical) {
     sharpInstance = sharpInstance.flop()
   }
+  
+  // 裁剪
   if (settings.crop) {
     sharpInstance = sharpInstance.extract({
       left: Math.round(settings.crop.x),
@@ -204,6 +251,7 @@ async function applySharpSettings(sharpInstance: any, settings: ImageEditSetting
       height: Math.round(settings.crop.height)
     })
   }
+  
   return sharpInstance
 }
 

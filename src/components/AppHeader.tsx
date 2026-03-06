@@ -36,6 +36,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({ activeTab, onTabChange }) => {
             key: 'classify',
             label: '图片分类',
           },
+          {
+            key: 'tools',
+            label: '实用工具',
+          },
         ]}
       />
     </Header>

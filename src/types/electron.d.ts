@@ -6,7 +6,16 @@ declare global {
       readDirectory: (path: string) => Promise<import('./index').FileInfo[]>
       readDirectoryRecursive: (path: string) => Promise<import('./index').FileInfo[]>
       organizeFiles: (config: import('./index').OrganizeConfig) => Promise<Array<{ from: string; to: string; success: boolean; error?: string }>>
-      extractFiles: (targetPath: string, extensions: string[], conflictAction: 'skip' | 'overwrite' | 'rename') => Promise<Array<{ from: string; to: string; success: boolean; error?: string }>>
+      extractFiles: (
+        targetPath: string,
+        filters: {
+          extensions: string[];
+          minSize?: number;
+          maxSize?: number;
+          category?: import('./index').FileCategory | 'all';
+        },
+        conflictAction: 'skip' | 'overwrite' | 'rename'
+      ) => Promise<Array<{ from: string; to: string; success: boolean; error?: string }>>
       getAppVersion: () => Promise<string>
       getPlatform: () => Promise<string>
       minimizeWindow: () => void
@@ -38,6 +47,16 @@ declare global {
       openExternalLink: (url: string) => Promise<boolean>
       selectAndSaveModelFile: () => Promise<string | null>
       saveModelFile: (sourcePath: string) => Promise<string | null>
+      
+      // 实用工具
+      batchRename: (files: string[], options: import('./index').BatchRenameOptions) => Promise<import('./index').RenameResult[]>
+      addWatermark: (files: string[], options: import('./index').WatermarkOptions) => Promise<import('./index').BatchOperationResult[]>
+      stitchImages: (images: string[], options: import('./index').StitchOptions) => Promise<string>
+      createGif: (frames: import('./index').GifFrame[], options: import('./index').GifOptions) => Promise<string>
+      imagesToPdf: (images: string[], options: import('./index').PdfOptions) => Promise<string>
+      generateThumbnails: (files: string[], options: import('./index').ThumbnailOptions) => Promise<import('./index').ThumbnailResult[]>
+      enhanceImage: (file: string, options: import('./index').EnhanceOptions) => Promise<string>
+      selectFiles: (filter?: string) => Promise<string[] | null>
     }
   }
 }

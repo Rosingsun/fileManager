@@ -6,6 +6,7 @@ import ControlPanel from './components/ControlPanel'
 import AppHeader from './components/AppHeader'
 import SimilarityDetection from './components/SimilarityDetection/SimilarityDetection'
 import ImageClassification from './components/ImageClassification/ImageClassification'
+import ToolsEntry from './components/Tools/ToolsEntry'
 import './styles/App.css'
 
 const { Content } = Layout
@@ -69,6 +70,11 @@ const App: React.FC = () => {
         {activeTab === 'classify' && (
           <div style={{ padding: '2px', height: '100%', overflow: 'scroll' }}>
             <ImageClassification />
+          </div>
+        )}
+        {activeTab === 'tools' && (
+          <div style={{ padding: '2px', height: '100%', overflow: 'hidden' }}>
+            <ToolsEntry />
           </div>
         )}
       </Content>

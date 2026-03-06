@@ -13,3 +13,5 @@ export { default as ImageClassification } from './ImageClassification/ImageClass
 
 export { default as ImageEditor } from './ImageEditor/ImageEditor'
 export { default as BatchEditModal } from './ImageEditor/BatchEditModal'
+
+export { default as ToolsEntry } from './Tools/ToolsEntry'

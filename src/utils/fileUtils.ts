@@ -134,6 +134,26 @@ export function getFileCategory(extension: string): 'image' | 'video' | 'audio' 
 }
 
 /**
+ * 根据分类获取默认扩展名列表，用于快速构建筛选条件
+ */
+export function getExtensionsByCategory(category: 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other' | 'all'): string[] {
+  const map: Record<string, string[]> = {
+    image: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', 'ico', 'tiff', 'raw', 'heic', 'psd'],
+    video: ['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv', 'webm', 'm4v', '3gp', 'rmvb'],
+    audio: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'ape', 'aiff'],
+    document: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv', 'rtf', 'json', 'xml', 'html', 'htm', 'css', 'js', 'ts'],
+    archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso', 'dmg'],
+    other: []
+  }
+  if (category === 'all') {
+    // flatten all arrays and remove duplicates
+    const allExts = Object.values(map).flat()
+    return Array.from(new Set(allExts))
+  }
+  return map[category] || []
+}
+
+/**
  * 筛选文件列表
  */
 export function filterFiles(

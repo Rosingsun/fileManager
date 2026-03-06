@@ -41,8 +41,17 @@ try {
       return ipcRenderer.invoke('fs:organize', config)
     },
     
-    extractFiles: (targetPath: string, extensions: string[], conflictAction: 'skip' | 'overwrite' | 'rename'): Promise<Array<{ from: string; to: string; success: boolean; error?: string }>> => {
-      return ipcRenderer.invoke('fs:extractFiles', targetPath, extensions, conflictAction)
+    extractFiles: (
+      targetPath: string,
+      filters: {
+        extensions: string[]
+        minSize?: number
+        maxSize?: number
+        category?: string
+      },
+      conflictAction: 'skip' | 'overwrite' | 'rename'
+    ): Promise<Array<{ from: string; to: string; success: boolean; error?: string }>> => {
+      return ipcRenderer.invoke('fs:extractFiles', targetPath, filters, conflictAction)
     },
     
     // 应用功能
@@ -228,6 +237,39 @@ try {
 
     openExternalLink: (url: string): Promise<boolean> => {
       return ipcRenderer.invoke('shell:openExternal', url)
+    },
+
+    // 实用工具
+    batchRename: (files: string[], options: any): Promise<any[]> => {
+      return ipcRenderer.invoke('tools:batchRename', files, options)
+    },
+
+    addWatermark: (files: string[], options: any): Promise<any[]> => {
+      return ipcRenderer.invoke('tools:addWatermark', files, options)
+    },
+
+    stitchImages: (images: string[], options: any): Promise<string> => {
+      return ipcRenderer.invoke('tools:stitchImages', images, options)
+    },
+
+    createGif: (frames: any[], options: any): Promise<string> => {
+      return ipcRenderer.invoke('tools:createGif', frames, options)
+    },
+
+    imagesToPdf: (images: string[], options: any): Promise<string> => {
+      return ipcRenderer.invoke('tools:imagesToPdf', images, options)
+    },
+
+    generateThumbnails: (files: string[], options: any): Promise<any[]> => {
+      return ipcRenderer.invoke('tools:generateThumbnails', files, options)
+    },
+
+    enhanceImage: (file: string, options: any): Promise<string> => {
+      return ipcRenderer.invoke('tools:enhanceImage', file, options)
+    },
+
+    selectFiles: (filter?: string): Promise<string[] | null> => {
+      return ipcRenderer.invoke('dialog:selectFiles', filter)
     }
   }
   

@@ -1,17 +1,18 @@
 import type { ImageEditSettings } from '../types'
 
-/**
- * 根据设置生成 CSS filter 字符串，用于前端预览
- */
 export function getFilterCss(settings: ImageEditSettings): string {
-  const parts: string[] = []
-  if (settings.brightness != null) parts.push(`brightness(${settings.brightness}%)`)
-  if (settings.contrast != null) parts.push(`contrast(${settings.contrast}%)`)
-  if (settings.saturation != null) parts.push(`saturate(${settings.saturation}%)`)
-  if (settings.hue != null) parts.push(`hue-rotate(${settings.hue}deg)`)
-  if (settings.exposure != null) parts.push(`brightness(${settings.exposure}%)`)
-  // exposure approximated as brightness
-  return parts.join(' ')
+  const filters: string[] = []
+  if (settings.brightness != null) filters.push(`brightness(${settings.brightness}%)`)
+  if (settings.contrast != null) filters.push(`contrast(${settings.contrast}%)`)
+  if (settings.saturation != null) filters.push(`saturate(${settings.saturation}%)`)
+  if (settings.hue != null) filters.push(`hue-rotate(${settings.hue}deg)`)
+  if (settings.exposure != null) filters.push(`brightness(${settings.exposure}%)`)
+  
+  if (settings.grayscale) filters.push('grayscale(100%)')
+  if (settings.blur != null && settings.blur > 0) filters.push(`blur(${settings.blur}px)`)
+  if (settings.vintage != null && settings.vintage > 0) filters.push(`sepia(${settings.vintage}%)`)
+  
+  return filters.length > 0 ? filters.join(' ') : 'none'
 }
 
 /**

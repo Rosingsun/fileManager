@@ -59,6 +59,14 @@ export interface TreeNode {
   children?: TreeNode[]
 }
 
+// 提取文件时使用的过滤条件
+export interface ExtractFilter {
+  extensions: string[]           // 需要提取的扩展名列表，空数组表示全部
+  minSize?: number               // 最小文件大小（字节），可选
+  maxSize?: number               // 最大文件大小（字节），可选
+  category?: FileCategory | 'all'// 根据类型筛选（优先于 extensions），可选
+}
+
 // 预览结果项
 export interface PreviewResultItem {
   from: string
@@ -190,14 +198,14 @@ export interface ImageClassificationBatchResult {
   successCount: number
   errorCount: number
   classificationTime: number // 分类耗时（毫秒）
-}// ͼƬ�༭�������
+}// ͼƬ�༭�������
 export interface ImageEditSettings {
-  brightness?: number // �ٷֱȣ�100Ϊԭʼ
+  brightness?: number // 百分比，100为原始
   contrast?: number
   saturation?: number
   hue?: number
   exposure?: number
-  rotation?: number // �Ƕ�
+  rotation?: number // 角度
   flipHorizontal?: boolean
   flipVertical?: boolean
   crop?: {
@@ -206,12 +214,29 @@ export interface ImageEditSettings {
     width: number
     height: number
   }
+  // 滤镜
+  grayscale?: boolean
+  vintage?: number // 0-100
+  blur?: number // 0-20
+  sharpen?: number // 0-100
+  // 高级调整
+  shadows?: number // -100 到 100
+  highlights?: number // -100 到 100
+  clarity?: number // -100 到 100
+  tint?: number // -100 到 100
+}
+
+export interface PresetGroup {
+  id: string
+  name: string
+  isBuiltIn: boolean // 是否为内置分组，不可编辑
 }
 
 export interface ImagePreset {
   id: string
   name: string
   settings: ImageEditSettings
+  groupId?: string // 所属分组ID
 }
 
 export interface FormatConversionOptions {
@@ -227,4 +252,117 @@ export interface BatchOperationResult {
   filePath: string
   success: boolean
   error?: string
+}
+
+// ==================== 实用工具类型定义 ====================
+
+export interface BatchRenameOptions {
+  mode: 'sequence' | 'date' | 'replace' | 'prefix' | 'suffix'
+  sequenceStart?: number
+  sequencePadding?: number
+  dateFormat?: string
+  findText?: string
+  replaceText?: string
+  prefix?: string
+  suffix?: string
+  caseSensitive?: boolean
+  outputPath?: string
+  conflictAction?: 'skip' | 'overwrite' | 'rename'
+}
+
+export interface RenameResult {
+  originalPath: string
+  newPath: string
+  success: boolean
+  error?: string
+}
+
+export interface WatermarkOptions {
+  type: 'text' | 'image'
+  text?: {
+    content: string
+    fontSize: number
+    fontFamily: string
+    color: string
+    opacity: number
+  }
+  image?: {
+    path: string
+    scale: number
+    opacity: number
+  }
+  position: 'top-left' | 'top-center' | 'top-right' | 'middle-left' | 'middle-center' | 'middle-right' | 'bottom-left' | 'bottom-center' | 'bottom-right'
+  margin: number
+  tile?: boolean
+}
+
+export interface StitchOptions {
+  mode: 'horizontal' | 'vertical' | 'grid'
+  rows?: number
+  cols?: number
+  gap: number
+  backgroundColor: string
+  align: 'start' | 'center' | 'end'
+  outputFormat: 'jpeg' | 'png' | 'webp'
+  quality: number
+}
+
+export interface GifFrame {
+  imagePath: string
+  delay: number
+}
+
+export interface GifOptions {
+  width?: number
+  height?: number
+  delay: number
+  loop: number
+  quality: number
+  outputPath: string
+}
+
+export interface PdfOptions {
+  pageSize: 'a4' | 'a3' | 'letter' | 'original'
+  orientation: 'auto' | 'portrait' | 'landscape'
+  margin: number
+  imagesPerPage: number | 'auto'
+  outputPath: string
+}
+
+export interface ThumbnailOptions {
+  width: number
+  height: number
+  fit: 'cover' | 'contain' | 'fill'
+  format: 'jpeg' | 'png' | 'webp'
+  quality: number
+  outputDir: 'same' | 'custom'
+  naming: 'prefix' | 'suffix' | 'custom'
+  prefix?: string
+  suffix?: string
+  customName?: string
+}
+
+export interface ThumbnailResult {
+  originalPath: string
+  thumbnailPath: string
+  success: boolean
+  error?: string
+}
+
+export interface EnhanceOptions {
+  mode: 'auto' | 'manual'
+  auto?: {
+    exposure: boolean
+    denoise: boolean
+    sharpen: boolean
+  }
+  manual?: {
+    brightness: number
+    contrast: number
+    saturation: number
+    sharpness: number
+    denoise: number
+  }
+  scale?: 1 | 2 | 4
+  outputPath?: string
 }

@@ -1,10 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Card,
   Button,
   Select,
   Radio,
   Input,
+  InputNumber,
   Switch,
   Space,
   Divider,
@@ -22,7 +23,7 @@ import {
 } from '@ant-design/icons'
 import { useFileStore } from '../stores'
 import { useFileSystem } from '../hooks'
-import { generatePreview } from '../utils'
+import { generatePreview, getExtensionsByCategory } from '../utils'
 import type { OrganizeRule, OrganizeConfig, PreviewResultItem, SizeRange } from '../types'
 
 const { Option } = Select
@@ -99,7 +100,12 @@ const ControlPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'organize' | 'extract'>('organize')
 
   // 文件提取相关状态
-  const [extractExtensions, setExtractExtensions] = useState('')
+  const [extractCategory, setExtractCategory] = useState<'all' | 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other'>('all')
+  const [extractExtOptions, setExtractExtOptions] = useState<string[]>([])
+  const [extractExtSelected, setExtractExtSelected] = useState<string[]>([])
+  const [allExtSelected, setAllExtSelected] = useState(false)
+  const [extractMinSizeMB, setExtractMinSizeMB] = useState<number | undefined>()
+  const [extractMaxSizeMB, setExtractMaxSizeMB] = useState<number | undefined>()
   const [extractConflictAction, setExtractConflictAction] = useState<'skip' | 'overwrite' | 'rename'>('rename')
 
   // 大小范围管理相关状态
@@ -168,26 +174,56 @@ const ControlPanel: React.FC = () => {
       return
     }
 
-    if (!extractExtensions.trim()) {
-      message.warning('请输入文件扩展名')
-      return
+    // 解析扩展名选择
+    let extensions: string[] = [...extractExtSelected]
+
+    if (allExtSelected) {
+      extensions = [...extractExtOptions]
     }
 
-    // 解析扩展名（支持逗号分隔，去除空格和点号）
-    const extensions = extractExtensions
-      .split(',')
-      .map((ext: string) => ext.trim().toLowerCase().replace(/^\./, ''))
-      .filter((ext: string) => ext.length > 0)
-
-    if (extensions.length === 0) {
-      message.warning('请输入有效的文件扩展名')
+    if (
+      extractCategory === 'all' &&
+      extensions.length === 0 &&
+      extractMinSizeMB === undefined &&
+      extractMaxSizeMB === undefined
+    ) {
+      message.warning('请输入至少一个筛选条件（类型/扩展名/大小）')
       return
     }
 
     try {
-      await extractFiles(currentPath, extensions, extractConflictAction)
+      const filters: { extensions: string[]; minSize?: number; maxSize?: number; category?: string } = {
+        extensions
+      }
+      if (extractMinSizeMB !== undefined) filters.minSize = extractMinSizeMB * 1024 * 1024
+      if (extractMaxSizeMB !== undefined) filters.maxSize = extractMaxSizeMB * 1024 * 1024
+      if (extractCategory && extractCategory !== 'all') filters.category = extractCategory
+
+      await extractFiles(currentPath, filters, extractConflictAction)
     } catch (error: any) {
       message.error(`提取文件失败: ${error.message}`)
+    }
+  }
+
+  // 当类别改变时更新可选扩展名列表，并重置选择
+  useEffect(() => {
+    const opts = getExtensionsByCategory(extractCategory)
+    setExtractExtOptions(opts)
+    if (allExtSelected) {
+      setExtractExtSelected(opts)
+    } else {
+      setExtractExtSelected([])
+    }
+  }, [extractCategory, allExtSelected])
+
+  // 切换全部选中状态
+  const toggleSelectAll = () => {
+    if (allExtSelected) {
+      setAllExtSelected(false)
+      setExtractExtSelected([])
+    } else {
+      setAllExtSelected(true)
+      setExtractExtSelected(extractExtOptions)
     }
   }
 
@@ -388,12 +424,65 @@ const ControlPanel: React.FC = () => {
                     <Space direction="vertical" style={{ width: '100%' }} size="middle">
                       {/* 文件提取功能 */}
                       <div>
+                        <div style={{ marginBottom: 8, fontWeight: 500 }}>文件类型：</div>
+                        <Select
+                          value={extractCategory}
+                          onChange={(value) => setExtractCategory(value)}
+                          style={{ width: '100%' }}
+                        >
+                          <Select.Option value="all">全部</Select.Option>
+                          <Select.Option value="image">图片</Select.Option>
+                          <Select.Option value="video">视频</Select.Option>
+                          <Select.Option value="audio">音频</Select.Option>
+                          <Select.Option value="document">文档</Select.Option>
+                          <Select.Option value="archive">压缩包</Select.Option>
+                          <Select.Option value="other">其他</Select.Option>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <div style={{ marginBottom: 8, fontWeight: 500 }}>大小范围 (MB)：</div>
+                        <Space>
+                          <InputNumber
+                            placeholder="最小"
+                            min={0}
+                            value={extractMinSizeMB}
+                            onChange={(v) => setExtractMinSizeMB(v as number | undefined)}
+                            style={{ width: 120 }}
+                          />
+                          <span>-</span>
+                          <InputNumber
+                            placeholder="最大"
+                            min={0}
+                            value={extractMaxSizeMB}
+                            onChange={(v) => setExtractMaxSizeMB(v as number | undefined)}
+                            style={{ width: 120 }}
+                          />
+                        </Space>
+                        <div style={{ fontSize: 12, color: '#999' }}>留空表示不限制</div>
+                      </div>
+
+                      <div>
                         <div style={{ marginBottom: 8, fontWeight: 500 }}>文件扩展名：</div>
-                        <Input
-                          placeholder="输入文件扩展名，多个用逗号分隔（如：jpg,png,pdf）"
-                          value={extractExtensions}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExtractExtensions(e.target.value)}
-                        />
+                        <Space>
+                          <Select
+                            mode="multiple"
+                            allowClear
+                            placeholder="选择扩展名"
+                            value={extractExtSelected}
+                            onChange={(val) => {
+                              setExtractExtSelected(val)
+                              setAllExtSelected(false)
+                            }}
+                            options={
+                              extractExtOptions.map(e => ({ label: e, value: e }))
+                            }
+                            style={{ minWidth: 240 }}
+                          />
+                          <Button size="small" onClick={toggleSelectAll}>
+                            {allExtSelected ? '取消全部' : '全部'}
+                          </Button>
+                        </Space>
                         <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
                           将子目录中指定类型的文件提取到当前目录
                         </div>
@@ -420,7 +509,16 @@ const ControlPanel: React.FC = () => {
                         icon={<ExportOutlined />}
                         block
                         onClick={handleExtractFiles}
-                        disabled={!currentPath || !extractExtensions.trim()}
+                        disabled={
+                          !currentPath ||
+                          (
+                            extractCategory === 'all' &&
+                            !allExtSelected &&
+                            extractExtSelected.length === 0 &&
+                            extractMinSizeMB === undefined &&
+                            extractMaxSizeMB === undefined
+                          )
+                        }
                       >
                         提取文件到当前目录
                       </Button>

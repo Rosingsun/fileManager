@@ -11,6 +11,7 @@ export default defineConfig({
     build: {
       outDir: 'dist-electron/main',
       rollupOptions: {
+        external: ['gifencoder', 'pdfkit'],
         input: resolve(__dirname, './electron/main/main.ts')
       }
     },

@@ -349,22 +349,45 @@ ipcMain.handle('fs:readDirectoryRecursive', async (_event, path: string): Promis
 })
 
 // IPC 处理器：提取文件（将子目录中的指定类型文件提取到当前目录）
-ipcMain.handle('fs:extractFiles', async (_event, targetPath: string, extensions: string[], conflictAction: 'skip' | 'overwrite' | 'rename') => {
+ipcMain.handle('fs:extractFiles', async (_event, targetPath: string, filters: { extensions: string[]; minSize?: number; maxSize?: number; category?: string }, conflictAction: 'skip' | 'overwrite' | 'rename') => {
   try {
     if (!existsSync(targetPath)) {
       throw new Error('目标目录不存在')
     }
 
+    const { extensions, minSize, maxSize, category } = filters
     const results: Array<{ from: string; to: string; success: boolean; error?: string }> = []
     
-    // 获取所有匹配的文件（不包括目标目录本身的文件）
-    const allFiles = await getAllFiles(targetPath, extensions)
+    // 获取所有匹配的文件（不包括目标目录本身的文件）。extensions 为空表示不过滤扩展名。
+    let allFiles = await getAllFiles(targetPath, extensions || [])
     
     // 过滤掉已经在目标目录中的文件
-    const filesToExtract = allFiles.filter(file => {
+    let filesToExtract = allFiles.filter(file => {
       const fileDir = file.path.substring(0, file.path.lastIndexOf(file.name) - 1)
       return fileDir !== targetPath
     })
+
+    // 应用大小过滤
+    if (minSize !== undefined) {
+      filesToExtract = filesToExtract.filter(f => {
+        try {
+          const stats = fs.statSync(f.path)
+          return stats.size >= minSize
+        } catch {
+          return false
+        }
+      })
+    }
+    if (maxSize !== undefined) {
+      filesToExtract = filesToExtract.filter(f => {
+        try {
+          const stats = fs.statSync(f.path)
+          return stats.size <= maxSize
+        } catch {
+          return false
+        }
+      })
+    }
 
     for (const file of filesToExtract) {
       const targetFile = join(targetPath, file.name)
@@ -2250,4 +2273,105 @@ async function saveModelFile(sourcePath: string): Promise<string | null> {
     return null
   }
 }
+
+// ==================== 实用工具功能 ====================
+
+// IPC 处理器：批量重命名
+ipcMain.handle('tools:batchRename', async (_event, files: string[], options: any): Promise<any[]> => {
+  try {
+    const { batchRename } = await import('./services/imageToolService')
+    return await batchRename(files, options)
+  } catch (error) {
+    console.error('[Main] 批量重命名失败:', error)
+    return files.map(f => ({ originalPath: f, newPath: '', success: false, error: (error as Error).message }))
+  }
+})
+
+// IPC 处理器：添加水印
+ipcMain.handle('tools:addWatermark', async (_event, files: string[], options: any): Promise<any[]> => {
+  try {
+    const { addWatermark } = await import('./services/imageToolService')
+    return await addWatermark(files, options)
+  } catch (error) {
+    console.error('[Main] 添加水印失败:', error)
+    return files.map(f => ({ filePath: f, success: false, error: (error as Error).message }))
+  }
+})
+
+// IPC 处理器：图片拼接
+ipcMain.handle('tools:stitchImages', async (_event, images: string[], options: any): Promise<string> => {
+  try {
+    const { stitchImages } = await import('./services/imageToolService')
+    return await stitchImages(images, options)
+  } catch (error) {
+    console.error('[Main] 图片拼接失败:', error)
+    throw error
+  }
+})
+
+// IPC 处理器：GIF制作
+ipcMain.handle('tools:createGif', async (_event, frames: any[], options: any): Promise<string> => {
+  try {
+    const { createGif } = await import('./services/imageToolService')
+    return await createGif(frames, options)
+  } catch (error) {
+    console.error('[Main] GIF制作失败:', error)
+    throw error
+  }
+})
+
+// IPC 处理器：图片转PDF
+ipcMain.handle('tools:imagesToPdf', async (_event, images: string[], options: any): Promise<string> => {
+  try {
+    const { imagesToPdf } = await import('./services/imageToolService')
+    return await imagesToPdf(images, options)
+  } catch (error) {
+    console.error('[Main] 图片转PDF失败:', error)
+    throw error
+  }
+})
+
+// IPC 处理器：生成缩略图
+ipcMain.handle('tools:generateThumbnails', async (_event, files: string[], options: any): Promise<any[]> => {
+  try {
+    const { generateThumbnails } = await import('./services/imageToolService')
+    return await generateThumbnails(files, options)
+  } catch (error) {
+    console.error('[Main] 生成缩略图失败:', error)
+    return files.map(f => ({ originalPath: f, thumbnailPath: '', success: false, error: (error as Error).message }))
+  }
+})
+
+// IPC 处理器：图片增强
+ipcMain.handle('tools:enhanceImage', async (_event, file: string, options: any): Promise<string> => {
+  try {
+    const { enhanceImage } = await import('./services/imageToolService')
+    return await enhanceImage(file, options)
+  } catch (error) {
+    console.error('[Main] 图片增强失败:', error)
+    throw error
+  }
+})
+
+// IPC 处理器：选择文件
+ipcMain.handle('dialog:selectFiles', async (_event, filter?: string): Promise<string[] | null> => {
+  try {
+    const win = mainWindow
+    const result = await (dialog.showOpenDialog as any)(win, {
+      title: '选择文件',
+      filters: [
+        { name: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'] },
+        { name: '所有文件', extensions: ['*'] }
+      ],
+      properties: ['openFile', 'multiSelections']
+    })
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      return result.filePaths
+    }
+  } catch (error) {
+    console.error('[Main] 选择文件失败:', error)
+  }
+  return null
+})
 
