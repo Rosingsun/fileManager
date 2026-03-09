@@ -51,6 +51,7 @@ declare global {
       // 实用工具
       batchRename: (files: string[], options: import('./index').BatchRenameOptions) => Promise<import('./index').RenameResult[]>
       addWatermark: (files: string[], options: import('./index').WatermarkOptions) => Promise<import('./index').BatchOperationResult[]>
+      previewWatermark: (filePath: string, options: import('./index').WatermarkOptions) => Promise<string>
       stitchImages: (images: string[], options: import('./index').StitchOptions) => Promise<string>
       createGif: (frames: import('./index').GifFrame[], options: import('./index').GifOptions) => Promise<string>
       imagesToPdf: (images: string[], options: import('./index').PdfOptions) => Promise<string>

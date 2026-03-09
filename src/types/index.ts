@@ -336,6 +336,7 @@ export interface ThumbnailOptions {
   format: 'jpeg' | 'png' | 'webp'
   quality: number
   outputDir: 'same' | 'custom'
+  customOutputDir?: string
   naming: 'prefix' | 'suffix' | 'custom'
   prefix?: string
   suffix?: string

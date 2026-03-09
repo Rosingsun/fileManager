@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Card, Row, Col, Typography, Space } from 'antd'
+import { Card, Row, Col, Typography, Space, Modal } from 'antd'
 import {
   EditOutlined,
   ScissorOutlined,
@@ -74,6 +74,8 @@ const tools: ToolItem[] = [
 
 const ToolsEntry: React.FC = () => {
   const [activeTool, setActiveTool] = useState<string | null>(null)
+  // Blank state modal visibility: show a centered modal when no tool is selected
+  const [showBlankModal, setShowBlankModal] = useState(true)
 
   const renderToolModal = () => {
     switch (activeTool) {
@@ -99,29 +101,51 @@ const ToolsEntry: React.FC = () => {
   return (
     <>
       <div style={{ padding: 24, height: '100%', overflow: 'auto' }}>
-        <Title level={3} style={{ marginBottom: 24 }}>实用工具</Title>
-        <Row gutter={[16, 16]}>
-          {tools.map((tool) => (
-            <Col xs={24} sm={12} md={8} lg={6} key={tool.key}>
-              <Card
-                hoverable
-                onClick={() => setActiveTool(tool.key)}
-                style={{ height: '100%' }}
-                styles={{ body: { padding: 20, textAlign: 'center' } }}
-              >
-                <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  <div style={{ padding: '10px 0' }}>
-                    {tool.icon}
-                  </div>
-                  <Title level={5} style={{ margin: 0 }}>{tool.name}</Title>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {tool.description}
-                  </Text>
-                </Space>
-              </Card>
-            </Col>
-          ))}
-        </Row>
+        {!activeTool ? (
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Title level={3} style={{ marginBottom: 24 }}>实用工具</Title>
+            <div style={{ flex: 1 }}>
+              <Row gutter={[16, 16]}>
+              {tools.map((tool) => (
+                <Col xs={24} sm={12} md={8} lg={6} key={tool.key}>
+                  <Card
+                    hoverable
+                    onClick={() => setActiveTool(tool.key)}
+                    style={{ height: '100%' }}
+                    styles={{ body: { padding: 20, textAlign: 'center' } }}
+                  >
+                    <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                      <div style={{ padding: '10px 0' }}>
+                        {tool.icon}
+                      </div>
+                      <Title level={5} style={{ margin: 0 }}>{tool.name}</Title>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {tool.description}
+                      </Text>
+                    </Space>
+                  </Card>
+                </Col>
+              ))}
+            </Row>
+            </div>
+          </div>
+        ) : (
+          // Centered modal to indicate no tool is selected
+          <Modal
+            open={showBlankModal}
+            onCancel={() => setShowBlankModal(false)}
+            footer={null}
+            centered
+            width={420}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <Typography.Text strong>请选择一个工具</Typography.Text>
+              <div style={{ marginTop: 8, color: 'rgba(0,0,0,0.65)' }}>
+                从左侧工具列表中选择一个工具来开始工作
+              </div>
+            </div>
+          </Modal>
+        )}
       </div>
       {renderToolModal()}
     </>

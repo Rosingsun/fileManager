@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react'
 import { Modal, Button, Space, Card, Select, InputNumber, Radio, message, Typography, Row, Col, Empty } from 'antd'
-import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import type { StitchOptions } from '../../../types'
+import { useToolOutputPathStore } from '../../../stores'
 
 const { Text } = Typography
 
@@ -25,8 +26,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
   const [align, setAlign] = useState<'start' | 'center' | 'end'>('center')
   const [outputFormat, setOutputFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg')
   const [quality, setQuality] = useState(90)
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectImages = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -61,7 +64,7 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -290,7 +293,7 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {images.length === 0 ? (
               <Empty description="请先添加图片" />
             ) : (

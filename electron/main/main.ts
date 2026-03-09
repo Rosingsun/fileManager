@@ -1639,8 +1639,10 @@ function mapToCustomCategory(imagenetClass: string): { category: ImageContentCat
   // 计算置信度（0-1之间）
   const confidence = Math.min(1, maxScore / 50)
 
-  if (maxScore < 3) {
-    console.log(`[分类] 未识别类别: "${imagenetClass}" -> 其他 (得分: ${maxScore})`)
+  // 仅当置信度超过阈值时使用识别结果
+  const minConfidenceThreshold = 0.4
+  if (confidence < minConfidenceThreshold) {
+    console.log(`[分类] 置信度过低: "${imagenetClass}" -> 其他 (置信度: ${confidence.toFixed(2)})`)
     return { category: 'other', confidence: 0 }
   }
 
@@ -1707,65 +1709,85 @@ async function classifyImage(imagePath: string, modelId: ClassificationModelId =
     console.log(`[分类] 最大置信度: ${maxConfidence.toFixed(6)}, 索引: ${maxIndex}`)
 
     // 找到 top 5 预测
-    const predictions: Array<{ index: number; confidence: number }> = []
-    for (let i = 0; i < outputData.length; i++) {
-      predictions.push({ index: i, confidence: outputData[i] })
+  const predictions: Array<{ index: number; confidence: number }> = []
+  for (let i = 0; i < outputData.length; i++) {
+    predictions.push({ index: i, confidence: outputData[i] })
+  }
+  predictions.sort((a, b) => b.confidence - a.confidence)
+
+  // 调试日志：输出 top 5 预测
+  const top5Debug = predictions.slice(0, 5).map((p, idx) => ({
+    rank: idx + 1,
+    class: imagenetClasses[p.index] || `class_${p.index}`,
+    confidence: p.confidence.toFixed(6)
+  }))
+  console.log(`[分类] Top 5:`, top5Debug)
+
+  // 综合考虑 Top 3 预测，提高分类精度
+  const topN = 3
+  const categoryScores: Record<ImageContentCategory, number> = {}
+  
+  for (let i = 0; i < topN && i < predictions.length; i++) {
+    const p = predictions[i]
+    const imagenetClass = imagenetClasses[p.index] || `class_${p.index}`
+    const mapped = mapToCustomCategory(imagenetClass)
+    
+    if (mapped.category !== 'other') {
+      // 根据排名加权计算分数
+      const weight = 1.0 / (i + 1)
+      const score = mapped.confidence * p.confidence * weight
+      categoryScores[mapped.category] = (categoryScores[mapped.category] || 0) + score
+      
+      console.log(`[分类] Top ${i+1}: "${imagenetClass}" -> ${mapped.category} (权重: ${weight.toFixed(2)}, 得分: ${score.toFixed(4)})`)
     }
-    predictions.sort((a, b) => b.confidence - a.confidence)
+  }
 
-    // 获取 ImageNet 类别名称
-    const topPrediction = predictions[0]
-    const imagenetClass = imagenetClasses[topPrediction.index] || `class_${topPrediction.index}`
-    console.log(`[分类] Top预测: "${imagenetClass}" (置信度: ${topPrediction.confidence.toFixed(6)})`)
-
-    const mappedResult = mapToCustomCategory(imagenetClass)
-
-    // 备用：尝试根据图片信息推断类别
-    let inferredCategory: ImageContentCategory | null = null
-    if (mappedResult.category === 'other') {
-      inferredCategory = inferCategoryFromImageInfo(imageInfo)
-      if (inferredCategory) {
-        console.log(`[分类] 根据图片信息推断类别: ${inferredCategory}`)
-      }
+  // 找出得分最高的类别
+  let finalCategory: ImageContentCategory = 'other'
+  let maxScore = 0
+  
+  for (const [category, score] of Object.entries(categoryScores)) {
+    if (score > maxScore) {
+      maxScore = score
+      finalCategory = category as ImageContentCategory
     }
+  }
 
-    const finalCategory = inferredCategory || mappedResult.category
-
-    // 调试日志：输出 top 5 预测
-    const top5Debug = predictions.slice(0, 5).map((p, idx) => ({
-      rank: idx + 1,
-      class: imagenetClasses[p.index] || `class_${p.index}`,
-      confidence: p.confidence.toFixed(6)
-    }))
-    console.log(`[分类] Top 5:`, top5Debug)
-    console.log(`[分类] 最终结果: "${imagenetClass}" -> ${finalCategory}`)
-
-    // 模拟延迟（便于观察进度）
-    await new Promise(resolve => setTimeout(resolve, 50))
-
-    // 计算同类别的总置信度
-    let categoryConfidence = mappedResult.confidence
-    const topPredictions: Array<{ category: ImageContentCategory; confidence: number }> = []
-
-    for (let i = 0; i < Math.min(5, predictions.length); i++) {
-      const pred = predictions[i]
-      const predClass = imagenetClasses[pred.index] || `class_${pred.index}`
-      const predResult = mapToCustomCategory(predClass)
-      topPredictions.push({ category: predResult.category, confidence: pred.confidence })
-
-      if (predResult.category === finalCategory && i > 0) {
-        categoryConfidence += pred.confidence
-      }
+  // 计算最终置信度
+  const finalConfidence = Math.min(1.0, maxScore * 1.5)
+  
+  // 如果综合得分过低，尝试根据图片信息推断类别
+  if (finalCategory === 'other' || finalConfidence < 0.3) {
+    const inferredCategory = inferCategoryFromImageInfo(imageInfo)
+    if (inferredCategory) {
+      console.log(`[分类] 根据图片信息推断类别: ${inferredCategory}`)
+      finalCategory = inferredCategory
     }
+  }
 
-    console.log(`[分类] ========== 分类完成 ==========\n`)
+  console.log(`[分类] 最终结果: ${finalCategory} (置信度: ${finalConfidence.toFixed(4)})`)
 
-    return {
-      filePath: imagePath,
-      category: finalCategory,
-      confidence: Math.min(1.0, categoryConfidence),
-      topPredictions: topPredictions.slice(0, 3)
-    }
+  // 模拟延迟（便于观察进度）
+  await new Promise(resolve => setTimeout(resolve, 50))
+
+  // 准备 top predictions 结果
+  const topPredictions: Array<{ category: ImageContentCategory; confidence: number }> = []
+
+  for (let i = 0; i < Math.min(5, predictions.length); i++) {
+    const pred = predictions[i]
+    const predClass = imagenetClasses[pred.index] || `class_${pred.index}`
+    const predResult = mapToCustomCategory(predClass)
+    topPredictions.push({ category: predResult.category, confidence: pred.confidence })
+  }
+
+  console.log(`[分类] ========== 分类完成 ==========\n`)
+
+  return {
+    filePath: imagePath,
+    category: finalCategory,
+    confidence: finalConfidence,
+    topPredictions: topPredictions.slice(0, 3)
+  }
   } catch (error) {
     console.error(`[分类] 分类失败 (${fileName}):`, error)
     return {
@@ -2295,6 +2317,17 @@ ipcMain.handle('tools:addWatermark', async (_event, files: string[], options: an
   } catch (error) {
     console.error('[Main] 添加水印失败:', error)
     return files.map(f => ({ filePath: f, success: false, error: (error as Error).message }))
+  }
+})
+
+// IPC 处理器：水印预览
+ipcMain.handle('tools:previewWatermark', async (_event, filePath: string, options: any): Promise<string> => {
+  try {
+    const { previewWatermark } = await import('./services/imageToolService')
+    return await previewWatermark(filePath, options)
+  } catch (error) {
+    console.error('[Main] 水印预览失败:', error)
+    throw error
   }
 })
 

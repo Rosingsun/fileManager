@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, Slider, Select, message, Typography, Empty, Switch } from 'antd'
+import { Modal, Button, Space, Card, Slider, Select, message, Typography, Empty, Switch, Radio } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, ThunderboltOutlined, FolderOutlined } from '@ant-design/icons'
 import type { EnhanceOptions } from '../../../types'
+import { useToolOutputPathStore } from '../../../stores'
 
 const { Text } = Typography
 
@@ -27,8 +28,10 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
   const [sharpness, setSharpness] = useState(0)
   const [denoise, setDenoise] = useState(0)
   const [scale, setScale] = useState<1 | 2 | 4>(1)
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectFiles = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -51,7 +54,7 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -251,7 +254,7 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {files.length === 0 ? (
               <Empty description="请先添加图片" />
             ) : (
@@ -283,7 +286,5 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
     </Modal>
   )
 }
-
-import { Radio } from 'antd'
 
 export default ImageEnhance

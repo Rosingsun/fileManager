@@ -115,6 +115,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
       onCancel={onClose}
       title="图片编辑"
       width={900}
+      height={700}
+      centered
       footer={
         <Space>
           <Button onClick={() => setOpenFormatDialog(true)}>格式/压缩</Button>
@@ -123,24 +125,54 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
           <Button type="primary" onClick={handleSave}>保存</Button>
         </Space>
       }
+      style={{
+        borderRadius: 12,
+        overflow: 'hidden'
+      }}
     >
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ 
-          flex: 1, 
+      <div style={{
+        display: 'flex',
+        gap: 16,
+        height: 520,
+        overflow: 'hidden'
+      }}>
+        {/* 左侧图片预览区 */}
+        <div style={{
+          flex: 1,
           textAlign: 'center',
-          background: 'rgba(248, 248, 248, 0.5)',
-          borderRadius: 8,
-          padding: 16,
-          minHeight: 400,
+          background: 'linear-gradient(135deg, #f5f5f7 0%, #ffffff 100%)',
+          borderRadius: 12,
+          padding: 20,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           position: 'relative'
         }}>
           {loadingImage ? (
-            <Spin size="large" tip="加载图片中..." />
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 16
+            }}>
+              <Spin size="large" style={{ color: '#007AFF' }} />
+              <div style={{
+                fontSize: 14,
+                color: '#6e6e73',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
+              }}>
+                加载图片中...
+              </div>
+            </div>
           ) : imageUrl ? (
-            <div style={{ position: 'relative', display: 'inline-block' }}>
+            <div style={{
+              position: 'relative',
+              display: 'inline-block',
+              borderRadius: 12,
+              overflow: 'hidden',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+              backgroundColor: '#ffffff'
+            }}>
               <img
                 ref={imgRef}
                 src={imageUrl}
@@ -151,12 +183,11 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
                 }}
                 style={{
                   maxWidth: '100%',
-                  maxHeight: '500px',
+                  maxHeight: '450px',
                   filter: getFilterCss(settings),
                   transform: getTransform(settings),
-                  borderRadius: 4,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  display: showCropOverlay ? 'none' : 'block'
+                  display: showCropOverlay ? 'none' : 'block',
+                  transition: 'all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
                 }}
               />
               {showCropOverlay && imageSize.width > 0 && (
@@ -166,10 +197,9 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
                     alt="preview"
                     style={{
                       maxWidth: '100%',
-                      maxHeight: '500px',
+                      maxHeight: '450px',
                       filter: getFilterCss(settings),
-                      transform: getTransform(settings),
-                      borderRadius: 4
+                      transform: getTransform(settings)
                     }}
                   />
                   <CropOverlay
@@ -182,27 +212,64 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
               )}
             </div>
           ) : (
-            <div style={{ color: '#999' }}>无法加载图片</div>
+            <div style={{
+              color: '#86868b',
+              fontSize: 14,
+              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
+            }}>
+              无法加载图片
+            </div>
           )}
         </div>
-        <div style={{ 
-          width: 320, 
-          background: 'rgba(255, 255, 255, 0.6)',
+
+        {/* 右侧控制面板 - 可滚动 */}
+        <div style={{
+          width: 340,
+          background: 'rgba(255, 255, 255, 0.9)',
           backdropFilter: 'blur(20px)',
-          borderRadius: 8,
-          border: '1px solid rgba(0, 0, 0, 0.1)'
+          borderRadius: 12,
+          border: '1px solid rgba(0, 0, 0, 0.08)',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
         }}>
-          <PresetsPanel onApply={handleApplyPreset} currentSettings={settings} />
-          <EditorControls 
-            settings={settings} 
-            onChange={handleSettingsChange}
-            showCropMode={showCropOverlay}
-            onToggleCropMode={setShowCropOverlay}
-            imageWidth={imageSize.width}
-            imageHeight={imageSize.height}
-          />
+          {/* 预设面板 */}
+          <div style={{
+            padding: 16,
+            borderBottom: '1px solid rgba(0, 0, 0, 0.08)'
+          }}>
+            <PresetsPanel onApply={handleApplyPreset} currentSettings={settings} />
+          </div>
+          
+          {/* 编辑控件 - 可滚动 */}
+          <div style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: 0,
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#c7c7cc transparent',
+            '&::-webkit-scrollbar': {
+              width: 6,
+              backgroundColor: 'transparent'
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: '#c7c7cc',
+              borderRadius: 3
+            }
+          }}>
+            <EditorControls
+              settings={settings}
+              onChange={handleSettingsChange}
+              showCropMode={showCropOverlay}
+              onToggleCropMode={setShowCropOverlay}
+              imageWidth={imageSize.width}
+              imageHeight={imageSize.height}
+            />
+          </div>
         </div>
       </div>
+      
+      {/* 格式压缩对话框 */}
       <FormatCompressDialog
         visible={openFormatDialog}
         files={[filePath]}

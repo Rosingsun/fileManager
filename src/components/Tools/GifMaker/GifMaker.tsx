@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { Modal, Button, Space, Card, InputNumber, Select, message, Typography, Empty, Slider } from 'antd'
-import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined, FolderOutlined } from '@ant-design/icons'
 import type { GifFrame, GifOptions } from '../../../types'
+import { useToolOutputPathStore } from '../../../stores'
 
 const { Text } = Typography
 
@@ -23,8 +24,10 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
   const [delay, setDelay] = useState(200)
   const [loop, setLoop] = useState(0)
   const [quality, setQuality] = useState(10)
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectFrames = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -66,7 +69,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -237,7 +240,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {frames.length === 0 ? (
               <Empty description="请先添加图片作为帧" />
             ) : (

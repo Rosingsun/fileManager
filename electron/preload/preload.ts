@@ -248,6 +248,10 @@ try {
       return ipcRenderer.invoke('tools:addWatermark', files, options)
     },
 
+    previewWatermark: (filePath: string, options: any): Promise<string> => {
+      return ipcRenderer.invoke('tools:previewWatermark', filePath, options)
+    },
+
     stitchImages: (images: string[], options: any): Promise<string> => {
       return ipcRenderer.invoke('tools:stitchImages', images, options)
     },

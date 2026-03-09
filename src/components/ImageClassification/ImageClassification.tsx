@@ -6,7 +6,14 @@ import {
   CheckCircleOutlined,
   DownloadOutlined,
   FolderOpenOutlined,
-  InboxOutlined
+  InboxOutlined,
+  UserOutlined,
+  FrownOutlined,
+  PictureOutlined,
+  BuildOutlined,
+  CoffeeOutlined,
+  CarOutlined,
+  AppstoreOutlined
 } from '@ant-design/icons'
 import type { ImageContentCategory, ImageClassificationResult, ImageClassificationProgress } from '../../types'
 import { useFileStore } from '../../stores/fileStore'
@@ -587,12 +594,33 @@ const ImageClassification: React.FC = () => {
     }
   ]
 
+  // 分类统计数据
   const stats = {
     total: results.size,
     success: Array.from(results.values()).filter(r => r.confidence > 0).length,
+    // 人物类
+    people: Array.from(results.values()).filter(r => ['person', 'portrait', 'selfie'].includes(r.category)).length,
+    // 动物类
+    animals: Array.from(results.values()).filter(r => ['dog', 'cat', 'bird', 'wild_animal', 'marine_animal', 'insect', 'pet'].includes(r.category)).length,
+    // 风景类
+    landscapes: Array.from(results.values()).filter(r => ['landscape', 'mountain', 'beach', 'sunset', 'forest', 'cityscape', 'night_scene'].includes(r.category)).length,
+    // 建筑类
+    buildings: Array.from(results.values()).filter(r => ['building', 'landmark', 'interior', 'street'].includes(r.category)).length,
+    // 食物类
+    food: Array.from(results.values()).filter(r => ['food', 'drink', 'dessert'].includes(r.category)).length,
+    // 交通类
+    transportation: Array.from(results.values()).filter(r => ['vehicle', 'aircraft', 'ship'].includes(r.category)).length,
+    // 其他类
+    other: Array.from(results.values()).filter(r => ['art', 'technology', 'document', 'other'].includes(r.category)).length
+  }
+
+  // 详细分类统计
+  const detailedStats = {
+    // 人物类
     person: Array.from(results.values()).filter(r => r.category === 'person').length,
     portrait: Array.from(results.values()).filter(r => r.category === 'portrait').length,
     selfie: Array.from(results.values()).filter(r => r.category === 'selfie').length,
+    // 动物类
     dog: Array.from(results.values()).filter(r => r.category === 'dog').length,
     cat: Array.from(results.values()).filter(r => r.category === 'cat').length,
     bird: Array.from(results.values()).filter(r => r.category === 'bird').length,
@@ -600,6 +628,7 @@ const ImageClassification: React.FC = () => {
     marine_animal: Array.from(results.values()).filter(r => r.category === 'marine_animal').length,
     insect: Array.from(results.values()).filter(r => r.category === 'insect').length,
     pet: Array.from(results.values()).filter(r => r.category === 'pet').length,
+    // 风景类
     landscape: Array.from(results.values()).filter(r => r.category === 'landscape').length,
     mountain: Array.from(results.values()).filter(r => r.category === 'mountain').length,
     beach: Array.from(results.values()).filter(r => r.category === 'beach').length,
@@ -607,21 +636,29 @@ const ImageClassification: React.FC = () => {
     forest: Array.from(results.values()).filter(r => r.category === 'forest').length,
     cityscape: Array.from(results.values()).filter(r => r.category === 'cityscape').length,
     night_scene: Array.from(results.values()).filter(r => r.category === 'night_scene').length,
+    // 建筑类
     building: Array.from(results.values()).filter(r => r.category === 'building').length,
     landmark: Array.from(results.values()).filter(r => r.category === 'landmark').length,
     interior: Array.from(results.values()).filter(r => r.category === 'interior').length,
     street: Array.from(results.values()).filter(r => r.category === 'street').length,
+    // 食物类
     food: Array.from(results.values()).filter(r => r.category === 'food').length,
     drink: Array.from(results.values()).filter(r => r.category === 'drink').length,
     dessert: Array.from(results.values()).filter(r => r.category === 'dessert').length,
+    // 交通类
     vehicle: Array.from(results.values()).filter(r => r.category === 'vehicle').length,
     aircraft: Array.from(results.values()).filter(r => r.category === 'aircraft').length,
     ship: Array.from(results.values()).filter(r => r.category === 'ship').length,
+    // 其他类
     art: Array.from(results.values()).filter(r => r.category === 'art').length,
     technology: Array.from(results.values()).filter(r => r.category === 'technology').length,
     document: Array.from(results.values()).filter(r => r.category === 'document').length,
     other: Array.from(results.values()).filter(r => r.category === 'other').length
   }
+
+  // 计算平均置信度
+  const avgConfidence = results.size > 0 ? 
+    Array.from(results.values()).reduce((sum, r) => sum + r.confidence, 0) / results.size : 0
 
   return (
     <Card
@@ -794,25 +831,98 @@ const ImageClassification: React.FC = () => {
 
           {stats.total > 0 && !isClassifying && (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8, marginBottom: 16 }}>
-                <Statistic title="总计" value={stats.total} prefix={<CheckCircleOutlined />} />
-                <Statistic title="成功" value={stats.success} valueStyle={{ color: '#52c41a' }} />
-                <Statistic title="人物" value={stats.person + stats.portrait + stats.selfie} valueStyle={{ color: CATEGORY_COLORS.person }} />
-                <Statistic title="动物" value={stats.dog + stats.cat + stats.bird + stats.wild_animal + stats.marine_animal + stats.insect + stats.pet} valueStyle={{ color: CATEGORY_COLORS.dog }} />
-                <Statistic title="风景" value={stats.landscape + stats.mountain + stats.beach + stats.sunset + stats.forest + stats.cityscape + stats.night_scene} valueStyle={{ color: CATEGORY_COLORS.landscape }} />
-                <Statistic title="建筑" value={stats.building + stats.landmark + stats.interior + stats.street} valueStyle={{ color: CATEGORY_COLORS.building }} />
-                <Statistic title="食物" value={stats.food + stats.drink + stats.dessert} valueStyle={{ color: CATEGORY_COLORS.food }} />
-                <Statistic title="交通" value={stats.vehicle + stats.aircraft + stats.ship} valueStyle={{ color: CATEGORY_COLORS.vehicle }} />
-                <Statistic title="其他" value={stats.art + stats.technology + stats.document + stats.other} valueStyle={{ color: CATEGORY_COLORS.other }} />
+              {/* 分类概览统计 */}
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: '#262626' }}>分类概览</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 16 }}>
+                  <Card size="small" bordered={false} style={{ backgroundColor: '#f6ffed', border: '1px solid #b7eb8f' }}>
+                    <Statistic title="总计" value={stats.total} prefix={<CheckCircleOutlined />} />
+                  </Card>
+                  <Card size="small" bordered={false} style={{ backgroundColor: '#fff7e6', border: '1px solid #ffd591' }}>
+                    <Statistic title="成功" value={stats.success} valueStyle={{ color: '#52c41a' }} />
+                  </Card>
+                  <Card size="small" bordered={false} style={{ backgroundColor: '#f0f5ff', border: '1px solid #adc6ff' }}>
+                    <Statistic title="平均置信度" value={Math.round(avgConfidence * 100)} suffix="%" valueStyle={{ color: '#1890ff' }} />
+                  </Card>
+                </div>
+
+                {/* 主要分类统计 */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
+                  <Card size="small" bordered={false} hoverable>
+                    <Statistic 
+                      title="人物" 
+                      value={stats.people} 
+                      valueStyle={{ color: CATEGORY_COLORS.person }} 
+                      prefix={<UserOutlined />}
+                    />
+                  </Card>
+                  <Card size="small" bordered={false} hoverable>
+                    <Statistic 
+                      title="动物" 
+                      value={stats.animals} 
+                      valueStyle={{ color: CATEGORY_COLORS.dog }} 
+                      prefix={<FrownOutlined />}
+                    />
+                  </Card>
+                  <Card size="small" bordered={false} hoverable>
+                    <Statistic 
+                      title="风景" 
+                      value={stats.landscapes} 
+                      valueStyle={{ color: CATEGORY_COLORS.landscape }} 
+                      prefix={<PictureOutlined />}
+                    />
+                  </Card>
+                  <Card size="small" bordered={false} hoverable>
+                    <Statistic 
+                      title="建筑" 
+                      value={stats.buildings} 
+                      valueStyle={{ color: CATEGORY_COLORS.building }} 
+                      prefix={<BuildOutlined />}
+                    />
+                  </Card>
+                  <Card size="small" bordered={false} hoverable>
+                    <Statistic 
+                      title="食物" 
+                      value={stats.food} 
+                      valueStyle={{ color: CATEGORY_COLORS.food }} 
+                      prefix={<CoffeeOutlined />}
+                    />
+                  </Card>
+                  <Card size="small" bordered={false} hoverable>
+                    <Statistic 
+                      title="交通" 
+                      value={stats.transportation} 
+                      valueStyle={{ color: CATEGORY_COLORS.vehicle }} 
+                      prefix={<CarOutlined />}
+                    />
+                  </Card>
+                  <Card size="small" bordered={false} hoverable>
+                    <Statistic 
+                      title="其他" 
+                      value={stats.other} 
+                      valueStyle={{ color: CATEGORY_COLORS.other }} 
+                      prefix={<AppstoreOutlined />}
+                    />
+                  </Card>
+                </div>
               </div>
 
-              <Table
-                columns={columns}
-                dataSource={tableData}
-                pagination={{ pageSize: 10, showSizeChanger: true }}
-                size="small"
-                scroll={{ y: 300 }}
-              />
+              {/* 分类结果表格 */}
+              <Card size="small" title="分类结果" style={{ marginBottom: 16 }}>
+                <Table
+                  columns={columns}
+                  dataSource={tableData}
+                  pagination={{ 
+                    pageSize: 15, 
+                    showSizeChanger: true, 
+                    showQuickJumper: true,
+                    showTotal: (total) => `共 ${total} 项`
+                  }}
+                  size="middle"
+                  scroll={{ y: 400 }}
+                  style={{ marginTop: 8 }}
+                />
+              </Card>
             </>
           )}
 

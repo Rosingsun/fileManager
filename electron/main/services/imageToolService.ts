@@ -90,7 +90,7 @@ export async function batchRename(files: string[], options: BatchRenameOptions):
         }
       }
 
-      const outputDir = options.outputPath || dirname(filePath)
+      const outputDir = (options.outputPath && options.outputPath.trim()) || dirname(filePath)
       ensureDir(outputDir)
       let newPath = join(outputDir, newName)
 
@@ -108,7 +108,7 @@ export async function batchRename(files: string[], options: BatchRenameOptions):
         }
       }
 
-      if (options.outputPath) {
+      if (options.outputPath && options.outputPath.trim()) {
         copyFileSync(filePath, newPath)
       } else {
         renameSync(filePath, newPath)
@@ -216,6 +216,90 @@ export async function addWatermark(files: string[], options: WatermarkOptions): 
   }
 
   return results
+}
+
+export async function previewWatermark(filePath: string, options: WatermarkOptions): Promise<string> {
+  try {
+    let sharpInstance = sharp(filePath)
+    const metadata = await sharpInstance.metadata()
+    const width = metadata.width || 800
+    const height = metadata.height || 600
+
+    let watermarkSvg: Buffer
+
+    if (options.type === 'text' && options.text) {
+      const { content, fontSize, color, opacity } = options.text
+      const svgWidth = Math.max(width * 0.3, 200)
+      const svgHeight = fontSize * 1.5
+      
+      watermarkSvg = Buffer.from(`
+        <svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">
+          <text 
+            x="50%" 
+            y="50%" 
+            font-family="Arial" 
+            font-size="${fontSize}" 
+            fill="${color}" 
+            fill-opacity="${opacity}"
+            text-anchor="middle" 
+            dominant-baseline="middle"
+          >${content}</text>
+        </svg>
+      `)
+    } else {
+      throw new Error('不支持的水印类型')
+    }
+
+    const position = options.position || 'bottom-right'
+    const margin = options.margin || 20
+
+    let gravity: string
+    switch (position) {
+      case 'top-left': gravity = 'northwest'; break
+      case 'top-center': gravity = 'north'; break
+      case 'top-right': gravity = 'northeast'; break
+      case 'middle-left': gravity = 'west'; break
+      case 'middle-center': gravity = 'center'; break
+      case 'middle-right': gravity = 'east'; break
+      case 'bottom-left': gravity = 'southwest'; break
+      case 'bottom-center': gravity = 'south'; break
+      case 'bottom-right': gravity = 'southeast'; break
+      default: gravity = 'southeast'
+    }
+
+    if (options.tile) {
+      const tilesX = Math.ceil(width / (width * 0.3 + margin))
+      const tilesY = Math.ceil(height / (100 + margin))
+      
+      let compositeOps: any[] = []
+      for (let x = 0; x < tilesX; x++) {
+        for (let y = 0; y < tilesY; y++) {
+          compositeOps.push({
+            input: watermarkSvg,
+            left: x * (width * 0.3 + margin) + margin,
+            top: y * 100 + margin
+          })
+        }
+      }
+      sharpInstance = sharpInstance.composite(compositeOps)
+    } else {
+      const gravityMap: Record<string, string> = {
+        'northwest': 'NW', 'north': 'N', 'northeast': 'NE',
+        'west': 'W', 'center': 'C', 'east': 'E',
+        'southwest': 'SW', 'south': 'S', 'southeast': 'SE'
+      }
+      
+      sharpInstance = sharpInstance.composite([{
+        input: watermarkSvg,
+        gravity: gravityMap[gravity] || 'SE'
+      }])
+    }
+
+    const buffer = await sharpInstance.toBuffer()
+    return `data:image/jpeg;base64,${buffer.toString('base64')}`
+  } catch (error: any) {
+    throw new Error(`预览生成失败: ${error.message}`)
+  }
 }
 
 export async function stitchImages(images: string[], options: StitchOptions): Promise<string> {
@@ -465,7 +549,9 @@ export async function generateThumbnails(files: string[], options: ThumbnailOpti
           newName = base + '_thumb' + ext
       }
 
-      const outputDir = options.outputDir === 'custom' ? options.outputDir : dir
+      const outputDir = options.outputDir === 'custom' && options.customOutputDir 
+        ? options.customOutputDir 
+        : dir
       const outputPath = join(outputDir, newName)
 
       let sharpInstance = sharp(filePath).resize(options.width, options.height, {

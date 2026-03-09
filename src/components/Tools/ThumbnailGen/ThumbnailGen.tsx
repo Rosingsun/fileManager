@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Modal, Button, Space, Card, InputNumber, Select, Input, message, Typography, Empty, Row, Col } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined } from '@ant-design/icons'
 import type { ThumbnailOptions, ThumbnailResult } from '../../../types'
+import { useToolOutputPathStore } from '../../../stores'
 
 const { Text } = Typography
 
@@ -22,8 +23,10 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
   const [fit, setFit] = useState<'cover' | 'contain' | 'fill'>('cover')
   const [format, setFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg')
   const [quality, setQuality] = useState(80)
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectFiles = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -46,7 +49,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -66,7 +69,10 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
         fit,
         format,
         quality,
-        outputPath
+        outputDir: outputPath ? 'custom' : 'same',
+        customOutputDir: outputPath || undefined,
+        naming: 'suffix',
+        suffix: '_thumb'
       }
 
       const results: ThumbnailResult[] = await window.electronAPI.generateThumbnails(
@@ -212,7 +218,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {files.length === 0 ? (
               <Empty description="请先添加图片" />
             ) : (

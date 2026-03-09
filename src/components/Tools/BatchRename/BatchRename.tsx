@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react'
-import { Modal, Button, Space, List, Card, Input, Select, InputNumber, Radio, Checkbox, message, Progress, Typography } from 'antd'
-import { FolderOpenOutlined, ArrowRightOutlined, FolderOutlined } from '@ant-design/icons'
+import { Modal, Button, Space, List, Card, Input, Select, InputNumber, Radio, Checkbox, message, Progress, Typography, Empty } from 'antd'
+import { FolderOpenOutlined, ArrowRightOutlined, FolderOutlined, CloseOutlined } from '@ant-design/icons'
 import type { BatchRenameOptions, RenameResult } from '../../../types'
 
 const { Text } = Typography
@@ -28,6 +28,7 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
   const [conflictAction, setConflictAction] = useState<'skip' | 'overwrite' | 'rename'>('rename')
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0 })
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false)
 
   const getDefaultOutputPath = (fileList: string[]) => {
     if (fileList.length === 0) return ''
@@ -114,16 +115,26 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
     })
   }, [files, mode, sequenceStart, sequencePadding, dateFormat, findText, replaceText, caseSensitive, prefix, suffix, outputPath])
 
-  const handleExecute = async () => {
+  const handleExecute = () => {
     if (files.length === 0) {
       message.warning('请先选择文件')
       return
     }
+    setConfirmModalVisible(true)
+  }
 
+  const handleConfirmClose = () => {
+    setConfirmModalVisible(false)
+  }
+
+  const doRename = async (regenerate: boolean) => {
     setIsProcessing(true)
     setProgress({ current: 0, total: files.length })
 
     try {
+      const defaultOutputPath = getDefaultOutputPath(files)
+      const outputDir = regenerate ? (outputPath || defaultOutputPath) : undefined
+      
       const options: BatchRenameOptions = {
         mode,
         sequenceStart,
@@ -134,7 +145,7 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
         prefix,
         suffix,
         caseSensitive,
-        outputPath: outputPath || getDefaultOutputPath(files) || undefined,
+        outputPath: outputDir || undefined,
         conflictAction
       }
 
@@ -299,37 +310,41 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text strong>预览效果 ({files.length} 个文件)</Text>
-            <Button 
-              type="link" 
-              icon={<FolderOutlined />} 
-              onClick={handleSelectOutputPath}
-              style={{ padding: 0 }}
-            >
-              {displayOutputPath ? displayOutputPath.split(/[/\\]/).pop() : '选择输出目录'}
-            </Button>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
-            <List
-              size="small"
-              dataSource={previewResults}
-              renderItem={(item, index) => (
-                <List.Item>
-                  <Space>
-                    <Text type="secondary">{index + 1}.</Text>
-                    <Text style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.originalName}
-                    </Text>
-                    <ArrowRightOutlined />
-                    <Text style={{ color: '#52c41a', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.newName}
-                    </Text>
-                  </Space>
-                </List.Item>
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text strong>预览效果 ({files.length} 个文件)</Text>
+              <Button 
+                type="link" 
+                icon={<FolderOutlined />} 
+                onClick={handleSelectOutputPath}
+                style={{ padding: 0 }}
+              >
+                {displayOutputPath ? displayOutputPath.split(/[/\\]/).pop() : '选择输出目录'}
+              </Button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {files.length === 0 ? (
+                <Empty description="请先选择文件" />
+              ) : (
+                <List
+                  size="small"
+                  dataSource={previewResults}
+                  renderItem={(item, index) => (
+                    <List.Item>
+                      <Space>
+                        <Text type="secondary">{index + 1}.</Text>
+                        <Text style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.originalName}
+                        </Text>
+                        <ArrowRightOutlined />
+                        <Text style={{ color: '#52c41a', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.newName}
+                        </Text>
+                      </Space>
+                    </List.Item>
+                  )}
+                />
               )}
-            />
-          </div>
+            </div>
           {isProcessing && (
             <Progress 
               percent={Math.round((progress.current / progress.total) * 100)} 
@@ -339,6 +354,44 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
           )}
         </div>
       </div>
+
+      <Modal
+        open={confirmModalVisible}
+        onCancel={handleConfirmClose}
+        footer={null}
+        closable={false}
+        centered
+        width={360}
+      >
+        <div style={{ position: 'relative', padding: '8px 0' }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <Text style={{ fontSize: 16 }}>请选择重命名方式：</Text>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Button 
+              type="primary" 
+              block 
+              onClick={() => doRename(false)}
+              style={{ height: 32 }}
+            >
+              直接修改
+            </Button>
+            <Button 
+              block 
+              onClick={() => doRename(true)}
+              style={{ height: 32 }}
+            >
+              重新生成
+            </Button>
+          </div>
+        </div>
+        <Button
+          type="text"
+          icon={<CloseOutlined />}
+          onClick={handleConfirmClose}
+          style={{ position: 'absolute', top: 0, right: 0 }}
+        />
+      </Modal>
     </Modal>
   )
 }

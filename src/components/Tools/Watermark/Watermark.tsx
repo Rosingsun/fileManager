@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, Input, InputNumber, Select, message, Typography, Empty } from 'antd'
-import { FolderOpenOutlined, DeleteOutlined } from '@ant-design/icons'
+import { Modal, Button, Space, Card, Input, InputNumber, Select, message, Typography, Empty, Radio } from 'antd'
+import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, EyeOutlined } from '@ant-design/icons'
 import type { WatermarkOptions } from '../../../types'
+import ImageViewer from '../../ImageViewer/ImageViewer'
+import { useToolOutputPathStore } from '../../../stores'
 
 const { Text } = Typography
 
@@ -27,8 +29,13 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
   const [position, setPosition] = useState<WatermarkPosition>('bottom-right')
   const [margin, setMargin] = useState(20)
   const [tile, setTile] = useState(false)
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [previewImage, setPreviewImage] = useState<string | null>(null)
+  const [previewIndex, setPreviewIndex] = useState(0)
+  const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectImages = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -51,7 +58,7 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -102,6 +109,48 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
     } finally {
       setIsProcessing(false)
     }
+  }
+
+  const handlePreview = async (index: number) => {
+    if (images.length < 1) {
+      message.warning('请先添加图片')
+      return
+    }
+
+    if (watermarkType === 'text' && !textContent) {
+      message.warning('请输入水印文字')
+      return
+    }
+
+    setPreviewIndex(index)
+    setIsGeneratingPreview(true)
+
+    try {
+      const options: WatermarkOptions = {
+        type: watermarkType,
+        text: watermarkType === 'text' ? {
+          content: textContent,
+          fontSize,
+          fontFamily: 'Arial',
+          color: fontColor,
+          opacity: opacity / 100
+        } : undefined,
+        position,
+        margin,
+        tile
+      }
+
+      const previewUrl = await window.electronAPI.previewWatermark(images[index].path, options)
+      setPreviewImage(previewUrl)
+    } catch (error) {
+      message.error('生成预览失败: ' + (error as Error).message)
+    } finally {
+      setIsGeneratingPreview(false)
+    }
+  }
+
+  const handleClosePreview = () => {
+    setPreviewImage(null)
   }
 
   const positionOptions = [
@@ -245,7 +294,7 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {images.length === 0 ? (
               <Empty description="请先添加图片" />
             ) : (
@@ -260,12 +309,20 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
                       <Text ellipsis style={{ flex: 1, marginRight: 8 }}>
                         {img.name}
                       </Text>
-                      <Button 
-                        size="small" 
-                        icon={<DeleteOutlined />}
-                        onClick={() => handleRemoveImage(index)}
-                        danger
-                      />
+                      <Space size="small">
+                        <Button 
+                          size="small" 
+                          icon={<EyeOutlined />}
+                          onClick={() => handlePreview(index)}
+                          loading={isGeneratingPreview && previewIndex === index}
+                        />
+                        <Button 
+                          size="small" 
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleRemoveImage(index)}
+                          danger
+                        />
+                      </Space>
                     </div>
                   </Card>
                 ))}
@@ -274,10 +331,16 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
           </div>
         </div>
       </div>
+
+      {previewImage && (
+        <ImageViewer
+          images={[{ id: 'preview', url: previewImage, filename: '预览', width: 0, height: 0, size: 0, format: 'jpeg', createdAt: '', modifiedAt: '' }]}
+          currentIndex={0}
+          onClose={handleClosePreview}
+        />
+      )}
     </Modal>
   )
 }
-
-import { Radio } from 'antd'
 
 export default Watermark

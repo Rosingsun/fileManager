@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, Select, InputNumber, Radio, message, Typography, Empty } from 'antd'
-import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import { Modal, Button, Space, Card, Select, InputNumber, message, Typography, Empty } from 'antd'
+import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import type { PdfOptions } from '../../../types'
+import { useToolOutputPathStore } from '../../../stores'
 
 const { Text } = Typography
 
@@ -21,8 +22,10 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
   const [orientation, setOrientation] = useState<'auto' | 'portrait' | 'landscape'>('auto')
   const [margin, setMargin] = useState(10)
   const [imagesPerPage, setImagesPerPage] = useState<number | 'auto'>('auto')
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectImages = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -57,7 +60,7 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -205,7 +208,7 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {images.length === 0 ? (
               <Empty description="请先添加图片" />
             ) : (
