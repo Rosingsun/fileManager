@@ -4,6 +4,7 @@ import EditorControls from './EditorControls'
 import PresetsPanel from './PresetsPanel'
 import FormatCompressDialog from './FormatCompressDialog'
 import { useImageEditor } from './useImageEditor'
+import { imageLoader } from '../../utils'
 import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../types'
 
 interface BatchEditModalProps {
@@ -27,19 +28,33 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
   }
 
   const handleBatchApply = async () => {
+    if (filePaths.length === 0) {
+      message.warning('没有选择任何文件')
+      return
+    }
+
     try {
       const api = window.electronAPI
       if (!api) throw new Error('electronAPI missing')
       const res = await api.applyEdits(filePaths, settings)
+      console.log('[BatchEditModal] applyEdits result:', res)
       const failed = res.filter(r => !r.success)
       if (failed.length) {
-        message.error(`部分图片处理失败：${failed.map(f => f.filePath).join(',')}`)
+        message.error(`部分图片处理失败：${failed.map(f => `${f.filePath}(${f.error || 'error'})`).join(',')}`)
       } else {
-        message.success('批量应用完成')
+        const moved = res.filter(r => r.success && r.newPath)
+        if (moved.length) {
+          message.success(`部分文件另存为：${moved.map(m => m.newPath).join(',')}`)
+          moved.forEach(m => imageLoader.clearCache(m.newPath || ''))
+        } else {
+          message.success('批量应用完成')
+        }
+        // 清理所有原图片的缓存
+        filePaths.forEach(p => imageLoader.clearCache(p))
       }
-    } catch (e) {
-      console.error(e)
-      message.error('批量处理出错')
+    } catch (e: any) {
+      console.error('[BatchEditModal] 批量处理出错', e)
+      message.error(`批量处理出错：${e?.message || e}`)
     }
     onClose()
   }

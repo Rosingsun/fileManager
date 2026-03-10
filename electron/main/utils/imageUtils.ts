@@ -256,33 +256,154 @@ async function applySharpSettings(sharpInstance: any, settings: ImageEditSetting
 }
 
 export async function applyEdits(filePath: string, settings: ImageEditSettings, outputPath?: string): Promise<void> {
+  console.log('[imageUtils] applyEdits invoked', { filePath, outputPath, settings })
   let instance = sharp(filePath)
   instance = await applySharpSettings(instance, settings)
+
   if (outputPath) {
+    console.log('[imageUtils] writing to explicit outputPath', outputPath)
     await instance.toFile(outputPath)
-  } else {
-    await instance.toFile(filePath)
+    return
+  }
+
+  // 当不指定输出路径时，sharp 直接写回源文件会失败（或产生损坏），因此先写入临时文件再覆盖
+  const path = await import('path')
+  const fsExtra = await import('fs-extra')
+
+  const dir = path.dirname(filePath)
+  const base = path.basename(filePath)
+  const tmpName = `${base}.tmp`
+  const tmpPath = path.join(dir, tmpName)
+
+  console.log('[imageUtils] using tmpPath for write', tmpPath)
+
+  try {
+    await instance.toFile(tmpPath)
+    // 覆盖原文件，带重试以应对短时间内的文件锁
+    const maxAttempts = 3
+    let attempt = 0
+    while (true) {
+      try {
+        await fsExtra.move(tmpPath, filePath, { overwrite: true })
+        break
+      } catch (moveErr: any) {
+        attempt += 1
+        console.warn('[imageUtils] move attempt', attempt, 'failed', moveErr.code)
+        if ((moveErr.code === 'EPERM' || moveErr.code === 'EACCES') && attempt < maxAttempts) {
+          // 等待后重试
+          await new Promise(res => setTimeout(res, 100))
+          continue
+        }
+        throw moveErr
+      }
+    }
+  } catch (err: any) {
+    console.error('[imageUtils] error during tmp write/replace', err)
+    // 清理临时文件
+    try {
+      if (fsExtra.existsSync(tmpPath)) {
+        await fsExtra.unlink(tmpPath)
+      }
+    } catch (_e) {
+      // ignore
+    }
+
+    if (err.code === 'EPERM' || err.code === 'EACCES') {
+      throw new Error('文件被占用或权限不足，无法保存')
+    }
+    throw err
   }
 }
 
 export async function convertFormat(filePath: string, options: FormatConversionOptions, outputPath?: string): Promise<void> {
-  let instance = sharp(filePath)
-  const fmt = options.targetFormat.toLowerCase()
-  if (fmt === 'jpeg' || fmt === 'jpg') {
-    instance = instance.jpeg({ quality: options.quality || 80 })
-  } else if (fmt === 'png') {
-    instance = instance.png({ quality: options.quality || 80 })
-  } else if (fmt === 'webp') {
-    instance = instance.webp({ quality: options.quality || 80 })
-  } else if (fmt === 'bmp') {
-    instance = instance.bmp()
-  } else if (fmt === 'tiff' || fmt === 'tif') {
-    instance = instance.tiff({ quality: options.quality || 80 })
-  }
-  if (outputPath) {
-    await instance.toFile(outputPath)
-  } else {
-    await instance.toFile(filePath)
+  try {
+    console.log(`[convertFormat] 开始转换: ${filePath}`)
+    console.log(`[convertFormat] 选项:`, options)
+    console.log(`[convertFormat] 输出路径:`, outputPath)
+    
+    // 规范化路径，确保在Windows和Linux上都能正常工作
+    const fs = await import('fs')
+    const path = await import('path')
+    const normalizedFilePath = path.normalize(filePath)
+    const normalizedOutputPath = outputPath ? path.normalize(outputPath) : undefined
+    
+    console.log(`[convertFormat] 规范化后输入路径:`, normalizedFilePath)
+    console.log(`[convertFormat] 规范化后输出路径:`, normalizedOutputPath)
+    
+    let instance = sharp(normalizedFilePath)
+    const fmt = options.targetFormat.toLowerCase()
+    if (fmt === 'jpeg' || fmt === 'jpg') {
+      instance = instance.jpeg({ quality: options.quality || 80 })
+    } else if (fmt === 'png') {
+      instance = instance.png({ quality: options.quality || 80 })
+    } else if (fmt === 'webp') {
+      instance = instance.webp({ quality: options.quality || 80 })
+    } else if (fmt === 'bmp') {
+      instance = instance.bmp()
+    } else if (fmt === 'tiff' || fmt === 'tif') {
+      instance = instance.tiff({ quality: options.quality || 80 })
+    }
+    
+    let outputFilePath: string
+    
+    if (normalizedOutputPath) {
+      // 确保输出目录存在
+      let outputDir: string
+      if (fs.existsSync(normalizedOutputPath)) {
+        const stats = fs.statSync(normalizedOutputPath)
+        if (stats.isDirectory()) {
+          outputDir = normalizedOutputPath
+          const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
+          outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
+        } else {
+          // 如果是文件，且与输入文件不同，则使用该文件
+          if (normalizedOutputPath !== normalizedFilePath) {
+            outputFilePath = normalizedOutputPath
+            // 确保输出文件的目录存在
+            outputDir = path.dirname(normalizedOutputPath)
+          } else {
+            // 如果输出文件与输入文件相同，生成带"-new"后缀的文件名
+            const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
+            outputDir = path.dirname(normalizedFilePath)
+            outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
+          }
+        }
+      } else {
+        // 如果outputPath不存在，假设它是目录
+        outputDir = normalizedOutputPath
+        const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
+        outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
+      }
+      
+      // 确保输出目录存在
+      if (!fs.existsSync(outputDir)) {
+        console.log(`[convertFormat] 创建输出目录:`, outputDir)
+        fs.mkdirSync(outputDir, { recursive: true })
+      }
+    } else {
+      // 如果没有outputPath，在原目录生成带"-new"后缀的文件名
+      const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
+      const outputDir = path.dirname(normalizedFilePath)
+      outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
+    }
+    
+    console.log(`[convertFormat] 最终输出路径:`, outputFilePath)
+    
+    // 确保输出路径与输入路径不同
+    if (outputFilePath === normalizedFilePath) {
+      // 如果仍然相同，强制添加"-new"后缀
+      const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
+      const outputDir = path.dirname(normalizedFilePath)
+      outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
+      console.log(`[convertFormat] 输出路径与输入路径相同，强制添加后缀:`, outputFilePath)
+    }
+    
+    await instance.toFile(outputFilePath)
+    console.log(`[convertFormat] 转换成功:`, outputFilePath)
+  } catch (error) {
+    console.error(`[convertFormat] 转换失败:`, error)
+    console.error(`[convertFormat] 失败文件:`, filePath)
+    throw error
   }
 }
 
@@ -297,10 +418,47 @@ export async function compressImage(filePath: string, options: CompressionOption
   } else {
     instance = instance.jpeg({ quality })
   }
+  
   if (outputPath) {
     await instance.toFile(outputPath)
-  } else {
-    await instance.toFile(filePath)
+    return
+  }
+
+  const path = await import('path')
+  const fsExtra = await import('fs-extra')
+  const dir = path.dirname(filePath)
+  const base = path.basename(filePath)
+  const tmpPath = path.join(dir, `${base}.tmp`)
+
+  try {
+    await instance.toFile(tmpPath)
+    const maxAttempts = 3
+    let attempt = 0
+    while (true) {
+      try {
+        await fsExtra.move(tmpPath, filePath, { overwrite: true })
+        break
+      } catch (moveErr: any) {
+        attempt += 1
+        console.warn('[imageUtils] compress move attempt', attempt, 'failed', moveErr.code)
+        if ((moveErr.code === 'EPERM' || moveErr.code === 'EACCES') && attempt < maxAttempts) {
+          await new Promise(res => setTimeout(res, 100))
+          continue
+        }
+        throw moveErr
+      }
+    }
+  } catch (err: any) {
+    try {
+      if (fsExtra.existsSync(tmpPath)) {
+        await fsExtra.unlink(tmpPath)
+      }
+    } catch (_e) {}
+
+    if (err.code === 'EPERM' || err.code === 'EACCES') {
+      throw new Error('文件被占用或权限不足，无法保存')
+    }
+    throw err
   }
 }
 

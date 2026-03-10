@@ -32,6 +32,7 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
 
   const getDefaultOutputPath = (fileList: string[]) => {
     if (fileList.length === 0) return ''
+    // 直接返回第一个文件所在目录，与后端逻辑保持一致
     const firstFile = fileList[0]
     const lastSlash = Math.max(firstFile.lastIndexOf('/'), firstFile.lastIndexOf('\\'))
     return lastSlash > 0 ? firstFile.substring(0, lastSlash) : ''
@@ -61,6 +62,9 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
   const displayOutputPath = outputPath || getDefaultOutputPath(files)
 
   const previewResults = useMemo(() => {
+    // 用于跟踪已生成的文件名，以模拟冲突处理
+    const generatedNames = new Set<string>()
+    
     return files.map((filePath, index) => {
       const fileName = filePath.split(/[/\\]/).pop() || ''
       const ext = fileName.includes('.') ? '.' + fileName.split('.').pop() : ''
@@ -101,19 +105,47 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
         }
       }
 
-      const finalOutputPath = outputPath || getDefaultOutputPath(files)
-      const newPath = finalOutputPath 
+      // 与后端保持一致的逻辑：当outputPath存在时使用指定目录，否则使用当前文件所在目录
+      const fileDir = filePath.split(/[/\\]/).slice(0, -1).join('/') || ''
+      const finalOutputPath = outputPath || fileDir
+      let newPath = finalOutputPath 
         ? `${finalOutputPath}/${newName}`.replace(/\\/g, '/')
         : filePath.replace(/[/\\][^/\\]+$/, `/${newName}`).replace(/\\/g, '/')
+      
+      // 模拟冲突处理逻辑，与后端保持一致
+      let previewNewName = newName
+      if (generatedNames.has(newName)) {
+        if (conflictAction === 'skip') {
+          // 跳过模式：保持原文件名
+          previewNewName = fileName
+          newPath = filePath
+        } else if (conflictAction === 'rename') {
+          // 重命名模式：生成唯一名称
+          let counter = 1
+          let uniqueName = newName
+          while (generatedNames.has(uniqueName)) {
+            const base = ext ? previewNewName.slice(0, -ext.length) : previewNewName
+            uniqueName = `${base}_${counter}${ext}`
+            counter++
+          }
+          previewNewName = uniqueName
+          newPath = finalOutputPath 
+            ? `${finalOutputPath}/${previewNewName}`.replace(/\\/g, '/')
+            : filePath.replace(/[/\\][^/\\]+$/, `/${previewNewName}`).replace(/\\/g, '/')
+        }
+        // 覆盖模式：不做任何处理，直接使用同名
+      }
+      
+      generatedNames.add(previewNewName)
 
       return {
         original: filePath,
         originalName: fileName,
-        newName,
+        newName: previewNewName,
         newPath
       }
     })
-  }, [files, mode, sequenceStart, sequencePadding, dateFormat, findText, replaceText, caseSensitive, prefix, suffix, outputPath])
+  }, [files, mode, sequenceStart, sequencePadding, dateFormat, findText, replaceText, caseSensitive, prefix, suffix, outputPath, conflictAction])
 
   const handleExecute = () => {
     if (files.length === 0) {
@@ -132,6 +164,9 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
     setProgress({ current: 0, total: files.length })
 
     try {
+      // 重命名模式逻辑：
+      // - 直接修改：原地重命名，不使用outputPath
+      // - 重新生成：复制到指定目录，如果没有指定则使用第一个文件所在目录
       const defaultOutputPath = getDefaultOutputPath(files)
       const outputDir = regenerate ? (outputPath || defaultOutputPath) : undefined
       
@@ -145,7 +180,7 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
         prefix,
         suffix,
         caseSensitive,
-        outputPath: outputDir || undefined,
+        outputPath: outputDir,
         conflictAction
       }
 

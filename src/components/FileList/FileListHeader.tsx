@@ -161,6 +161,12 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
         )}
       </Space>
       <Space size="middle">
+        {/* small pagination summary so users know which page they're on when grid is selected */}
+        {total > 0 && (
+          <span style={{ fontSize: 12, color: '#999' }}>
+            第 {currentPage} 页 / 共 {Math.ceil(total / pageSize)} 页
+          </span>
+        )}
         <Switch
           checkedChildren="网格"
           unCheckedChildren="列表"

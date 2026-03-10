@@ -33,6 +33,9 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [previewIndex, setPreviewIndex] = useState(0)
   const [isGeneratingPreview, setIsGeneratingPreview] = useState(false)
+  // 图片水印相关状态
+  const [watermarkImagePath, setWatermarkImagePath] = useState<string>('')
+  const [watermarkImageScale, setWatermarkImageScale] = useState(100)
 
   const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
   const outputPath = sharedOutputPath
@@ -63,6 +66,16 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
     }
   }
 
+  // 选择图片水印
+  const handleSelectWatermarkImage = async () => {
+    if (window.electronAPI?.selectFiles) {
+      const selected = await window.electronAPI.selectFiles('image')
+      if (selected && selected.length > 0) {
+        setWatermarkImagePath(selected[0])
+      }
+    }
+  }
+
   const handleExecute = async () => {
     if (images.length < 1) {
       message.warning('请先选择图片')
@@ -71,6 +84,11 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
 
     if (watermarkType === 'text' && !textContent) {
       message.warning('请输入水印文字')
+      return
+    }
+
+    if (watermarkType === 'image' && !watermarkImagePath) {
+      message.warning('请选择水印图片')
       return
     }
 
@@ -91,9 +109,15 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
           color: fontColor,
           opacity: opacity / 100
         } : undefined,
+        image: watermarkType === 'image' ? {
+          path: watermarkImagePath,
+          scale: watermarkImageScale / 100,
+          opacity: opacity / 100
+        } : undefined,
         position,
         margin,
-        tile
+        tile,
+        outputPath: outputPath || undefined
       }
 
       const results = await window.electronAPI.addWatermark(
@@ -102,7 +126,13 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
       )
 
       const successCount = results.filter(r => r.success).length
-      message.success(`添加水印完成：成功 ${successCount} 个，失败 ${results.length - successCount} 个`)
+      const failCount = results.length - successCount
+      if (failCount > 0) {
+        console.error('watermark errors', results.filter(r => !r.success))
+        message.error(`添加水印完成：成功 ${successCount} 个，失败 ${failCount} 个，详情见控制台`)
+      } else {
+        message.success(`添加水印完成：成功 ${successCount} 个`)
+      }
       onClose()
     } catch (error) {
       message.error('添加水印失败: ' + (error as Error).message)
@@ -122,6 +152,11 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
       return
     }
 
+    if (watermarkType === 'image' && !watermarkImagePath) {
+      message.warning('请选择水印图片')
+      return
+    }
+
     setPreviewIndex(index)
     setIsGeneratingPreview(true)
 
@@ -133,6 +168,11 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
           fontSize,
           fontFamily: 'Arial',
           color: fontColor,
+          opacity: opacity / 100
+        } : undefined,
+        image: watermarkType === 'image' ? {
+          path: watermarkImagePath,
+          scale: watermarkImageScale / 100,
           opacity: opacity / 100
         } : undefined,
         position,
@@ -211,7 +251,7 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
             </Radio.Group>
           </Card>
 
-          {watermarkType === 'text' && (
+          {watermarkType === 'text' ? (
             <Card size="small" title="文字设置">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Input 
@@ -236,6 +276,29 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
                     value={fontColor}
                     onChange={e => setFontColor(e.target.value)}
                     style={{ width: '100%', height: 30, cursor: 'pointer' }}
+                  />
+                </div>
+              </Space>
+            </Card>
+          ) : (
+            <Card size="small" title="图片设置">
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Button 
+                  icon={<FolderOpenOutlined />} 
+                  onClick={handleSelectWatermarkImage}
+                  block
+                  style={{ marginBottom: 8 }}
+                >
+                  {watermarkImagePath ? watermarkImagePath.split(/[\/]/).pop() : '选择水印图片'}
+                </Button>
+                <div>
+                  <Text>缩放比例</Text>
+                  <InputNumber 
+                    value={watermarkImageScale} 
+                    onChange={v => setWatermarkImageScale(v || 100)} 
+                    min={10} 
+                    max={200}
+                    style={{ width: '100%' }}
                   />
                 </div>
               </Space>

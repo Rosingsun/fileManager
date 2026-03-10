@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
 import { Modal, Button, Space, Card, Select, InputNumber, message, Typography, Empty } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
-import type { PdfOptions } from '../../../types'
+import type { FormatConversionOptions } from '../../../types'
 import { useToolOutputPathStore } from '../../../stores'
 
 const { Text } = Typography
 
-interface ImageToPdfProps {
+interface ImageFormatConverterProps {
   visible: boolean
   onClose: () => void
 }
@@ -16,12 +16,10 @@ interface ImageItem {
   name: string
 }
 
-const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
+const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, onClose }) => {
   const [images, setImages] = useState<ImageItem[]>([])
-  const [pageSize, setPageSize] = useState<'a4' | 'a3' | 'letter' | 'original'>('a4')
-  const [orientation, setOrientation] = useState<'auto' | 'portrait' | 'landscape'>('auto')
-  const [margin, setMargin] = useState(10)
-  const [imagesPerPage, setImagesPerPage] = useState<number | 'auto'>('auto')
+  const [targetFormat, setTargetFormat] = useState<'jpeg' | 'png' | 'webp' | 'bmp' | 'tiff' | 'pdf'>('jpeg')
+  const [quality, setQuality] = useState(80)
   const [isProcessing, setIsProcessing] = useState(false)
 
   const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
@@ -79,25 +77,51 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
     setIsProcessing(true)
 
     try {
-      const options: PdfOptions = {
-        pageSize,
-        orientation,
-        margin,
-        imagesPerPage,
-        outputPath
-      }
-
-      const result = await window.electronAPI.imagesToPdf(
-        images.map(img => img.path),
-        options
-      )
-
-      if (result) {
-        message.success('PDF创建成功！')
+      if (targetFormat === 'pdf') {
+        // 转为一个 PDF 文档
+        const pdfOptions = {
+          pageSize: 'a4',
+          orientation: 'auto',
+          margin: 10,
+          imagesPerPage: 'auto',
+          outputPath
+        }
+        const pdfPath = await window.electronAPI.imagesToPdf(
+          images.map(img => img.path),
+          pdfOptions
+        )
+        message.success(`PDF 已生成: ${pdfPath}`)
         onClose()
+      } else {
+        const options: FormatConversionOptions = {
+          targetFormat,
+          quality
+        }
+
+        const result = await window.electronAPI.convertFormat(
+          images.map(img => img.path),
+          options,
+          outputPath
+        )
+
+        const successCount = result.filter(r => r.success).length
+        const errorCount = result.filter(r => !r.success).length
+        const errors = result.filter(r => !r.success)
+        if (successCount > 0) {
+          message.success(`成功转换 ${successCount} 张图片！${errorCount > 0 ? `失败 ${errorCount} 张` : ''}`)
+          // 显示详细错误信息
+          errors.forEach(err => {
+            console.error(`转换失败: ${err.filePath} - ${err.error}`)
+          })
+          onClose()
+        } else {
+          // 显示详细错误信息
+          const errorMessages = errors.map(err => `${err.filePath}: ${err.error}`).join('\n')
+          message.error(`转换失败: ${errorCount} 张图片\n${errorMessages}`)
+        }
       }
     } catch (error) {
-      message.error('创建失败: ' + (error as Error).message)
+      message.error('转换失败: ' + (error as Error).message)
     } finally {
       setIsProcessing(false)
     }
@@ -107,7 +131,7 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
     <Modal
       open={visible}
       onCancel={onClose}
-      title="图片转PDF"
+      title="图片类型转换"
       width={900}
       styles={{ body: { padding: '16px', overflow: 'hidden' } }}
       footer={
@@ -119,7 +143,7 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
             disabled={images.length < 1 || !outputPath || isProcessing}
             loading={isProcessing}
           >
-            {isProcessing ? '处理中...' : '创建PDF'}
+            {isProcessing ? '处理中...' : '开始转换'}
           </Button>
         </Space>
       }
@@ -138,58 +162,41 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
             <Text type="secondary">已选择: {images.length} 张图片</Text>
           </Card>
 
-          <Card size="small" title="页面设置">
+          <Card size="small" title="输出格式">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
-                <Text>页面尺寸</Text>
+                <Text>目标格式</Text>
                 <Select 
-                  value={pageSize} 
-                  onChange={setPageSize}
+                  value={targetFormat} 
+                  onChange={setTargetFormat}
                   style={{ width: '100%' }}
                 >
-                  <Select.Option value="a4">A4</Select.Option>
-                  <Select.Option value="a3">A3</Select.Option>
-                  <Select.Option value="letter">Letter</Select.Option>
-                  <Select.Option value="original">原图尺寸</Select.Option>
+                  <Select.Option value="jpeg">JPEG</Select.Option>
+                  <Select.Option value="png">PNG</Select.Option>
+                  <Select.Option value="webp">WebP</Select.Option>
+                  <Select.Option value="bmp">BMP</Select.Option>
+                  <Select.Option value="tiff">TIFF</Select.Option>
+                  <Select.Option value="pdf">PDF</Select.Option>
                 </Select>
+                {targetFormat === 'pdf' && (
+                  <Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
+                    图片会按列表顺序合并为一个 PDF 文件
+                  </Text>
+                )}
               </div>
-              <div>
-                <Text>页面方向</Text>
-                <Select 
-                  value={orientation} 
-                  onChange={setOrientation}
-                  style={{ width: '100%' }}
-                >
-                  <Select.Option value="auto">自动</Select.Option>
-                  <Select.Option value="portrait">纵向</Select.Option>
-                  <Select.Option value="landscape">横向</Select.Option>
-                </Select>
-              </div>
-              <div>
-                <Text>页边距 (mm)</Text>
-                <InputNumber 
-                  value={margin} 
-                  onChange={v => setMargin(v || 0)} 
-                  min={0} 
-                  max={50}
-                  style={{ width: '100%' }}
-                />
-              </div>
+              {targetFormat !== 'pdf' && (
+                <div>
+                  <Text>输出质量 ({quality}%)</Text>
+                  <InputNumber 
+                    value={quality} 
+                    onChange={v => setQuality(v || 80)} 
+                    min={1} 
+                    max={100}
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              )}
             </Space>
-          </Card>
-
-          <Card size="small" title="图片排列">
-            <Select 
-              value={imagesPerPage} 
-              onChange={setImagesPerPage}
-              style={{ width: '100%' }}
-            >
-              <Select.Option value="auto">自动适应</Select.Option>
-              <Select.Option value={1}>每页1张</Select.Option>
-              <Select.Option value={2}>每页2张</Select.Option>
-              <Select.Option value={4}>每页4张</Select.Option>
-              <Select.Option value={6}>每页6张</Select.Option>
-            </Select>
           </Card>
         </div>
 
@@ -197,7 +204,7 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <Text strong>图片列表 ({images.length} 张)</Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>（拖拽调整页面顺序）</Text>
+              <Text type="secondary" style={{ marginLeft: 8 }}>（拖拽调整顺序）</Text>
             </div>
             <Button 
               type="link" 
@@ -255,4 +262,4 @@ const ImageToPdf: React.FC<ImageToPdfProps> = ({ visible, onClose }) => {
   )
 }
 
-export default ImageToPdf
+export default ImageFormatConverter

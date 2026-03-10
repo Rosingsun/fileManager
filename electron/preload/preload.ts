@@ -120,8 +120,8 @@ try {
     applyEdits: (paths: string[] | string, settings: import('../../src/types').ImageEditSettings): Promise<import('../../src/types').BatchOperationResult[]> => {
       return ipcRenderer.invoke('image:applyEdits', paths, settings)
     },
-    convertFormat: (paths: string[] | string, options: import('../../src/types').FormatConversionOptions): Promise<import('../../src/types').BatchOperationResult[]> => {
-      return ipcRenderer.invoke('image:convertFormat', paths, options)
+    convertFormat: (paths: string[] | string, options: import('../../src/types').FormatConversionOptions, outputPath?: string): Promise<import('../../src/types').BatchOperationResult[]> => {
+      return ipcRenderer.invoke('image:convertFormat', paths, options, outputPath)
     },
     compressImage: (paths: string[] | string, options: import('../../src/types').CompressionOptions): Promise<import('../../src/types').BatchOperationResult[]> => {
       return ipcRenderer.invoke('image:compress', paths, options)

@@ -48,7 +48,14 @@ const FileList: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
   const [selectedRows, setSelectedRows] = useState<FileInfo[]>([])
   const [batchRenameModalVisible, setBatchRenameModalVisible] = useState(false)
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  // view mode can be list or grid; default to grid and remember user choice across sessions
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+    const saved = localStorage.getItem('file_list_view_mode')
+    if (saved === 'list' || saved === 'grid') {
+      return saved
+    }
+    return 'grid'
+  })
   const [batchRenamePrefix, setBatchRenamePrefix] = useState('')
   const [batchRenameSuffix, setBatchRenameSuffix] = useState('')
   const [moveModalVisible, setMoveModalVisible] = useState(false)
@@ -318,6 +325,9 @@ const FileList: React.FC = () => {
 
   const handleViewModeChange = useCallback((mode: 'list' | 'grid') => {
     setViewMode(mode)
+    try {
+      localStorage.setItem('file_list_view_mode', mode)
+    } catch {}
   }, [])
 
   const handleRename = useCallback((file: FileInfo) => {
@@ -664,7 +674,15 @@ const FileList: React.FC = () => {
           visible={editorVisible}
           filePath={editorFilePath}
           onClose={() => setEditorVisible(false)}
-          onSaved={() => { /* optional refresh actions */ }}
+          onSaved={(result) => {
+            if (result?.success) {
+              // image was modified – invalidate any cached previews and reload directory
+              imageLoader.clearCache(result.filePath)
+              clearCache()
+              // reload current folder to refresh metadata/modified time
+              loadDirectory(currentPath)
+            }
+          }}
         />
       )}
 

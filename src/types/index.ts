@@ -240,8 +240,9 @@ export interface ImagePreset {
 }
 
 export interface FormatConversionOptions {
-  targetFormat: string // e.g. 'jpeg','png','webp','bmp'
-  quality?: number // 1-100
+  // supported formats including common image types and PDF
+  targetFormat: string // e.g. 'jpeg','png','webp','bmp','tiff','pdf'
+  quality?: number // 1-100 (ignored for PDF)
 }
 
 export interface CompressionOptions {
@@ -252,6 +253,7 @@ export interface BatchOperationResult {
   filePath: string
   success: boolean
   error?: string
+  newPath?: string // when operation succeeded but original file couldn't be overwritten, result saved to this path
 }
 
 // ==================== 实用工具类型定义 ====================
@@ -294,6 +296,10 @@ export interface WatermarkOptions {
   position: 'top-left' | 'top-center' | 'top-right' | 'middle-left' | 'middle-center' | 'middle-right' | 'bottom-left' | 'bottom-center' | 'bottom-right'
   margin: number
   tile?: boolean
+  /**
+   * optional directory to write watermarked files. if omitted, originals' dirs are used
+   */
+  outputPath?: string
 }
 
 export interface StitchOptions {

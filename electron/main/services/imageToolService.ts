@@ -1,6 +1,7 @@
 import sharp from 'sharp'
 import { join, dirname, basename, extname } from 'path'
 import { existsSync, mkdirSync, renameSync, copyFileSync, unlinkSync, readdirSync } from 'fs'
+import { ensureDir } from 'fs-extra'
 import type { BatchRenameOptions, RenameResult, WatermarkOptions, StitchOptions, GifFrame, GifOptions, PdfOptions, ThumbnailOptions, ThumbnailResult, EnhanceOptions } from '../../src/types'
 
 function getMimeType(filePath: string): string {
@@ -131,21 +132,33 @@ export async function addWatermark(files: string[], options: WatermarkOptions): 
       const dir = dirname(filePath)
       const ext = extname(filePath)
       const base = basename(filePath, ext)
-      const outputPath = join(dir, `${base}_watermarked${ext}`)
+      // determine where to write the watermarked image
+      const outputDir = (options.outputPath && options.outputPath.trim()) || dir
+      ensureDir(outputDir)
+      // start with a base filename, but avoid overwriting existing files
+      let outputPath = join(outputDir, `${base}_watermarked${ext}`)
+      if (existsSync(outputPath)) {
+        outputPath = generateUniquePath(outputPath)
+      }
 
       let sharpInstance = sharp(filePath)
       const metadata = await sharpInstance.metadata()
       const width = metadata.width || 800
       const height = metadata.height || 600
 
-      let watermarkSvg: Buffer
+      let watermarkInput: Buffer
+      // track actual watermark dimensions for tiling
+      let wmWidth = 0
+      let wmHeight = 0
 
       if (options.type === 'text' && options.text) {
         const { content, fontSize, color, opacity } = options.text
         const svgWidth = Math.max(width * 0.3, 200)
         const svgHeight = fontSize * 1.5
+        wmWidth = svgWidth
+        wmHeight = svgHeight
         
-        watermarkSvg = Buffer.from(`
+        watermarkInput = Buffer.from(`
           <svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">
             <text 
               x="50%" 
@@ -159,6 +172,26 @@ export async function addWatermark(files: string[], options: WatermarkOptions): 
             >${content}</text>
           </svg>
         `)
+      } else if (options.type === 'image' && options.image) {
+        const { path: imagePath, scale = 1, opacity = 1 } = options.image
+        let watermarkSharp = sharp(imagePath)
+        const watermarkMetadata = await watermarkSharp.metadata()
+        const watermarkWidth = (watermarkMetadata.width || 100) * scale
+        const watermarkHeight = (watermarkMetadata.height || 100) * scale
+        wmWidth = watermarkWidth
+        wmHeight = watermarkHeight
+        
+        watermarkInput = await watermarkSharp
+          .resize(watermarkWidth, watermarkHeight, { fit: 'contain' })
+          .composite([{
+            input: Buffer.from(`
+              <svg width="${watermarkWidth}" height="${watermarkHeight}" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="100%" fill="rgba(0,0,0,0)" fill-opacity="${opacity}"/>
+              </svg>
+            `),
+            blend: 'over'
+          }])
+          .toBuffer()
       } else {
         continue
       }
@@ -181,30 +214,37 @@ export async function addWatermark(files: string[], options: WatermarkOptions): 
       }
 
       if (options.tile) {
-        const tilesX = Math.ceil(width / (width * 0.3 + margin))
-        const tilesY = Math.ceil(height / (100 + margin))
-        
-        let compositeOps: any[] = []
-        for (let x = 0; x < tilesX; x++) {
-          for (let y = 0; y < tilesY; y++) {
-            compositeOps.push({
-              input: watermarkSvg,
-              left: x * (width * 0.3 + margin) + margin,
-              top: y * 100 + margin
-            })
+        // ensure we have reasonable watermark size
+        const watermarkWidth = wmWidth || width * 0.3
+        const watermarkHeight = wmHeight || 100
+        const tilesX = Math.ceil(width / (watermarkWidth + margin))
+        const tilesY = Math.ceil(height / (watermarkHeight + margin))
+
+        if (tilesX > 0 && tilesY > 0) {
+          let compositeOps: any[] = []
+          for (let x = 0; x < tilesX; x++) {
+            for (let y = 0; y < tilesY; y++) {
+              compositeOps.push({
+                input: watermarkInput,
+                left: x * (watermarkWidth + margin) + margin,
+                top: y * (watermarkHeight + margin) + margin
+              })
+            }
           }
+          sharpInstance = sharpInstance.composite(compositeOps)
+        } else {
+          console.warn('tile parameters invalid, falling back to single watermark', { tilesX, tilesY, watermarkWidth, watermarkHeight })
+          sharpInstance = sharpInstance.composite([{ 
+            input: watermarkInput,
+            gravity: gravity || 'southeast'
+          }])
         }
-        sharpInstance = sharpInstance.composite(compositeOps)
       } else {
-        const gravityMap: Record<string, string> = {
-          'northwest': 'NW', 'north': 'N', 'northeast': 'NE',
-          'west': 'W', 'center': 'C', 'east': 'E',
-          'southwest': 'SW', 'south': 'S', 'southeast': 'SE'
-        }
-        
-        sharpInstance = sharpInstance.composite([{
-          input: watermarkSvg,
-          gravity: gravityMap[gravity] || 'SE'
+        // sharp composite gravity expects full keyword names (not abbreviations)
+        // we already computed `gravity` as the full keyword above, so we can use it directly
+        sharpInstance = sharpInstance.composite([{ 
+          input: watermarkInput,
+          gravity: gravity || 'southeast'
         }])
       }
 
@@ -225,14 +265,18 @@ export async function previewWatermark(filePath: string, options: WatermarkOptio
     const width = metadata.width || 800
     const height = metadata.height || 600
 
-    let watermarkSvg: Buffer
+    let watermarkInput: Buffer
+    let wmWidth = 0
+    let wmHeight = 0
 
     if (options.type === 'text' && options.text) {
       const { content, fontSize, color, opacity } = options.text
       const svgWidth = Math.max(width * 0.3, 200)
       const svgHeight = fontSize * 1.5
+      wmWidth = svgWidth
+      wmHeight = svgHeight
       
-      watermarkSvg = Buffer.from(`
+      watermarkInput = Buffer.from(`
         <svg width="${svgWidth}" height="${svgHeight}" xmlns="http://www.w3.org/2000/svg">
           <text 
             x="50%" 
@@ -246,6 +290,27 @@ export async function previewWatermark(filePath: string, options: WatermarkOptio
           >${content}</text>
         </svg>
       `)
+    } else if (options.type === 'image' && options.image) {
+      const { path: imagePath, scale = 1, opacity = 1 } = options.image
+      // 读取并处理图片水印
+      let watermarkSharp = sharp(imagePath)
+      const watermarkMetadata = await watermarkSharp.metadata()
+      const watermarkWidth = (watermarkMetadata.width || 100) * scale
+      const watermarkHeight = (watermarkMetadata.height || 100) * scale
+      wmWidth = watermarkWidth
+      wmHeight = watermarkHeight
+      
+      watermarkInput = await watermarkSharp
+        .resize(watermarkWidth, watermarkHeight, { fit: 'contain' })
+        .composite([{
+          input: Buffer.from(`
+            <svg width="${watermarkWidth}" height="${watermarkHeight}" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100%" height="100%" fill="rgba(0,0,0,0)" fill-opacity="${opacity}"/>
+            </svg>
+          `),
+          blend: 'over'
+        }])
+        .toBuffer()
     } else {
       throw new Error('不支持的水印类型')
     }
@@ -268,30 +333,35 @@ export async function previewWatermark(filePath: string, options: WatermarkOptio
     }
 
     if (options.tile) {
-      const tilesX = Math.ceil(width / (width * 0.3 + margin))
-      const tilesY = Math.ceil(height / (100 + margin))
+      const watermarkWidth = wmWidth || width * 0.3
+      const watermarkHeight = wmHeight || 100
+      const tilesX = Math.ceil(width / (watermarkWidth + margin))
+      const tilesY = Math.ceil(height / (watermarkHeight + margin))
       
-      let compositeOps: any[] = []
-      for (let x = 0; x < tilesX; x++) {
-        for (let y = 0; y < tilesY; y++) {
-          compositeOps.push({
-            input: watermarkSvg,
-            left: x * (width * 0.3 + margin) + margin,
-            top: y * 100 + margin
-          })
+      if (tilesX > 0 && tilesY > 0) {
+        let compositeOps: any[] = []
+        for (let x = 0; x < tilesX; x++) {
+          for (let y = 0; y < tilesY; y++) {
+            compositeOps.push({
+              input: watermarkInput,
+              left: x * (watermarkWidth + margin) + margin,
+              top: y * (watermarkHeight + margin) + margin
+            })
+          }
         }
+        sharpInstance = sharpInstance.composite(compositeOps)
+      } else {
+        console.warn('preview tile fallback: invalid counts', { tilesX, tilesY, watermarkWidth, watermarkHeight })
+        sharpInstance = sharpInstance.composite([{
+          input: watermarkInput,
+          gravity: gravity || 'southeast'
+        }])
       }
-      sharpInstance = sharpInstance.composite(compositeOps)
     } else {
-      const gravityMap: Record<string, string> = {
-        'northwest': 'NW', 'north': 'N', 'northeast': 'NE',
-        'west': 'W', 'center': 'C', 'east': 'E',
-        'southwest': 'SW', 'south': 'S', 'southeast': 'SE'
-      }
-      
+      // use the computed full gravity keyword directly
       sharpInstance = sharpInstance.composite([{
-        input: watermarkSvg,
-        gravity: gravityMap[gravity] || 'SE'
+        input: watermarkInput,
+        gravity: gravity || 'southeast'
       }])
     }
 
@@ -624,4 +694,66 @@ export async function enhanceImage(file: string, options: EnhanceOptions): Promi
   await sharpInstance.toFile(outputPath)
 
   return outputPath
+}
+
+/**
+ * 图片格式转换服务
+ */
+export async function convertImageFormat(
+  imagePaths: string[],
+  options: FormatConversionOptions,
+  outputPath: string
+): Promise<FormatConversionResult> {
+  const { targetFormat, quality = 80 } = options
+  const result: FormatConversionResult = {
+    successCount: 0,
+    errorCount: 0,
+    errors: []
+  }
+
+  for (const imagePath of imagePaths) {
+    try {
+      const fileName = basename(imagePath, extname(imagePath))
+      const outputFilePath = join(outputPath, `${fileName}.${targetFormat}`)
+
+      const sharpInstance = sharp(imagePath)
+
+      // 根据目标格式设置相应的选项
+      let outputOptions: any = {}
+      
+      switch (targetFormat.toLowerCase()) {
+        case 'jpeg':
+        case 'jpg':
+          outputOptions = { quality }
+          await sharpInstance.jpeg(outputOptions).toFile(outputFilePath)
+          break
+        case 'png':
+          await sharpInstance.png().toFile(outputFilePath)
+          break
+        case 'webp':
+          outputOptions = { quality }
+          await sharpInstance.webp(outputOptions).toFile(outputFilePath)
+          break
+        case 'bmp':
+          await sharpInstance.bmp().toFile(outputFilePath)
+          break
+        case 'tiff':
+          outputOptions = { quality }
+          await sharpInstance.tiff(outputOptions).toFile(outputFilePath)
+          break
+        default:
+          throw new Error(`不支持的目标格式: ${targetFormat}`)
+      }
+
+      result.successCount++
+    } catch (error) {
+      result.errorCount++
+      result.errors.push({
+        filePath: imagePath,
+        error: (error as Error).message
+      })
+    }
+  }
+
+  return result
 }

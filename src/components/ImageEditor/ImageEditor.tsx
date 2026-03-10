@@ -6,6 +6,7 @@ import FormatCompressDialog from './FormatCompressDialog'
 import CropOverlay from './CropOverlay'
 import { useImageEditor } from './useImageEditor'
 import { getFilterCss } from '../../utils/imageEditorUtils'
+import { imageLoader } from '../../utils'
 import type { ImageEditSettings } from '../../types'
 
 const getTransform = (settings: ImageEditSettings): string => {
@@ -36,6 +37,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
   const [openFormatDialog, setOpenFormatDialog] = useState(false)
   const [showCropOverlay, setShowCropOverlay] = useState(false)
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
+  const [saving, setSaving] = useState(false)
   const imgRef = useRef<HTMLImageElement>(null)
 
   const loadImage = useCallback(async () => {
@@ -91,22 +93,43 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
   }
 
   const handleSave = async () => {
+    if (!filePath) {
+      message.error('文件路径不可用，无法保存')
+      return
+    }
+
+    setSaving(true)
     try {
       const api = window.electronAPI
       if (!api) {
         throw new Error('electronAPI not available')
       }
       const res = await api.applyEdits(filePath, settings)
-      if (res[0]?.success) {
-        onSaved && onSaved({ success: true, filePath })
+      console.log('[ImageEditor] applyEdits result:', res)
+      const first = res && res[0]
+      if (first && first.success) {
+        if (first.newPath) {
+          message.success(`已保存为：${first.newPath}`)
+          imageLoader.clearCache(first.newPath)
+          onSaved && onSaved({ success: true, filePath: first.newPath })
+        } else {
+          message.success('已保存')
+          imageLoader.clearCache(filePath)
+          onSaved && onSaved({ success: true, filePath })
+        }
       } else {
+        const errMsg = first?.error || '返回结果为空'
+        message.error(`保存失败：${errMsg}`)
         onSaved && onSaved({ success: false, filePath })
       }
-    } catch (e) {
-      console.error(e)
+    } catch (e: any) {
+      console.error('[ImageEditor] 保存出错', e)
+      message.error(`保存出错：${e?.message || e}`)
       onSaved && onSaved({ success: false, filePath })
+    } finally {
+      setSaving(false)
+      onClose()
     }
-    onClose()
   }
 
   return (
@@ -119,10 +142,10 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
       centered
       footer={
         <Space>
-          <Button onClick={() => setOpenFormatDialog(true)}>格式/压缩</Button>
-          <Button onClick={handleReset}>重置</Button>
-          <Button onClick={onClose}>取消</Button>
-          <Button type="primary" onClick={handleSave}>保存</Button>
+          <Button onClick={() => setOpenFormatDialog(true)} disabled={saving}>格式/压缩</Button>
+          <Button onClick={handleReset} disabled={saving}>重置</Button>
+          <Button onClick={onClose} disabled={saving}>取消</Button>
+          <Button type="primary" onClick={handleSave} disabled={saving || loadingImage || !imageUrl} loading={saving}>保存</Button>
         </Space>
       }
       style={{

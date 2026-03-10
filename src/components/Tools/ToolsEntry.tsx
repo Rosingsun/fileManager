@@ -14,7 +14,7 @@ import BatchRename from './BatchRename/BatchRename'
 import Watermark from './Watermark/Watermark'
 import ImageStitch from './ImageStitch/ImageStitch'
 import GifMaker from './GifMaker/GifMaker'
-import ImageToPdf from './ImageToPdf/ImageToPdf'
+import ImageFormatConverter from './ImageFormatConverter/ImageFormatConverter'
 import ThumbnailGen from './ThumbnailGen/ThumbnailGen'
 import ImageEnhance from './ImageEnhance/ImageEnhance'
 
@@ -53,9 +53,9 @@ const tools: ToolItem[] = [
     icon: <FileImageOutlined style={{ fontSize: 32, color: '#f5222d' }} />
   },
   {
-    key: 'toPdf',
-    name: '图片转PDF',
-    description: '将单张或多张图片转换为 PDF 文档',
+    key: 'formatConversion',
+    name: '图片类型转换',
+    description: '将图片转换为不同格式（支持 JPEG/PNG/WebP/BMP/TIFF/PDF）',
     icon: <FilePdfOutlined style={{ fontSize: 32, color: '#722ed1' }} />
   },
   {
@@ -74,8 +74,6 @@ const tools: ToolItem[] = [
 
 const ToolsEntry: React.FC = () => {
   const [activeTool, setActiveTool] = useState<string | null>(null)
-  // Blank state modal visibility: show a centered modal when no tool is selected
-  const [showBlankModal, setShowBlankModal] = useState(true)
 
   const renderToolModal = () => {
     switch (activeTool) {
@@ -87,8 +85,8 @@ const ToolsEntry: React.FC = () => {
         return <ImageStitch visible={true} onClose={() => setActiveTool(null)} />
       case 'gif':
         return <GifMaker visible={true} onClose={() => setActiveTool(null)} />
-      case 'toPdf':
-        return <ImageToPdf visible={true} onClose={() => setActiveTool(null)} />
+      case 'formatConversion':
+        return <ImageFormatConverter visible={true} onClose={() => setActiveTool(null)} />
       case 'thumbnail':
         return <ThumbnailGen visible={true} onClose={() => setActiveTool(null)} />
       case 'enhance':
@@ -129,23 +127,7 @@ const ToolsEntry: React.FC = () => {
             </Row>
             </div>
           </div>
-        ) : (
-          // Centered modal to indicate no tool is selected
-          <Modal
-            open={showBlankModal}
-            onCancel={() => setShowBlankModal(false)}
-            footer={null}
-            centered
-            width={420}
-          >
-            <div style={{ textAlign: 'center' }}>
-              <Typography.Text strong>请选择一个工具</Typography.Text>
-              <div style={{ marginTop: 8, color: 'rgba(0,0,0,0.65)' }}>
-                从左侧工具列表中选择一个工具来开始工作
-              </div>
-            </div>
-          </Modal>
-        )}
+        ) : null }
       </div>
       {renderToolModal()}
     </>
