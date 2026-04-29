@@ -21,6 +21,7 @@ import ImageViewer from '../ImageViewer/ImageViewer'
 import type { Image } from '../ImageViewer/types'
 import { CategoryTag, PageSection, StatCard } from '../UnifiedUI'
 import { getCategoryTagColor } from '../../utils'
+import CategoryImageSelector from './CategoryImageSelector'
 
 const STORAGE_KEY = 'image_classification_results'
 
@@ -83,6 +84,19 @@ const ManualDownloadModal: React.FC<{
     }
   }
 
+  // 从URL中提取链接名称
+  const getLinkName = (url: string, index: number): string => {
+    try {
+      const urlObj = new URL(url)
+      const pathname = urlObj.pathname
+      const fileName = pathname.split('/').pop() || ''
+      if (fileName) return fileName
+    } catch {}
+    // 备用名称
+    const names = ['GitHub 主链接', '备用链接 1', '备用链接 2']
+    return names[index] || `下载链接 ${index + 1}`
+  }
+
   const handleOpenLink = async (url: string) => {
     await (window.electronAPI as any)?.openExternalLink?.(url)
   }
@@ -105,18 +119,24 @@ const ManualDownloadModal: React.FC<{
               {downloadUrls.length > 0 ? (
                 <Space direction="vertical" size="small" style={{ marginTop: 8 }}>
                   {downloadUrls.map((url, index) => (
-                    <a key={index} onClick={() => handleOpenLink(url)} style={{ fontSize: 13 }}>
-                      {url}
-                    </a>
+                    <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <DownloadOutlined style={{ color: '#1890ff' }} />
+                      <a onClick={() => handleOpenLink(url)} style={{ fontSize: 13 }}>
+                        {getLinkName(url, index)}
+                      </a>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        ({url.includes('github') ? 'GitHub' : '备用源'})
+                      </Text>
+                    </div>
                   ))}
                 </Space>
               ) : (
                 <Text type="secondary">
-                  下载链接: https://github.com/onnx/models (请搜索 {modelId || 'mobilenetv2'}.onnx)
+                  下载链接: <a onClick={() => handleOpenLink('https://github.com/onnx/models')}>GitHub ONNX Models</a> (请搜索 {modelId || 'mobilenetv2'}.onnx)
                 </Text>
               )}
               <Text type="secondary" style={{ marginTop: 8 }}>
-                下载后请将文件重命名为: <Text strong>{modelId || 'mobilenetv2'}.onnx</Text>
+                下载后请将文件重命名为: <Text strong copyable>{modelId || 'mobilenetv2'}.onnx</Text>
               </Text>
             </Space>
           }
@@ -238,6 +258,11 @@ const ImageClassification: React.FC = () => {
   const [availableModels, setAvailableModels] = useState<ClassificationModel[]>([])
   const [selectedModel, setSelectedModel] = useState<string>('mobilenetv2')
   const [modelExistsMap, setModelExistsMap] = useState<Record<string, boolean>>({})
+
+  // 分类图片选择器状态
+  const [categorySelectorVisible, setCategorySelectorVisible] = useState(false)
+  const [categorySelectorImages, setCategorySelectorImages] = useState<Image[]>([])
+  const [categorySelectorLabel, setCategorySelectorLabel] = useState('')
 
   useEffect(() => {
     if (window.electronAPI && window.electronAPI.onImageClassificationProgress) {
@@ -542,10 +567,20 @@ const ImageClassification: React.FC = () => {
      }
    }
 
-   const handleViewCategory = async (categories: ImageContentCategory[]) => {
+   // 分类标签映射
+const CATEGORY_NAME_MAP: Record<string, string> = {
+   person: '人物', portrait: '人像', selfie: '自拍',
+   dog: '狗', cat: '猫', bird: '鸟类', wild_animal: '野生动物', marine_animal: '海洋生物', insect: '昆虫', pet: '宠物',
+   landscape: '风景', mountain: '山脉', beach: '海滩', sunset: '日落', forest: '森林', cityscape: '城市风光', night_scene: '夜景',
+   building: '建筑', landmark: '地标', interior: '室内', street: '街道',
+   food: '食物', drink: '饮品', dessert: '甜点',
+   vehicle: '车辆', aircraft: '飞机', ship: '船舶',
+   art: '艺术', technology: '科技', document: '文档', other: '其他'
+ }
+
+ const handleViewCategory = async (categories: ImageContentCategory[], categoryName: string) => {
      try {
        const allImages: Image[] = []
-       let currentIndex = 0
 
        // 过滤出属于指定分类的图片
        const filteredResults = Array.from(results.entries()).filter(([_, classification]) => 
@@ -607,17 +642,24 @@ const ImageClassification: React.FC = () => {
          allImages.push(image)
        }
 
-       // 如果有匹配的图片，显示第一张
+       // 如果有匹配的图片，打开选择器模态窗口
        if (allImages.length > 0) {
-         setViewerImages(allImages)
-         setViewerCurrentIndex(0)
-         setViewerVisible(true)
+         setCategorySelectorImages(allImages)
+         setCategorySelectorLabel(categoryName)
+         setCategorySelectorVisible(true)
        } else {
          message.warning('该分类下暂无图片')
        }
      } catch (error) {
        message.error('查看分类图片失败: ' + (error instanceof Error ? error.message : String(error)))
      }
+   }
+
+   // 处理选择图片后打开大图
+   const handleCategoryImageSelect = (image: Image) => {
+     setViewerImages([image])
+     setViewerCurrentIndex(0)
+     setViewerVisible(true)
    }
 
   const tableData: ClassificationResult[] = Array.from(results.values()).map((r, i) => ({
@@ -729,6 +771,20 @@ const ImageClassification: React.FC = () => {
   const avgConfidence = results.size > 0 ? 
     Array.from(results.values()).reduce((sum, r) => sum + r.confidence, 0) / results.size : 0
 
+  // Render model download status tag
+  const renderModelStatusTag = () => {
+    switch (downloadStatus) {
+      case 'downloading':
+        return <Tag color="blue" style={{ marginLeft: 8 }} icon={<DownloadOutlined />}>下载中</Tag>
+      case 'completed':
+        return <Tag color="green" style={{ marginLeft: 8 }} icon={<CheckCircleOutlined />}>已就绪</Tag>
+      case 'error':
+        return <Tag color="red" style={{ marginLeft: 8 }} icon={<FrownOutlined />}>下载失败</Tag>
+      default:
+        return <Tag color="orange" style={{ marginLeft: 8 }} icon={<InboxOutlined />}>未下载</Tag>
+    }
+  }
+
   return (
     <Card
       title={
@@ -761,6 +817,7 @@ const ImageClassification: React.FC = () => {
               </Select.Option>
             ))}
           </Select>
+          {renderModelStatusTag()}
           {results.size > 0 && (
             <Button icon={<DeleteOutlined />} onClick={handleClearResults}>
               清除结果
@@ -897,13 +954,13 @@ const ImageClassification: React.FC = () => {
                   <StatCard title="平均置信度" value={`${Math.round(avgConfidence * 100)}%`} icon={<CheckCircleOutlined />} accent="var(--app-warning)" subtle />
                 </div>
                 <div className="classification-stats-grid">
-                  <StatCard title="人物" value={stats.people} icon={<UserOutlined />} accent={getCategoryTagColor('person')} onClick={() => handleViewCategory(['person', 'portrait', 'selfie'])} />
-                  <StatCard title="动物" value={stats.animals} icon={<FrownOutlined />} accent={getCategoryTagColor('dog')} onClick={() => handleViewCategory(['dog', 'cat', 'bird', 'wild_animal', 'marine_animal', 'insect', 'pet'])} />
-                  <StatCard title="风景" value={stats.landscapes} icon={<PictureOutlined />} accent={getCategoryTagColor('landscape')} onClick={() => handleViewCategory(['landscape', 'mountain', 'beach', 'sunset', 'forest', 'cityscape', 'night_scene'])} />
-                  <StatCard title="建筑" value={stats.buildings} icon={<BuildOutlined />} accent={getCategoryTagColor('building')} onClick={() => handleViewCategory(['building', 'landmark', 'interior', 'street'])} />
-                  <StatCard title="食物" value={stats.food} icon={<CoffeeOutlined />} accent={getCategoryTagColor('food')} onClick={() => handleViewCategory(['food', 'drink', 'dessert'])} />
-                  <StatCard title="交通" value={stats.transportation} icon={<CarOutlined />} accent={getCategoryTagColor('vehicle')} onClick={() => handleViewCategory(['vehicle', 'aircraft', 'ship'])} />
-                  <StatCard title="其他" value={stats.other} icon={<AppstoreOutlined />} accent={getCategoryTagColor('other')} onClick={() => handleViewCategory(['art', 'technology', 'document', 'other'])} />
+                  <StatCard title="人物" value={stats.people} icon={<UserOutlined />} accent={getCategoryTagColor('person')} onClick={() => handleViewCategory(['person', 'portrait', 'selfie'], '人物')} />
+                  <StatCard title="动物" value={stats.animals} icon={<FrownOutlined />} accent={getCategoryTagColor('dog')} onClick={() => handleViewCategory(['dog', 'cat', 'bird', 'wild_animal', 'marine_animal', 'insect', 'pet'], '动物')} />
+                  <StatCard title="风景" value={stats.landscapes} icon={<PictureOutlined />} accent={getCategoryTagColor('landscape')} onClick={() => handleViewCategory(['landscape', 'mountain', 'beach', 'sunset', 'forest', 'cityscape', 'night_scene'], '风景')} />
+                  <StatCard title="建筑" value={stats.buildings} icon={<BuildOutlined />} accent={getCategoryTagColor('building')} onClick={() => handleViewCategory(['building', 'landmark', 'interior', 'street'], '建筑')} />
+                  <StatCard title="食物" value={stats.food} icon={<CoffeeOutlined />} accent={getCategoryTagColor('food')} onClick={() => handleViewCategory(['food', 'drink', 'dessert'], '食物')} />
+                  <StatCard title="交通" value={stats.transportation} icon={<CarOutlined />} accent={getCategoryTagColor('vehicle')} onClick={() => handleViewCategory(['vehicle', 'aircraft', 'ship'], '交通')} />
+                  <StatCard title="其他" value={stats.other} icon={<AppstoreOutlined />} accent={getCategoryTagColor('other')} onClick={() => handleViewCategory(['art', 'technology', 'document', 'other'], '其他')} />
                 </div>
               </PageSection>
 
@@ -953,6 +1010,15 @@ const ImageClassification: React.FC = () => {
           onClose={() => setViewerVisible(false)}
         />
       )}
+
+      {/* 分类图片选择器模态窗口 */}
+      <CategoryImageSelector
+        visible={categorySelectorVisible}
+        images={categorySelectorImages}
+        categoryLabel={categorySelectorLabel}
+        onClose={() => setCategorySelectorVisible(false)}
+        onConfirm={handleCategoryImageSelect}
+      />
 
       {/* 手动下载 Modal */}
       <ManualDownloadModal

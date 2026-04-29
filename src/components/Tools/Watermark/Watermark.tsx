@@ -366,25 +366,20 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
                   <Card
                     size="small"
                     key={index}
-                    style={{ marginBottom: 8 }}
+                    style={{ marginBottom: 8, width: '100%' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text ellipsis style={{ flex: 1, marginRight: 8 }}>
-                        {img.name}
-                      </Text>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 0 }}>
+                        <img
+                          src={`file:///${img.path.replace(/\\/g, '/')}`}
+                          alt={img.name}
+                          style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                        />
+                        <Text ellipsis style={{ maxWidth: '60%', minWidth: 0 }}>{index + 1}. {img.name}</Text>
+                      </div>
                       <Space size="small">
-                        <Button 
-                          size="small" 
-                          icon={<EyeOutlined />}
-                          onClick={() => handlePreview(index)}
-                          loading={isGeneratingPreview && previewIndex === index}
-                        />
-                        <Button 
-                          size="small" 
-                          icon={<DeleteOutlined />}
-                          onClick={() => handleRemoveImage(index)}
-                          danger
-                        />
+                        <Button size="small" icon={<EyeOutlined />} onClick={() => handlePreview(index)} loading={isGeneratingPreview && previewIndex === index} />
+                        <Button size="small" icon={<DeleteOutlined />} onClick={() => handleRemoveImage(index)} danger />
                       </Space>
                     </div>
                   </Card>

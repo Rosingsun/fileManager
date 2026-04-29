@@ -12,7 +12,8 @@
     "dist": "npm run build && electron-builder",
     "start": "electron-forge start",
     "package": "electron-forge package",
-    "make": "electron-forge make"
+    "make": "electron-forge make",
+    "seed": "node seeds/seed.js"
   },
   "keywords": [
     "electron",

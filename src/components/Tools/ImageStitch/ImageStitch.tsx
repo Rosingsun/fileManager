@@ -298,39 +298,44 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
               <Empty description="请先添加图片" />
             ) : (
               <div style={{ padding: 8 }}>
-                {images.map((img, index) => (
-                  <Card
-                    size="small"
-                    key={index}
-                    style={{ marginBottom: 8 }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text ellipsis style={{ flex: 1, marginRight: 8 }}>
-                        {index + 1}. {img.name}
-                      </Text>
-                      <Space>
-                        <Button 
-                          size="small" 
-                          icon={<ArrowUpOutlined />}
-                          onClick={() => handleMoveImage(index, 'up')}
-                          disabled={index === 0}
-                        />
-                        <Button 
-                          size="small" 
-                          icon={<ArrowDownOutlined />}
-                          onClick={() => handleMoveImage(index, 'down')}
-                          disabled={index === images.length - 1}
-                        />
-                        <Button 
-                          size="small" 
-                          icon={<DeleteOutlined />}
-                          onClick={() => handleRemoveImage(index)}
-                          danger
-                        />
-                      </Space>
-                    </div>
-                  </Card>
-                ))}
+                  {images.map((img, index) => (
+                    <Card
+                      size="small"
+                      key={index}
+                      style={{ marginBottom: 8, width: '100%' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 0 }}>
+                          <img
+                            src={`file:///${img.path.replace(/\\/g, '/')}`}
+                            alt={img.name}
+                            style={{ width: 90, height: 60, objectFit: 'cover', borderRadius: 4 }}
+                          />
+                          <Text ellipsis style={{ maxWidth: '60%', minWidth: 0 }}>{index + 1}. {img.name}</Text>
+                        </div>
+                        <Space>
+                          <Button 
+                            size="small" 
+                            icon={<ArrowUpOutlined />}
+                            onClick={() => handleMoveImage(index, 'up')}
+                            disabled={index === 0}
+                          />
+                          <Button 
+                            size="small" 
+                            icon={<ArrowDownOutlined />}
+                            onClick={() => handleMoveImage(index, 'down')}
+                            disabled={index === images.length - 1}
+                          />
+                          <Button 
+                            size="small" 
+                            icon={<DeleteOutlined />}
+                            onClick={() => handleRemoveImage(index)}
+                            danger
+                          />
+                        </Space>
+                      </div>
+                    </Card>
+                  ))}
               </div>
             )}
           </div>

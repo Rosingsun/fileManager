@@ -254,7 +254,7 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {files.length === 0 ? (
               <Empty description="请先添加图片" />
             ) : (
@@ -263,12 +263,17 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
                   <Card
                     size="small"
                     key={index}
-                    style={{ marginBottom: 8 }}
+                    style={{ marginBottom: 8, width: '100%' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text ellipsis style={{ flex: 1, marginRight: 8 }}>
-                        {file.name}
-                      </Text>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <img
+                          src={`file:///${file.path.replace(/\\/g, '/')}`}
+                          alt={file.name}
+                          style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                        />
+                        <Text ellipsis style={{ maxWidth: 260 }}>{file.name}</Text>
+                      </div>
                       <Button 
                         size="small" 
                         icon={<DeleteOutlined />}

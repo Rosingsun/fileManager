@@ -249,12 +249,19 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
                   <Card
                     size="small"
                     key={index}
-                    style={{ marginBottom: 8 }}
+                    style={{ marginBottom: 8, width: '100%' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text ellipsis style={{ flex: 1, marginRight: 8, maxWidth: 200 }}>
-                        {index + 1}. {frame.name}
-                      </Text>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 0 }}>
+                        <img
+                          src={`file:///${frame.path.replace(/\\/g, '/')}`}
+                          alt={frame.name}
+                          style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                        />
+                        <Text ellipsis style={{ flex: 1, marginRight: 8, maxWidth: 200 }}>
+                          {index + 1}. {frame.name}
+                        </Text>
+                      </div>
                       <Space size="small">
                         <InputNumber 
                           size="small"
@@ -263,7 +270,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
                           min={50}
                           max={5000}
                           step={50}
-                          style={{ width: 80 }}
+                          style={{ width: 110 }}
                           addonAfter="ms"
                         />
                         <Button 

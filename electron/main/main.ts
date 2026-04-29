@@ -220,24 +220,6 @@ ipcMain.handle('dialog:openDirectory', async () => {
   return result.filePaths[0]
 })
 
-// IPC 处理器：选择文件
-ipcMain.handle('dialog:selectFiles', async (_event, filter?: string) => {
-  if (!mainWindow) return null
-  
-  const filters = filter === 'image' ? [{ name: '图片文件', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'] }] : []
-  
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile', 'multiSelections'],
-    filters,
-    title: '选择文件'
-  })
-  
-  if (result.canceled) {
-    return null
-  }
-  return result.filePaths
-})
-
 // IPC 处理器：打开外部链接
 ipcMain.handle('shell:openExternal', async (_event, url: string): Promise<boolean> => {
   try {
@@ -1198,9 +1180,9 @@ const CLASSIFICATION_MODELS = [
     sizeMB: 14,
     inputSize: 224,
     downloadUrls: [
-      'https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx',
-      'https://github.com/onnx/models/raw/master/vision/classification/mobilenet/model/mobilenetv2-7.onnx',
-      'https://github.com/onnx/models/raw/main/vision/classification/mobilenet_v2/mobilenetv2-7.onnx'
+      'https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/mobilenetv2-7.onnx',
+      'https://github.com/onnx/models/raw/master/validated/vision/classification/mobilenet/mobilenetv2-7.onnx',
+      'https://huggingface.co/onnxmodelzoo/resolve/main/mobilenet_v2/mobilenetv2-7.onnx'
     ]
   },
   {
@@ -1210,8 +1192,8 @@ const CLASSIFICATION_MODELS = [
     sizeMB: 20,
     inputSize: 224,
     downloadUrls: [
-      'https://github.com/onnx/models/raw/main/vision/classification/efficientnet/model/efficientnet-b0.onnx',
-      'https://github.com/onnx/models/raw/master/vision/classification/efficientnet/model/efficientnet-b0.onnx'
+      'https://github.com/onnx/models/raw/main/validated/vision/classification/efficientnet-lite4/efficientnet-lite4-11.onnx',
+      'https://huggingface.co/onnxmodelzoo/resolve/main/efficientnet-lite4/efficientnet-lite4-11.onnx'
     ]
   },
   {
@@ -1221,8 +1203,8 @@ const CLASSIFICATION_MODELS = [
     sizeMB: 75,
     inputSize: 380,
     downloadUrls: [
-      'https://github.com/onnx/models/raw/main/vision/classification/efficientnet/model/efficientnet-b4.onnx',
-      'https://github.com/onnx/models/raw/master/vision/classification/efficientnet/model/efficientnet-b4.onnx'
+      'https://github.com/onnx/models/raw/main/validated/vision/classification/efficientnet-b4/efficientnet-b4.onnx',
+      'https://huggingface.co/onnxmodelzoo/resolve/main/efficientnet-b4/efficientnet-b4.onnx'
     ]
   }
 ] as const
