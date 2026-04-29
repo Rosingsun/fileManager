@@ -15,3 +15,4 @@ export { default as ImageEditor } from './ImageEditor/ImageEditor'
 export { default as BatchEditModal } from './ImageEditor/BatchEditModal'
 
 export { default as ToolsEntry } from './Tools/ToolsEntry'
+export * from './UnifiedUI'

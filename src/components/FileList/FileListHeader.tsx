@@ -59,8 +59,8 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   const showImageFilter = imageClassificationResults.size > 0
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-      <Space size="small">
+    <div className="file-filter-bar">
+      <div className="file-filter-bar__left">
         {!isCurrentPathInHistory && (
           <Button
             type="default"
@@ -74,12 +74,13 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
           </Button>
         )}
         {!isCurrentPathInHistory && (
-          <span style={{ fontSize: '14px', color: '#666' }}>
+          <span className="file-filter-bar__path" title={currentPath}>
             当前路径: {currentPath}
           </span>
         )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 16, padding: '4px 8px', backgroundColor: '#f5f5f5', borderRadius: 6 }}>
-          <FilterOutlined style={{ color: '#666' }} />
+        <div className="filter-chip">
+          <FilterOutlined style={{ color: 'var(--app-text-secondary)' }} />
+          <span className="filter-chip__label">类型</span>
           <Select
             value={selectedCategory}
             onChange={onCategoryChange}
@@ -125,13 +126,13 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
           )}
         </div>
         {selectedCategory !== 'all' && (
-          <span style={{ fontSize: 12, color: '#999' }}>
+          <span className="file-filter-bar__meta">
             ({filteredFileList.length} 项)
           </span>
         )}
         {showImageFilter && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px', backgroundColor: '#f0f5ff', borderRadius: 6, marginLeft: 8 }}>
-            <span style={{ fontSize: 12, color: '#1890ff' }}>内容分类:</span>
+          <div className="filter-chip is-emphasis">
+            <span className="filter-chip__label">内容分类</span>
             <Select
               value={selectedImageCategory}
               onChange={onImageCategoryChange}
@@ -159,11 +160,10 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
             )}
           </div>
         )}
-      </Space>
-      <Space size="middle">
-        {/* small pagination summary so users know which page they're on when grid is selected */}
+      </div>
+      <div className="file-filter-bar__right">
         {total > 0 && (
-          <span style={{ fontSize: 12, color: '#999' }}>
+          <span className="file-filter-bar__meta">
             第 {currentPage} 页 / 共 {Math.ceil(total / pageSize)} 页
           </span>
         )}
@@ -174,7 +174,7 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
           onChange={(checked: boolean) => onViewModeChange(checked ? 'grid' : 'list')}
           title={viewMode === 'list' ? '切换到网格视图' : '切换到列表视图'}
         />
-      </Space>
+      </div>
     </div>
   )
 }

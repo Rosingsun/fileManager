@@ -19,6 +19,8 @@ import type { ImageContentCategory, ImageClassificationResult, ImageClassificati
 import { useFileStore } from '../../stores/fileStore'
 import ImageViewer from '../ImageViewer/ImageViewer'
 import type { Image } from '../ImageViewer/types'
+import { CategoryTag, PageSection, StatCard } from '../UnifiedUI'
+import { getCategoryTagColor } from '../../utils'
 
 const STORAGE_KEY = 'image_classification_results'
 
@@ -172,18 +174,6 @@ const ManualDownloadModal: React.FC<{
       </Space>
     </Modal>
   )
-}
-
-const CATEGORY_COLORS: Record<ImageContentCategory, string> = {
-  person: '#722ed1', portrait: '#eb2f96', selfie: '#fa541c',
-  dog: '#fa8c16', cat: '#fadb14', bird: '#13c2c2', wild_animal: '#52c41a',
-  marine_animal: '#1890ff', insect: '#95de64', pet: '#ffc53d',
-  landscape: '#73d13d', mountain: '#08979c', beach: '#40a9ff', sunset: '#fa8c16',
-  forest: '#389e0d', cityscape: '#1d39c4', night_scene: '#531dab',
-  building: '#1890ff', landmark: '#13c2c2', interior: '#73d13d', street: '#1d39c4',
-  food: '#f5222d', drink: '#69c0ff', dessert: '#ff85c0',
-  vehicle: '#1890ff', aircraft: '#597ef7', ship: '#36cfc9',
-  art: '#eb2f96', technology: '#2f54eb', document: '#faad14', other: '#8c8c8c'
 }
 
 const CATEGORY_LABELS: Record<ImageContentCategory, string> = {
@@ -480,77 +470,155 @@ const ImageClassification: React.FC = () => {
     message.info('已清除分类结果')
   }
 
-  const handleViewImage = async (filePath: string) => {
-    try {
-      const allImages: Image[] = []
-      let currentIndex = 0
+   const handleViewImage = async (filePath: string) => {
+     try {
+       const allImages: Image[] = []
+       let currentIndex = 0
 
-      for (const [path, classification] of results.entries()) {
-        const fileName = path.split(/[/\\]/).pop() || path
+       for (const [path, classification] of results.entries()) {
+         const fileName = path.split(/[/\\]/).pop() || path
 
-        let width = 0, height = 0
-        let imageUrl = `file://${path}`
-        
-        // 尝试从缓存获取已加载的图片数据
-        try {
-          const cachedData = localStorage.getItem(`image_data_${path}`)
-          if (cachedData) {
-            const cached = JSON.parse(cachedData)
-            if (cached.url && cached.width > 0 && cached.height > 0) {
-              width = cached.width
-              height = cached.height
-              imageUrl = cached.url
-            }
-          }
-        } catch (e) {
-          console.warn('读取缓存图片数据失败:', path)
-        }
+         let width = 0, height = 0
+         let imageUrl = `file://${path}`
+         
+         // 尝试从缓存获取已加载的图片数据
+         try {
+           const cachedData = localStorage.getItem(`image_data_${path}`)
+           if (cachedData) {
+             const cached = JSON.parse(cachedData)
+             if (cached.url && cached.width > 0 && cached.height > 0) {
+               width = cached.width
+               height = cached.height
+               imageUrl = cached.url
+             }
+           }
+         } catch (e) {
+           console.warn('读取缓存图片数据失败:', path)
+         }
 
-        // 如果没有缓存，尝试获取尺寸
-        if (width === 0 || height === 0) {
-          try {
-            const dims = await window.electronAPI?.getImageDimensions(path)
-            if (dims && dims.width > 0 && dims.height > 0) {
-              width = dims.width
-              height = dims.height
-            }
-          } catch (e) {
-            console.warn('获取图片尺寸失败:', path)
-          }
-        }
+         // 如果没有缓存，尝试获取尺寸
+         if (width === 0 || height === 0) {
+           try {
+             const dims = await window.electronAPI?.getImageDimensions(path)
+             if (dims && dims.width > 0 && dims.height > 0) {
+               width = dims.width
+               height = dims.height
+             }
+           } catch (e) {
+             console.warn('获取图片尺寸失败:', path)
+           }
+         }
 
-        const image: Image = {
-          id: path,
-          url: imageUrl,
-          filename: fileName,
-          width,
-          height,
-          size: 0,
-          format: 'unknown',
-          createdAt: new Date().toISOString(),
-          modifiedAt: new Date().toISOString(),
-          classification: {
-            filePath: path,
-            category: classification.category,
-            confidence: classification.confidence,
-            topPredictions: classification.topPredictions
-          }
-        }
+         const image: Image = {
+           id: path,
+           url: imageUrl,
+           filename: fileName,
+           width,
+           height,
+           size: 0,
+           format: 'unknown',
+           createdAt: new Date().toISOString(),
+           modifiedAt: new Date().toISOString(),
+           classification: {
+             filePath: path,
+             category: classification.category,
+             confidence: classification.confidence,
+             topPredictions: classification.topPredictions
+           }
+         }
 
-        allImages.push(image)
+         allImages.push(image)
 
-        if (path === filePath) {
-          currentIndex = allImages.length - 1
-        }
-      }
+         if (path === filePath) {
+           currentIndex = allImages.length - 1
+         }
+       }
 
-      setViewerImages(allImages)
-      setViewerCurrentIndex(currentIndex)
-      setViewerVisible(true)
-    } catch (error) {
-      message.error('打开图片失败: ' + (error instanceof Error ? error.message : String(error)))
-    }
-  }
+       setViewerImages(allImages)
+       setViewerCurrentIndex(currentIndex)
+       setViewerVisible(true)
+     } catch (error) {
+       message.error('打开图片失败: ' + (error instanceof Error ? error.message : String(error)))
+     }
+   }
+
+   const handleViewCategory = async (categories: ImageContentCategory[]) => {
+     try {
+       const allImages: Image[] = []
+       let currentIndex = 0
+
+       // 过滤出属于指定分类的图片
+       const filteredResults = Array.from(results.entries()).filter(([_, classification]) => 
+         categories.includes(classification.category)
+       )
+
+       for (const [path, classification] of filteredResults) {
+         const fileName = path.split(/[/\\]/).pop() || path
+
+         let width = 0, height = 0
+         let imageUrl = `file://${path}`
+         
+         // 尝试从缓存获取已加载的图片数据
+         try {
+           const cachedData = localStorage.getItem(`image_data_${path}`)
+           if (cachedData) {
+             const cached = JSON.parse(cachedData)
+             if (cached.url && cached.width > 0 && cached.height > 0) {
+               width = cached.width
+               height = cached.height
+               imageUrl = cached.url
+             }
+           }
+         } catch (e) {
+           console.warn('读取缓存图片数据失败:', path)
+         }
+
+         // 如果没有缓存，尝试获取尺寸
+         if (width === 0 || height === 0) {
+           try {
+             const dims = await window.electronAPI?.getImageDimensions(path)
+             if (dims && dims.width > 0 && dims.height > 0) {
+               width = dims.width
+               height = dims.height
+             }
+           } catch (e) {
+             console.warn('获取图片尺寸失败:', path)
+           }
+         }
+
+         const image: Image = {
+           id: path,
+           url: imageUrl,
+           filename: fileName,
+           width,
+           height,
+           size: 0,
+           format: 'unknown',
+           createdAt: new Date().toISOString(),
+           modifiedAt: new Date().toISOString(),
+           classification: {
+             filePath: path,
+             category: classification.category,
+             confidence: classification.confidence,
+             topPredictions: classification.topPredictions
+           }
+         }
+
+         allImages.push(image)
+       }
+
+       // 如果有匹配的图片，显示第一张
+       if (allImages.length > 0) {
+         setViewerImages(allImages)
+         setViewerCurrentIndex(0)
+         setViewerVisible(true)
+       } else {
+         message.warning('该分类下暂无图片')
+       }
+     } catch (error) {
+       message.error('查看分类图片失败: ' + (error instanceof Error ? error.message : String(error)))
+     }
+   }
 
   const tableData: ClassificationResult[] = Array.from(results.values()).map((r, i) => ({
     key: i,
@@ -575,9 +643,10 @@ const ImageClassification: React.FC = () => {
       dataIndex: 'category',
       key: 'category',
       render: (category: ImageContentCategory) => (
-        <Tag color={CATEGORY_COLORS[category] || CATEGORY_COLORS.other}>
-          {CATEGORY_LABELS[category] || category}
-        </Tag>
+        <CategoryTag
+          color={getCategoryTagColor(category)}
+          label={CATEGORY_LABELS[category] || category}
+        />
       )
     },
     {
@@ -675,7 +744,7 @@ const ImageClassification: React.FC = () => {
         </Space>
       }
       extra={
-        <Space>
+        <div className="classification-toolbar__actions">
           <Select
             value={selectedModel}
             onChange={(value) => {
@@ -721,23 +790,17 @@ const ImageClassification: React.FC = () => {
               (请先选择目录)
             </span>
           )}
-        </Space>
+        </div>
       }
+      className="app-surface-card"
       style={{ height: '100%', overflow: 'auto' }}
       bodyStyle={{ padding: '16px' }}
     >
       {!classificationPath ? (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '60px 20px', 
-          color: '#999',
-          background: '#f5f5f5',
-          borderRadius: 8,
-          marginBottom: 16
-        }}>
-          <FolderOpenOutlined style={{ fontSize: 64, marginBottom: 24, color: '#bfbfbf' }} />
-          <div style={{ fontSize: 16, marginBottom: 8, color: '#666' }}>请先选择要分类的图片目录</div>
-          <div style={{ fontSize: 14, marginBottom: 24, color: '#999' }}>点击下方按钮选择包含图片的文件夹</div>
+        <div className="app-empty-state is-panel">
+          <FolderOpenOutlined className="app-empty-state__icon" />
+          <div className="app-empty-state__title">请先选择要分类的图片目录</div>
+          <div className="app-empty-state__description">点击下方按钮选择包含图片的文件夹，再下载模型并开始分类。</div>
           <Button 
             type="primary" 
             icon={<FolderOpenOutlined />} 
@@ -748,7 +811,7 @@ const ImageClassification: React.FC = () => {
           </Button>
         </div>
       ) : (
-        <>
+        <div className="classification-page">
           {!modelExists && downloadStatus !== 'downloading' && (
             <Alert
               message="模型未下载"
@@ -775,11 +838,7 @@ const ImageClassification: React.FC = () => {
           )}
 
           {isDownloading && downloadProgress !== null && (
-            <Card
-              size="small"
-              style={{ marginBottom: 16, backgroundColor: '#f6ffed', borderColor: '#52c41a' }}
-              title="正在下载模型..."
-            >
+            <PageSection title="正在下载模型" subtitle="模型会保存在本地 models 目录中">
               <Progress
                 percent={downloadProgress}
                 status="active"
@@ -793,13 +852,13 @@ const ImageClassification: React.FC = () => {
                   取消下载
                 </Button>
               </div>
-            </Card>
+            </PageSection>
           )}
 
           {classificationPath && (
-            <div style={{ marginBottom: 16, padding: '8px 12px', background: '#e6f7ff', borderRadius: 6, border: '1px solid #91d5ff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div className="classification-path-chip">
               <div>
-                <Text strong style={{ color: '#1890ff' }}>当前目录: </Text>
+                <Text strong style={{ color: 'var(--app-primary)' }}>当前目录: </Text>
                 <Text code style={{ fontSize: 12 }}>{classificationPath}</Text>
               </div>
               <Button 
@@ -831,84 +890,24 @@ const ImageClassification: React.FC = () => {
 
           {stats.total > 0 && !isClassifying && (
             <>
-              {/* 分类概览统计 */}
-              <div style={{ marginBottom: 16 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12, color: '#262626' }}>分类概览</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 16 }}>
-                  <Card size="small" bordered={false} style={{ backgroundColor: '#f6ffed', border: '1px solid #b7eb8f' }}>
-                    <Statistic title="总计" value={stats.total} prefix={<CheckCircleOutlined />} />
-                  </Card>
-                  <Card size="small" bordered={false} style={{ backgroundColor: '#fff7e6', border: '1px solid #ffd591' }}>
-                    <Statistic title="成功" value={stats.success} valueStyle={{ color: '#52c41a' }} />
-                  </Card>
-                  <Card size="small" bordered={false} style={{ backgroundColor: '#f0f5ff', border: '1px solid #adc6ff' }}>
-                    <Statistic title="平均置信度" value={Math.round(avgConfidence * 100)} suffix="%" valueStyle={{ color: '#1890ff' }} />
-                  </Card>
+              <PageSection title="分类概览" subtitle="以统一统计卡展示识别总量与主要类型分布">
+                <div className="classification-stats-grid">
+                  <StatCard title="总计" value={stats.total} icon={<CheckCircleOutlined />} accent="var(--app-success)" subtle />
+                  <StatCard title="成功" value={stats.success} icon={<ApiOutlined />} accent="var(--app-primary)" subtle />
+                  <StatCard title="平均置信度" value={`${Math.round(avgConfidence * 100)}%`} icon={<CheckCircleOutlined />} accent="var(--app-warning)" subtle />
                 </div>
-
-                {/* 主要分类统计 */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12 }}>
-                  <Card size="small" bordered={false} hoverable>
-                    <Statistic 
-                      title="人物" 
-                      value={stats.people} 
-                      valueStyle={{ color: CATEGORY_COLORS.person }} 
-                      prefix={<UserOutlined />}
-                    />
-                  </Card>
-                  <Card size="small" bordered={false} hoverable>
-                    <Statistic 
-                      title="动物" 
-                      value={stats.animals} 
-                      valueStyle={{ color: CATEGORY_COLORS.dog }} 
-                      prefix={<FrownOutlined />}
-                    />
-                  </Card>
-                  <Card size="small" bordered={false} hoverable>
-                    <Statistic 
-                      title="风景" 
-                      value={stats.landscapes} 
-                      valueStyle={{ color: CATEGORY_COLORS.landscape }} 
-                      prefix={<PictureOutlined />}
-                    />
-                  </Card>
-                  <Card size="small" bordered={false} hoverable>
-                    <Statistic 
-                      title="建筑" 
-                      value={stats.buildings} 
-                      valueStyle={{ color: CATEGORY_COLORS.building }} 
-                      prefix={<BuildOutlined />}
-                    />
-                  </Card>
-                  <Card size="small" bordered={false} hoverable>
-                    <Statistic 
-                      title="食物" 
-                      value={stats.food} 
-                      valueStyle={{ color: CATEGORY_COLORS.food }} 
-                      prefix={<CoffeeOutlined />}
-                    />
-                  </Card>
-                  <Card size="small" bordered={false} hoverable>
-                    <Statistic 
-                      title="交通" 
-                      value={stats.transportation} 
-                      valueStyle={{ color: CATEGORY_COLORS.vehicle }} 
-                      prefix={<CarOutlined />}
-                    />
-                  </Card>
-                  <Card size="small" bordered={false} hoverable>
-                    <Statistic 
-                      title="其他" 
-                      value={stats.other} 
-                      valueStyle={{ color: CATEGORY_COLORS.other }} 
-                      prefix={<AppstoreOutlined />}
-                    />
-                  </Card>
+                <div className="classification-stats-grid">
+                  <StatCard title="人物" value={stats.people} icon={<UserOutlined />} accent={getCategoryTagColor('person')} onClick={() => handleViewCategory(['person', 'portrait', 'selfie'])} />
+                  <StatCard title="动物" value={stats.animals} icon={<FrownOutlined />} accent={getCategoryTagColor('dog')} onClick={() => handleViewCategory(['dog', 'cat', 'bird', 'wild_animal', 'marine_animal', 'insect', 'pet'])} />
+                  <StatCard title="风景" value={stats.landscapes} icon={<PictureOutlined />} accent={getCategoryTagColor('landscape')} onClick={() => handleViewCategory(['landscape', 'mountain', 'beach', 'sunset', 'forest', 'cityscape', 'night_scene'])} />
+                  <StatCard title="建筑" value={stats.buildings} icon={<BuildOutlined />} accent={getCategoryTagColor('building')} onClick={() => handleViewCategory(['building', 'landmark', 'interior', 'street'])} />
+                  <StatCard title="食物" value={stats.food} icon={<CoffeeOutlined />} accent={getCategoryTagColor('food')} onClick={() => handleViewCategory(['food', 'drink', 'dessert'])} />
+                  <StatCard title="交通" value={stats.transportation} icon={<CarOutlined />} accent={getCategoryTagColor('vehicle')} onClick={() => handleViewCategory(['vehicle', 'aircraft', 'ship'])} />
+                  <StatCard title="其他" value={stats.other} icon={<AppstoreOutlined />} accent={getCategoryTagColor('other')} onClick={() => handleViewCategory(['art', 'technology', 'document', 'other'])} />
                 </div>
-              </div>
+              </PageSection>
 
-              {/* 分类结果表格 */}
-              <Card size="small" title="分类结果" style={{ marginBottom: 16 }}>
+              <PageSection title="分类结果" subtitle={`共 ${tableData.length} 项结果，可点击文件名查看图片`}>
                 <Table
                   columns={columns}
                   dataSource={tableData}
@@ -922,27 +921,27 @@ const ImageClassification: React.FC = () => {
                   scroll={{ y: 400 }}
                   style={{ marginTop: 8 }}
                 />
-              </Card>
+              </PageSection>
             </>
           )}
 
           {stats.total === 0 && !isClassifying && !isDownloading && (
-            <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
-              <ApiOutlined style={{ fontSize: 48, marginBottom: 16 }} />
+            <div className="app-empty-state">
+              <ApiOutlined className="app-empty-state__icon" />
               {modelExists ? (
                 <>
-                  <p>点击"开始分类"对当前目录的图片进行内容分类</p>
-                  <p style={{ fontSize: 12 }}>支持人物、动物、风景、建筑、食物、交通等25个细分类别的智能识别</p>
+                  <p className="app-empty-state__title">点击“开始分类”分析当前目录图片内容</p>
+                  <p className="app-empty-state__description">支持人物、动物、风景、建筑、食物、交通等 25 个细分类别的智能识别。</p>
                 </>
               ) : (
                 <>
-                  <p>请先下载分类模型，然后点击"开始分类"</p>
-                  <p style={{ fontSize: 12 }}>模型文件约 14MB，下载后保存在本地</p>
+                  <p className="app-empty-state__title">请先下载分类模型，然后再开始识别</p>
+                  <p className="app-empty-state__description">模型文件约 14MB，下载后保存在本地。</p>
                 </>
               )}
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* 图片查看器 */}

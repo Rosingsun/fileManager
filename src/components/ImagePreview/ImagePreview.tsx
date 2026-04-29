@@ -104,8 +104,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
   const [loadProgress, setLoadProgress] = useState(0)
   const [loadError, setLoadError] = useState(false)
   const [actualIndex, setActualIndex] = useState(currentIndex)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 })
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -206,57 +204,6 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       setImageNaturalSize({ width: img.naturalWidth, height: img.naturalHeight })
     }
   }, [visible, currentImage?.src])
-
-  // 监听容器尺寸变化
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    const updateContainerSize = () => {
-      if (containerRef.current) {
-        const { clientWidth, clientHeight } = containerRef.current
-        setContainerSize({ width: clientWidth, height: clientHeight })
-      }
-    }
-
-    updateContainerSize()
-
-    const resizeObserver = new ResizeObserver(updateContainerSize)
-    resizeObserver.observe(containerRef.current)
-
-    return () => {
-      resizeObserver.disconnect()
-    }
-  }, [visible])
-
-  // 计算适应容器的初始缩放比例
-  const calculateFitScale = useCallback(() => {
-    if (containerSize.width === 0 || containerSize.height === 0 || 
-        imageNaturalSize.width === 0 || imageNaturalSize.height === 0) {
-      return 100
-    }
-
-    const padding = 10
-    const availableWidth = containerSize.width - padding * 2
-    const availableHeight = containerSize.height - padding * 2
-
-    const scaleX = (availableWidth / imageNaturalSize.width) * 100
-    const scaleY = (availableHeight / imageNaturalSize.height) * 100
-
-    return Math.min(scaleX, scaleY)
-  }, [containerSize, imageNaturalSize])
-
-  // 当图片尺寸或容器尺寸变化时，计算并设置适应容器的初始缩放比例
-  useEffect(() => {
-    if (!visible || !currentImage?.src) return
-    if (containerSize.width === 0 || containerSize.height === 0) return
-
-    const timer = setTimeout(() => {
-      const fitScale = calculateFitScale()
-      setScale(fitScale)
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [visible, currentImage?.src, containerSize, imageNaturalSize, calculateFitScale])
 
   // 判断图片方向：横向或竖向
   const isLandscape = imageNaturalSize.width >= imageNaturalSize.height
@@ -491,7 +438,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
       style={{ top: '5%', position: 'relative', height: 'auto', maxHeight: '90vh' }}
       className={`image-preview-modal ${className}`}
     >
-      <div ref={containerRef} className="image-preview-container">
+      <div className="image-preview-container">
         {/* 状态显示 */}
         <div className="image-preview-status">
           <Space>

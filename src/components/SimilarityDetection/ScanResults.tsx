@@ -1,10 +1,11 @@
 import React, { useState, useRef } from 'react'
-import { Card, Button, Space, Typography, Progress, Checkbox, Modal, message, Statistic, Row, Col } from 'antd'
-import { DeleteOutlined, ReloadOutlined, CheckCircleOutlined, PictureOutlined } from '@ant-design/icons'
+import { Card, Button, Typography, Progress, Checkbox, Modal, message, Empty } from 'antd'
+import { DeleteOutlined, ReloadOutlined, CheckCircleOutlined, PictureOutlined, ScanOutlined, SaveOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import type { SimilarityScanResult, SimilarityScanConfig } from '../../types'
 import { formatFileSize, formatDateTime } from '../../utils/fileUtils'
 import ImagePreview, { type ImageSource } from '../ImagePreview/ImagePreview'
 import { imageLoader } from '../../utils/imageLoader'
+import { PageSection, SelectionActionBar, StatCard } from '../UnifiedUI'
 import './ScanResults.css'
 
 const { Text } = Typography
@@ -15,7 +16,7 @@ interface ScanResultsProps {
   onReset: () => void
 }
 
-const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
+const ScanResults: React.FC<ScanResultsProps> = ({ result, config, onReset }) => {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [groupSelections, setGroupSelections] = useState<Map<string, Set<string>>>(new Map())
   const [previewVisible, setPreviewVisible] = useState(false)
@@ -327,119 +328,97 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
     return totalSize
   }
 
+  const handleClearSelection = () => {
+    setSelectedGroups(new Set())
+  }
+
   return (
     <div className="scan-results">
-      <Space direction="vertical" style={{ width: '100%' }} size="large">
-        {/* 统计信息 */}
-        <Card className="stat-card" variant="borderless">
-          <Row gutter={[16, 16]}>
-            <Col xs={12} sm={12} md={6}>
-              <div className="stat-item">
-                <Statistic 
-                  title={<span className="stat-title">扫描照片数</span>} 
-                  value={result.totalImages} 
-                  valueStyle={{ color: '#1890ff', fontSize: '24px', fontWeight: '600' }}
-                />
-              </div>
-            </Col>
-            <Col xs={12} sm={12} md={6}>
-              <div className="stat-item">
-                <Statistic 
-                  title={<span className="stat-title">相似组数</span>} 
-                  value={result.totalGroups} 
-                  valueStyle={{ color: '#52c41a', fontSize: '24px', fontWeight: '600' }}
-                />
-              </div>
-            </Col>
-            <Col xs={12} sm={12} md={6}>
-              <div className="stat-item">
-                <Statistic 
-                  title={<span className="stat-title">可释放空间</span>} 
-                  value={formatFileSize(calculateSpaceToSave())} 
-                  valueStyle={{ color: '#faad14', fontSize: '24px', fontWeight: '600' }}
-                />
-              </div>
-            </Col>
-            <Col xs={12} sm={12} md={6}>
-              <div className="stat-item">
-                <Statistic 
-                  title={<span className="stat-title">扫描耗时</span>} 
-                  value={`${(result.scanTime / 1000).toFixed(1)}秒`} 
-                  valueStyle={{ color: '#722ed1', fontSize: '24px', fontWeight: '600' }}
-                />
-              </div>
-            </Col>
-          </Row>
-        </Card>
-
-        {/* 批量操作 */}
-        <Card className="batch-actions-card" variant="borderless">
-          <div className="batch-actions">
-            <Button 
-              icon={<CheckCircleOutlined />} 
-              onClick={handleMarkAllBest}
-              className="batch-btn"
-              size="large"
-            >
-              标记所有最佳照片
-            </Button>
-            <Button
-              icon={<DeleteOutlined />}
-              danger
-              onClick={handleDeleteSelected}
-              disabled={selectedGroups.size === 0}
-              className="batch-btn delete-btn"
-              size="large"
-            >
-              删除选中组的非保留照片 ({selectedGroups.size} 组)
-            </Button>
-            <Button 
-              icon={<ReloadOutlined />} 
-              onClick={onReset}
-              className="batch-btn reset-btn"
-              size="large"
-            >
-              重新扫描
-            </Button>
+      <div className="similarity-results-stack">
+        <div className="classification-path-chip similarity-results__config">
+          <div>
+            <Text strong style={{ color: 'var(--app-primary)' }}>扫描目录: </Text>
+            <Text code style={{ fontSize: 12 }}>{config.scanPath}</Text>
           </div>
-        </Card>
+          <div className="similarity-results__config-meta">
+            <span>阈值 {config.similarityThreshold}%</span>
+            <span>算法 {config.algorithm}</span>
+          </div>
+        </div>
 
-        {/* 分组列表 */}
-        <div className="groups-list">
-          {result.groups.map((group) => (
-            <div key={group.id} className="group-list-item">
+        <PageSection title="扫描概览" subtitle="快速查看本次相似照片检测的规模、收益与耗时">
+          <div className="classification-stats-grid">
+            <StatCard title="扫描照片数" value={result.totalImages} icon={<ScanOutlined />} accent="var(--app-primary)" subtle />
+            <StatCard title="相似组数" value={result.totalGroups} icon={<CheckCircleOutlined />} accent="var(--app-success)" subtle />
+            <StatCard title="可释放空间" value={formatFileSize(calculateSpaceToSave())} icon={<SaveOutlined />} accent="var(--app-warning)" subtle />
+            <StatCard title="扫描耗时" value={`${(result.scanTime / 1000).toFixed(1)}秒`} icon={<ClockCircleOutlined />} accent="#7c5cff" subtle />
+          </div>
+        </PageSection>
+
+        <SelectionActionBar
+          summary={`已选 ${selectedGroups.size} 组，预计释放 ${formatFileSize(calculateSpaceToSave())}`}
+          onClear={handleClearSelection}
+        >
+          <Button icon={<CheckCircleOutlined />} onClick={handleMarkAllBest}>
+            标记所有最佳照片
+          </Button>
+          <Button
+            icon={<DeleteOutlined />}
+            danger
+            onClick={handleDeleteSelected}
+            disabled={selectedGroups.size === 0}
+          >
+            删除非保留照片
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={onReset}>
+            重新扫描
+          </Button>
+        </SelectionActionBar>
+
+        <PageSection
+          title="相似分组"
+          subtitle={`共 ${result.groups.length} 组，可逐组确认保留照片后批量清理`}
+        >
+          <div className="groups-list">
+            {result.groups.length === 0 ? (
+              <div className="app-empty-state">
+                <Empty description="未发现相似照片" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+              </div>
+            ) : result.groups.map((group) => (
               <Card
+                key={group.id}
                 className={`similarity-group ${selectedGroups.has(group.id) ? 'selected' : ''}`}
                 variant="borderless"
-                title={
-                  <div className="group-card-header">
-                    <div className="group-card-title">
-                      <Checkbox
-                        checked={selectedGroups.has(group.id)}
-                        onChange={() => handleGroupToggle(group.id)}
-                        className="group-checkbox"
-                      />
+              >
+                <div className="group-card-header">
+                  <div className="group-card-title">
+                    <Checkbox
+                      checked={selectedGroups.has(group.id)}
+                      onChange={() => handleGroupToggle(group.id)}
+                      className="group-checkbox"
+                    />
+                    <div className="group-card-copy">
                       <Text strong className="group-id">{group.id}</Text>
                       <Text type="secondary" className="group-info">
-                        ({group.images.length} 张照片，相似度: {group.similarity}%)
+                        {group.images.length} 张照片，系统判定相似度 {group.similarity}%
                       </Text>
                     </div>
-                    <div className="group-similarity-indicator">
-                      <Progress
-                        type="circle"
-                        percent={group.similarity}
-                        size={40}
-                        format={() => `${group.similarity}%`}
-                        strokeColor={{
-                          '0%': '#ff4d4f',
-                          '50%': '#faad14',
-                          '100%': '#52c41a'
-                        }}
-                      />
-                    </div>
                   </div>
-                }
-              >
+                  <div className="group-similarity-indicator">
+                    <Progress
+                      type="circle"
+                      percent={group.similarity}
+                      size={52}
+                      format={() => `${group.similarity}%`}
+                      strokeColor={{
+                        '0%': '#ff453a',
+                        '50%': '#ff9f0a',
+                        '100%': '#30b95a'
+                      }}
+                    />
+                  </div>
+                </div>
+
                 <div className="group-images">
                   {group.images.map((img) => {
                     const isKept = (groupSelections.get(group.id) || new Set()).has(img.filePath)
@@ -457,7 +436,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
                           />
                           {isRecommended && (
                             <div className="recommended-badge">
-                              <CheckCircleOutlined style={{ fontSize: 12, marginRight: 4 }} />
+                              <CheckCircleOutlined style={{ fontSize: 12 }} />
                               推荐保留
                             </div>
                           )}
@@ -473,7 +452,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
                               alt={img.filePath}
                               className="thumbnail-image"
                               onError={(e) => {
-                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="#999" font-size="14">加载失败</text></svg>'
+                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text x="50%" y="50%" text-anchor="middle" dominant-baseline="middle" fill="%23999" font-size="14">加载失败</text></svg>'
                               }}
                             />
                           ) : (
@@ -507,12 +486,11 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, onReset }) => {
                   })}
                 </div>
               </Card>
-            </div>
-          ))}
-        </div>
-      </Space>
+            ))}
+          </div>
+        </PageSection>
+      </div>
 
-      {/* 图片预览组件 */}
       <ImagePreview
         visible={previewVisible}
         images={previewImages}

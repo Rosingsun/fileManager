@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react'
-import { Card, Button, Progress, Alert, Typography } from 'antd'
-import { StopOutlined } from '@ant-design/icons'
+import { Card, Button, Progress, Alert, Tag, Typography } from 'antd'
+import { CameraOutlined, RadarChartOutlined, StopOutlined } from '@ant-design/icons'
 import type { SimilarityScanConfig, SimilarityScanResult, SimilarityScanProgress } from '../../types'
 import ScanConfig from './ScanConfig'
 import ScanResults from './ScanResults'
+import { PageSection } from '../UnifiedUI'
 import './SimilarityDetection.css'
 
-const { Title } = Typography
+const { Paragraph } = Typography
+
+const statusMeta: Record<SimilarityScanProgress['status'], { label: string; className: string }> = {
+  scanning: { label: '正在扫描文件', className: 'is-scanning' },
+  hashing: { label: '正在计算哈希', className: 'is-hashing' },
+  comparing: { label: '正在比对相似项', className: 'is-comparing' },
+  completed: { label: '扫描完成', className: 'is-completed' },
+  error: { label: '扫描出错', className: 'is-error' },
+}
 
 const SimilarityDetection: React.FC = () => {
   const [config, setConfig] = useState<SimilarityScanConfig | null>(null)
@@ -68,97 +77,120 @@ const SimilarityDetection: React.FC = () => {
 
   return (
     <div className="similarity-detection">
-      <Card className="main-card" variant="borderless">
-        <div className="header-section">
-          <Title level={3} className="main-title">相似照片检测</Title>
-          <p className="description">
-            自动检测本地照片库中的重复或相似照片，帮助您清理冗余文件，节省存储空间。
-          </p>
-        </div>
-
-        {error && (
-          <Alert
-            message="扫描错误"
-            description={error}
-            type="error"
-            showIcon
-            closable
-            className="error-alert"
-            onClose={() => setError(null)}
-          />
-        )}
-
-        {!config && !scanning && (
-          <div className="config-section">
-            <ScanConfig onStart={handleStartScan} />
-          </div>
-        )}
-
-        {config && scanning && (
-          <div className="scan-progress">
-            <div className="progress-card">
-              <div className="progress-header">
-                <h4>扫描中</h4>
-                <span className="status-indicator">
-                  {progress?.status === 'scanning' && <span className="status-text scanning">正在扫描文件...</span>}
-                  {progress?.status === 'hashing' && <span className="status-text hashing">正在计算哈希值...</span>}
-                  {progress?.status === 'comparing' && <span className="status-text comparing">正在对比相似照片...</span>}
-                  {progress?.status === 'completed' && <span className="status-text completed">扫描完成</span>}
-                  {progress?.status === 'error' && <span className="status-text error">扫描出错</span>}
-                </span>
+      <Card
+        className="app-surface-card similarity-shell"
+        title={
+          <div className="similarity-shell__header">
+            <div className="similarity-shell__title">
+              <span className="similarity-shell__icon">
+                <RadarChartOutlined />
+              </span>
+              <div>
+                <div className="similarity-shell__heading">相似照片检测</div>
+                <div className="similarity-shell__subheading">按统一工作面板流程扫描、比对和清理重复或相近照片</div>
               </div>
+            </div>
+            <Tag color="processing" bordered={false}>智能比对</Tag>
+          </div>
+        }
+        variant="borderless"
+      >
+        <div className="similarity-page">
+          <div className="similarity-intro">
+            <span className="similarity-intro__badge">
+              <CameraOutlined />
+              照片去重工作流
+            </span>
+            <Paragraph className="similarity-intro__text">
+              自动检测本地照片库中的重复或相似照片，帮助您清理冗余文件、确认推荐保留项，并在删除前统一预览分组结果。
+            </Paragraph>
+          </div>
 
-              {progress && (
-                <div className="progress-content">
-                  <div className="progress-bar-wrapper">
+          {error && (
+            <Alert
+              message="扫描错误"
+              description={error}
+              type="error"
+              showIcon
+              closable
+              className="app-inline-notice similarity-alert"
+              onClose={() => setError(null)}
+            />
+          )}
+
+          {!config && !scanning && (
+            <div className="similarity-state">
+              <ScanConfig onStart={handleStartScan} />
+            </div>
+          )}
+
+          {config && scanning && (
+            <div className="similarity-state">
+              <PageSection
+                title="扫描进度"
+                subtitle="正在分析目录中的图片哈希并比对相似项"
+                extra={
+                  <div className="similarity-progress__header-actions">
+                    {progress?.status && (
+                      <span className={`similarity-status-pill ${statusMeta[progress.status].className}`}>
+                        {statusMeta[progress.status].label}
+                      </span>
+                    )}
+                    <Button
+                      icon={<StopOutlined />}
+                      onClick={handleCancelScan}
+                      danger
+                    >
+                      取消扫描
+                    </Button>
+                  </div>
+                }
+              >
+                {progress && (
+                  <div className="similarity-progress">
                     <Progress
                       percent={progress.total > 0 ? Math.round((progress.current / progress.total) * 100) : 0}
                       status={progress.status === 'error' ? 'exception' : 'active'}
                       format={() => `${progress.current} / ${progress.total}`}
-                      className="main-progress-bar"
                     />
+
+                    <div className="similarity-progress__meta">
+                      {progress.currentFile && (
+                        <div className="similarity-progress__info">
+                          <span className="similarity-progress__label">当前文件</span>
+                          <span className="similarity-progress__path" title={progress.currentFile}>
+                            {progress.currentFile}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="similarity-progress__summary">
+                        <div className="similarity-progress__stat">
+                          <span className="similarity-progress__label">处理进度</span>
+                          <strong>{progress.current} / {progress.total}</strong>
+                        </div>
+                        <div className="similarity-progress__stat">
+                          <span className="similarity-progress__label">已发现相似组</span>
+                          <strong>{progress.groupsFound} 组</strong>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  
-                  {progress.currentFile && (
-                    <div className="current-file-info">
-                      <span className="label">当前文件:</span>
-                      <span className="file-path" title={progress.currentFile}>{progress.currentFile}</span>
-                    </div>
-                  )}
-                  
-                  {progress.groupsFound > 0 && (
-                    <div className="groups-found">
-                      <span className="label">已发现相似照片:</span>
-                      <span className="group-count">{progress.groupsFound} 组</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="progress-footer">
-                <Button
-                  icon={<StopOutlined />}
-                  onClick={handleCancelScan}
-                  danger
-                  size="large"
-                  className="cancel-button"
-                >
-                  取消扫描
-                </Button>
-              </div>
+                )}
+              </PageSection>
             </div>
-          </div>
-        )}
+          )}
 
-        {result && !scanning && (
-          <div className="results-section">
-            <ScanResults
-              result={result}
-              config={config!}
-              onReset={handleReset}
-            />
-          </div>
-        )}
+          {result && !scanning && (
+            <div className="similarity-state">
+              <ScanResults
+                result={result}
+                config={config!}
+                onReset={handleReset}
+              />
+            </div>
+          )}
+        </div>
       </Card>
     </div>
   )

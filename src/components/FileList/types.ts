@@ -27,13 +27,13 @@ export interface FileListState {
 }
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  animal: '#52c41a',
-  vehicle: '#1890ff',
-  person: '#eb2f96',
-  landscape: '#13c2c2',
-  architecture: '#fa8c16',
-  food: '#f5222d',
-  other: '#8c8c8c'
+  animal: '#30b95a',
+  vehicle: '#4d8eff',
+  person: '#c45cff',
+  landscape: '#2cc5c9',
+  architecture: '#ff9f0a',
+  food: '#ff5f57',
+  other: '#8b95a7'
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {

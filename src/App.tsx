@@ -40,12 +40,12 @@ const App: React.FC = () => {
       <AppHeader activeTab={activeTab} onTabChange={setActiveTab} />
       {electronAPIStatus === 'unavailable' && (
         <Alert
+          className="app-inline-notice"
           message="Electron API 未初始化"
           description="请确保在 Electron 环境中运行。如果问题持续，请检查预加载脚本是否正确加载。"
           type="error"
           showIcon
           closable
-          style={{ margin: '16px' }}
         />
       )}
       <Content className="app-content">
@@ -63,17 +63,17 @@ const App: React.FC = () => {
           </div>
         )}
         {activeTab === 'similarity' && (
-          <div style={{ padding: '2px', height: '100%', overflow: 'scroll' }}>
+          <div className="app-tab-panel">
             <SimilarityDetection />
           </div>
         )}
         {activeTab === 'classify' && (
-          <div style={{ padding: '2px', height: '100%', overflow: 'scroll' }}>
+          <div className="app-tab-panel">
             <ImageClassification />
           </div>
         )}
         {activeTab === 'tools' && (
-          <div style={{ padding: '2px', height: '100%', overflow: 'hidden' }}>
+          <div className="app-tab-panel" style={{ overflow: 'hidden' }}>
             <ToolsEntry />
           </div>
         )}

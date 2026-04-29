@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { Card, Modal, Input, message, Space, Empty } from 'antd'
+import { Card, Modal, Input, message, Space } from 'antd'
 import { Button as AntButton } from 'antd'
 import {
   DeleteOutlined,
@@ -18,6 +18,7 @@ import ImageViewer from '../ImageViewer/ImageViewer'
 import type { Image } from '../ImageViewer/types'
 import ImageEditor from '../ImageEditor/ImageEditor'
 import BatchEditModal from '../ImageEditor/BatchEditModal'
+import { SelectionActionBar } from '../UnifiedUI'
 import type { FileInfo } from '../../types'
 import { MAX_IMAGE_SIZE } from './types'
 
@@ -496,8 +497,12 @@ const FileList: React.FC = () => {
 
   if (!currentPath) {
     return (
-      <Card title="文件列表" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <Empty description="请先选择目录" />
+      <Card title="文件列表" className="app-surface-card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div className="app-empty-state is-panel">
+          <div className="app-empty-state__icon">📁</div>
+          <div className="app-empty-state__title">请先选择目录</div>
+          <div className="app-empty-state__description">选择左侧目录后，文件列表、筛选和图片预览会在这里展示。</div>
+        </div>
       </Card>
     )
   }
@@ -527,13 +532,15 @@ const FileList: React.FC = () => {
             onPageChange={handlePageChange}
           />
         }
+        className="app-surface-card"
         style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
         bodyStyle={{ padding: 0, flex: 1, overflow: 'hidden' }}
       >
         {selectedRows.length > 0 && (
-          <div style={{ padding: '8px 16px', borderBottom: '1px solid #f0f0f0', backgroundColor: '#fafafa' }}>
-            <Space>
-              <span>已选择 {selectedRows.length} 项</span>
+          <SelectionActionBar
+            summary={`已选择 ${selectedRows.length} 项`}
+            onClear={() => { setSelectedRowKeys([]); setSelectedRows([]) }}
+          >
               <AntButton size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
                 批量删除
               </AntButton>
@@ -546,14 +553,11 @@ const FileList: React.FC = () => {
               <AntButton size="small" icon={<EditOutlined />} onClick={handleBatchEdit}>
                 批量编辑
               </AntButton>
-              <AntButton size="small" onClick={() => { setSelectedRowKeys([]); setSelectedRows([]) }}>
-                取消选择
-              </AntButton>
-            </Space>
-          </div>
+          </SelectionActionBar>
         )}
 
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* container holds either table or grid; use flex layout and hide overflow so the child components manage scrolling internally */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {viewMode === 'list' ? (
             <FileListTable
               dataSource={paginatedFileList}

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Empty, Pagination } from 'antd'
 import {
   FolderOutlined,
@@ -55,6 +55,15 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
   onPageChange,
   isPreviewable
 }) => {
+  const contentRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    contentRef.current?.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
+  }, [current, pageSize])
+
   const getFileIcon = (file: FileInfo) => {
     if (file.isDirectory) {
       return <FolderOutlined style={{ fontSize: 48, color: '#1890ff' }} />
@@ -77,8 +86,8 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
 
   if (dataSource.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="file-grid-empty">
+        <div className="app-empty-state">
           <Empty description="该目录暂无文件" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         </div>
       </div>
@@ -86,16 +95,13 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="file-grid">
       <div
+        ref={contentRef}
+        className="file-grid__content"
         key={`grid-${previewVersion}`}
         style={{
-          flex: 1,
-          display: 'grid',
           gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
-          gap: '10px',
-          padding: '10px',
-          overflowY: 'auto',
           alignContent: 'start'
         }}
       >
@@ -109,16 +115,7 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
           return (
             <div
               key={file.path}
-              style={{
-                border: `1px solid ${isSelected ? '#1890ff' : '#d9d9d9'}`,
-                borderRadius: '5px',
-                overflow: 'hidden',
-                cursor: file.isDirectory ? 'pointer' : 'default',
-                position: 'relative',
-                backgroundColor: isSelected ? '#e6f7ff' : '#fff',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                transition: 'all 0.3s ease'
-              }}
+              className={`file-grid-card${isSelected ? ' is-selected' : ''}${file.isDirectory ? ' is-directory' : ''}`}
               onClick={() => {
                 if (file.isDirectory) {
                   onDoubleClick(file)
@@ -131,16 +128,7 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
               }}
               onDoubleClick={() => onDoubleClick(file)}
             >
-              <div
-                style={{
-                  width: '100%',
-                  aspectRatio: '1',
-                  backgroundColor: '#f5f5f5',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
+              <div className="file-grid-card__preview">
                 {canPreview ? (
                   <ImageThumbnail
                     filePath={file.path}
@@ -157,44 +145,17 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
                   getFileIcon(file)
                 )}
               </div>
-              <div
-                style={{
-                  padding: '8px',
-                  fontSize: '12px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  textAlign: 'center'
-                }}
-                title={file.name}
-              >
+              <div className="file-grid-card__name" title={file.name}>
                 {file.name}
               </div>
               {isSelected && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 4,
-                    right: 4,
-                    width: 16,
-                    height: 16,
-                    borderRadius: '50%',
-                    backgroundColor: '#1890ff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: '10px'
-                  }}
-                >
-                  ✓
-                </div>
+                <div className="file-grid-card__check">✓</div>
               )}
             </div>
           )
         })}
       </div>
-      <div style={{ padding: '10px', borderTop: '1px solid #f0f0f0', textAlign: 'right' }}>
+      <div className="file-grid__pagination">
         <Pagination
           total={total}
           current={current}

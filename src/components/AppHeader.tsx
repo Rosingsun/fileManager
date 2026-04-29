@@ -14,10 +14,15 @@ const AppHeader: React.FC<AppHeaderProps> = ({ activeTab, onTabChange }) => {
   return (
     <Header className="app-header">
       <Space className="header-left">
-        <FolderOpenOutlined style={{ fontSize: 24, color: '#fff' }} />
-        <Title level={4} style={{ margin: 0, color: '#fff' }}>
-          文件整理工具 v1.0
-        </Title>
+        <span className="header-brand">
+          <FolderOpenOutlined style={{ fontSize: 20 }} />
+        </span>
+        <span className="header-title">
+          <Title level={4} style={{ margin: 0, color: 'var(--app-text-primary)' }}>
+            文件整理工具
+          </Title>
+          <span className="header-title-meta">统一文件管理、图片处理与智能分类</span>
+        </span>
       </Space>
       <Tabs
         activeKey={activeTab}

@@ -4,6 +4,7 @@ import { ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import App from './App'
 import './styles/index.css'
+import { antAppTheme } from './utils'
 
 const checkElectronAPI = (): Promise<boolean> => {
   if (typeof window === 'undefined' || window.electronAPI) {
@@ -45,7 +46,7 @@ checkElectronAPI().then((isAvailable) => {
   
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <ConfigProvider locale={zhCN}>
+      <ConfigProvider locale={zhCN} theme={antAppTheme}>
         <App />
       </ConfigProvider>
     </React.StrictMode>

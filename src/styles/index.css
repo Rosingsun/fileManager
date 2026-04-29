@@ -4,13 +4,48 @@
   box-sizing: border-box;
 }
 
+:root {
+  --app-primary: #0a84ff;
+  --app-primary-hover: #409cff;
+  --app-primary-active: #0068d1;
+  --app-success: #30b95a;
+  --app-warning: #ff9f0a;
+  --app-danger: #ff453a;
+  --app-info: #5ac8fa;
+  --app-bg: #f5f7fb;
+  --app-surface: #ffffff;
+  --app-surface-subtle: #f6f8fc;
+  --app-surface-elevated: rgba(255, 255, 255, 0.84);
+  --app-text-primary: #1f2329;
+  --app-text-secondary: #5d6673;
+  --app-text-tertiary: #8a94a6;
+  --app-border: rgba(15, 23, 42, 0.08);
+  --app-border-strong: rgba(10, 132, 255, 0.24);
+  --app-selected-bg: rgba(10, 132, 255, 0.1);
+  --app-shadow-xs: 0 4px 14px rgba(15, 23, 42, 0.04);
+  --app-shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --app-shadow-md: 0 14px 30px rgba(15, 23, 42, 0.1);
+  --app-shadow-lg: 0 20px 48px rgba(15, 23, 42, 0.16);
+  --app-radius-sm: 6px;
+  --app-radius-md: 8px;
+  --app-radius-lg: 12px;
+  --app-radius-xl: 16px;
+  --app-motion-fast: 160ms ease;
+  --app-motion-base: 220ms ease;
+  --app-motion-slow: 300ms ease;
+  --app-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', sans-serif;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--app-font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background:
+    radial-gradient(circle at top left, rgba(10, 132, 255, 0.08), transparent 32%),
+    radial-gradient(circle at top right, rgba(90, 200, 250, 0.08), transparent 28%),
+    linear-gradient(180deg, #f7f9fc 0%, var(--app-bg) 100%);
+  color: var(--app-text-primary);
 }
 
 #root {
@@ -22,5 +57,16 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: var(--app-primary);
 }
 
