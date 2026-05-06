@@ -62,17 +62,18 @@
   },
   "build": {
     "appId": "com.fileorganizer.app",
-    "productName": "文件整理工具",
+    "productName": "FileOrganizer",
     "directories": {
       "output": "release"
     },
+    "publish": null,
     "files": [
       "dist/**/*",
       "dist-electron/**/*"
     ],
     "win": {
       "target": [
-        "nsis"
+        "dir"
       ],
       "icon": "build/icon.ico",
       "forceCodeSigning": false
