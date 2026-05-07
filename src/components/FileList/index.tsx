@@ -17,7 +17,7 @@ import { FileListGrid } from './FileListGrid'
 import ImageEditor from '../ImageEditor/ImageEditor'
 import BatchEditModal from '../ImageEditor/BatchEditModal'
 import { SelectionActionBar } from '../UnifiedUI'
-import ImagePreview from '../ImagePreview/ImagePreview'
+import ImageViewer from '../ImageViewer/ImageViewer'
 import type { FileInfo } from '../../types'
 import { MAX_IMAGE_SIZE } from './types'
 
@@ -196,9 +196,17 @@ const FileList: React.FC = () => {
 
   const handleGoBack = useCallback(() => {
     if (!currentPath) return
+
+    const currentIndex = historyList.findIndex(item => item.path === currentPath)
+    if (currentIndex >= 0 && currentIndex < historyList.length - 1) {
+      const previousPath = historyList[currentIndex + 1].path
+      loadDirectory(previousPath, false)
+      return
+    }
+
     const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/'
-    loadDirectory(parentPath)
-  }, [currentPath, loadDirectory])
+    loadDirectory(parentPath, false)
+  }, [currentPath, historyList, loadDirectory])
 
   const handleCategoryChange = useCallback((value: string) => {
     setSelectedCategory(value as 'all' | 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other')
@@ -361,7 +369,7 @@ const FileList: React.FC = () => {
 
   const handleDoubleClick = useCallback(async (file: FileInfo) => {
     if (file.isDirectory) {
-      loadDirectory(file.path, false)
+      loadDirectory(file.path)
     } else if (isPreviewable(file)) {
       handlePreview(file)
     } else {
@@ -449,7 +457,7 @@ const FileList: React.FC = () => {
         )}
 
         {/* container holds either table or grid; use flex layout and hide overflow so the child components manage scrolling internally */}
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1,height:"100%", minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {viewMode === 'list' ? (
             <FileListTable
               dataSource={paginatedFileList}
@@ -557,12 +565,21 @@ const FileList: React.FC = () => {
       </Card>
 
       {previewModalVisible && previewImages.length > 0 && (
-        <ImagePreview
-          visible={previewModalVisible}
-          images={previewImages}
+        <ImageViewer
+          images={previewImages.map((src, index) => ({
+            id: `${index}-${src}`,
+            url: src,
+            filename: previewableFiles[index]?.name || `image-${index + 1}`,
+            width: 0,
+            height: 0,
+            size: 0,
+            format: getFileExtension(previewableFiles[index]?.name || 'jpg'),
+            createdAt: '',
+            modifiedAt: ''
+          }))}
           currentIndex={previewIndex}
-          onClose={() => setPreviewModalVisible(false)}
           onIndexChange={handlePreviewIndexChange}
+          onClose={() => setPreviewModalVisible(false)}
         />
       )}
 

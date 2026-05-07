@@ -53,10 +53,6 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   onViewModeChange,
   onPageChange
 }) => {
-  const isCurrentPathInHistory = currentPath
-    ? historyList.some(item => item.path === currentPath)
-    : false
-
   const currentCategoryInfo = FILE_CATEGORIES.find(c => c.key === selectedCategory)
   const subExtensions = currentCategoryInfo?.extensions || []
 
@@ -65,23 +61,19 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   return (
     <div className="file-filter-bar">
       <div className="file-filter-bar__left">
-        {!isCurrentPathInHistory && (
-          <Button
-            type="default"
-            size="small"
-            icon={<LeftOutlined />}
-            onClick={onGoBack}
-            disabled={!currentPath || currentPath === '/'}
-            title="返回上级目录"
-          >
-            返回
-          </Button>
-        )}
-        {!isCurrentPathInHistory && (
-          <span className="file-filter-bar__path" title={currentPath}>
-            当前路径: {currentPath}
-          </span>
-        )}
+        <Button
+          type="default"
+          size="small"
+          icon={<LeftOutlined />}
+          onClick={onGoBack}
+          disabled={!currentPath || currentPath === '/'}
+          title="返回上级目录"
+        >
+          返回
+        </Button>
+        <span className="file-filter-bar__path" title={currentPath}>
+          当前路径: {currentPath}
+        </span>
         <div className="filter-chip">
           <FilterOutlined style={{ color: 'var(--app-text-secondary)' }} />
           <span className="filter-chip__label">类型</span>

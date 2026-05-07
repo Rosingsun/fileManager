@@ -262,6 +262,7 @@
 }
 
 .file-grid-card {
+  height: 210px;
   position: relative;
   overflow: hidden;
   border: 1px solid var(--app-border);
@@ -525,5 +526,3 @@
   color: #999;
   text-align: center;
 }
-
-
