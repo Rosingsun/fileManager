@@ -10,6 +10,7 @@ export { default as SimilarityDetection } from './SimilarityDetection/Similarity
 export { default as ScanResults } from './SimilarityDetection/ScanResults'
 export { default as ScanConfig } from './SimilarityDetection/ScanConfig'
 export { default as ImageClassification } from './ImageClassification/ImageClassification'
+export { default as QuickFilter } from './QuickFilter/QuickFilter'
 
 export { default as ImageEditor } from './ImageEditor/ImageEditor'
 export { default as BatchEditModal } from './ImageEditor/BatchEditModal'

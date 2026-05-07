@@ -7,6 +7,7 @@ import AppHeader from './components/AppHeader'
 import SimilarityDetection from './components/SimilarityDetection/SimilarityDetection'
 import ImageClassification from './components/ImageClassification/ImageClassification'
 import ToolsEntry from './components/Tools/ToolsEntry'
+import { QuickFilter } from './components'
 import './styles/App.css'
 
 const { Content } = Layout
@@ -75,6 +76,11 @@ const App: React.FC = () => {
         {activeTab === 'tools' && (
           <div className="app-tab-panel" style={{ overflow: 'hidden' }}>
             <ToolsEntry />
+          </div>
+        )}
+        {activeTab === 'quickFilter' && (
+          <div className="app-tab-panel">
+            <QuickFilter />
           </div>
         )}
       </Content>

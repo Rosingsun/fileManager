@@ -149,6 +149,24 @@ try {
       ipcRenderer.send('similarity:cancel')
     },
 
+    scanImageQuality: (config: import('../../src/types').ImageQualityScanConfig): Promise<import('../../src/types').ImageQualityScanResult> => {
+      return ipcRenderer.invoke('imageQuality:scan', config)
+    },
+
+    onImageQualityScanProgress: (callback: (progress: import('../../src/types').ImageQualityScanProgress) => void): (() => void) => {
+      const handler = (_event: unknown, progress: import('../../src/types').ImageQualityScanProgress) => {
+        callback(progress)
+      }
+      ipcRenderer.on('imageQuality:progress', handler)
+      return () => {
+        ipcRenderer.removeListener('imageQuality:progress', handler)
+      }
+    },
+
+    cancelImageQualityScan: (): void => {
+      ipcRenderer.send('imageQuality:cancel')
+    },
+
     // 图片内容分类
     classifyImage: (imagePath: string): Promise<import('../../src/types').ImageClassificationResult> => {
       return ipcRenderer.invoke('image:classify', imagePath)

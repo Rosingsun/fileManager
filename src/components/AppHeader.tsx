@@ -45,6 +45,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({ activeTab, onTabChange }) => {
             key: 'tools',
             label: '实用工具',
           },
+          {
+            key: 'quickFilter',
+            label: '快速筛选',
+          },
         ]}
       />
     </Header>

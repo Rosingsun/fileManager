@@ -126,6 +126,95 @@ export interface SimilarityScanResult {
   scanTime: number // 扫描耗时（毫秒）
 }
 
+/** 图片质量快速筛选：曝光/对比度阈值与构图启发式参数 */
+export interface ImageQualityThresholds {
+  /** 高光占比超过此值（0–1）则标记可能过曝 */
+  highlightClipRatio: number
+  /** 阴影占比超过此值（0–1）则标记可能欠曝 */
+  shadowClipRatio: number
+  /** 亮度标准差低于此值则标记低对比（发灰） */
+  lowContrastStd: number
+  /** 平均亮度高于此值（0–255）则辅助标记过曝 */
+  overexposedMeanLuma: number
+  /** 平均亮度低于此值（0–255）则辅助标记欠曝 */
+  underexposedMeanLuma: number
+  /** 中心宫格梯度能量占比超过此值则提示「主体过于居中」 */
+  compositionCenterEnergyRatio: number
+  /** 重心到最近三分点归一化距离大于此值则提示「偏离三分区」 */
+  compositionCentroidOffThirdsMin: number
+  /** 归一化重心距边缘小于此值则提示「主体贴近边缘」 */
+  compositionNearEdge: number
+}
+
+export const DEFAULT_IMAGE_QUALITY_THRESHOLDS: ImageQualityThresholds = {
+  highlightClipRatio: 0.06,
+  shadowClipRatio: 0.06,
+  lowContrastStd: 14,
+  overexposedMeanLuma: 200,
+  underexposedMeanLuma: 48,
+  compositionCenterEnergyRatio: 0.52,
+  compositionCentroidOffThirdsMin: 0.22,
+  compositionNearEdge: 0.09
+}
+
+export interface ImageQualityScanConfig {
+  scanPath: string
+  includeSubdirectories: boolean
+  minFileSize?: number
+  maxFileSize?: number
+  excludedFolders?: string[]
+  excludedExtensions?: string[]
+  /** 分析时长边像素，默认 640 */
+  analysisLongEdge?: number
+  /** 并行分析数量，默认 3 */
+  maxConcurrent?: number
+  thresholds?: Partial<ImageQualityThresholds>
+}
+
+export type ImageQualityFlag =
+  | 'overexposed'
+  | 'underexposed'
+  | 'lowContrast'
+  | 'subjectVeryCentered'
+  | 'subjectOffThirds'
+  | 'subjectNearEdge'
+
+export interface ImageQualityScores {
+  meanLuma: number
+  lumaStd: number
+  highlightClipRatio: number
+  shadowClipRatio: number
+  gridEntropy: number
+  centroidOffsetNorm: number
+  centerCellEnergyRatio: number
+  minThirdsDistance: number
+}
+
+export interface ImageQualityItemResult {
+  filePath: string
+  ok: boolean
+  error?: string
+  width: number
+  height: number
+  flags: ImageQualityFlag[]
+  compositionHints: string[]
+  scores: ImageQualityScores
+}
+
+export interface ImageQualityScanProgress {
+  current: number
+  total: number
+  currentFile?: string
+  status: 'scanning' | 'analyzing' | 'completed' | 'error' | 'cancelled'
+}
+
+export interface ImageQualityScanResult {
+  items: ImageQualityItemResult[]
+  skipped: Array<{ path: string; reason: string }>
+  totalImages: number
+  scanTime: number
+}
+
 // 图片内容分类相关类型 - 升级版（25个细分类）
 export type ImageContentCategory =
   // 人物类

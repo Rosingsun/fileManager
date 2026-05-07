@@ -6,7 +6,8 @@ import { watch } from 'chokidar'
 import sharp from 'sharp'
 import crypto from 'crypto'
 import { InferenceSession, Tensor } from 'onnxruntime-node'
-import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanProgress, SimilarityScanResult, ImageContentCategory, ImageClassificationResult, ImageClassificationConfig, ImageClassificationProgress, ImageClassificationBatchResult } from '../../src/types'
+import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanProgress, SimilarityScanResult, ImageContentCategory, ImageClassificationResult, ImageClassificationConfig, ImageClassificationProgress, ImageClassificationBatchResult, ImageQualityScanConfig, ImageQualityScanResult, ImageQualityScanProgress } from '../../src/types'
+import { scanImageQuality } from './services/imageQualityService'
 
 const IMAGENET_CLASSES: string[] = [
   'tench', 'goldfish', 'great white shark', 'tiger shark', 'hammerhead shark', 'electric ray', 'stingray', 'rooster', 'hen', 'ostrich', 'brambling', 'goldfinch', 'house finch', 'junco', 'indigo bunting', 'American robin', 'bulbul', 'jay', 'magpie', 'chickadee', 'American dipper', 'kite', 'bald eagle', 'vulture', 'great grey owl', 'European fire salamander', 'common newt', 'eft', 'spotted salamander', 'axolotl', 'American bullfrog', 'tree frog', 'tailed frog', 'loggerhead sea turtle', 'leatherback sea turtle', 'mud turtle', 'terrapin', 'banded gecko', 'common iguana', 'American chameleon', 'whiptail', 'agama', 'frilled lizard', 'alligator lizard', 'Gila monster', 'green lizard', 'African chameleon', 'Komodo dragon', 'African crocodile', 'American alligator', 'triceratops', 'worm snake', 'ring-necked snake', 'hognose snake', 'smooth green snake', 'king snake', 'garter snake', 'water snake', 'vine snake', 'night snake', 'boa constrictor', 'African rock python', 'Indian cobra', 'green mamba', 'sea snake', 'Saharan horned viper', 'diamondback', 'sidewinder', 'Europan cockroach', 'termite', 'beetle', 'fly', 'bee', 'ant', 'grasshopper', 'cricket', 'walking stick', 'cockroach', 'mantis', 'cicada', 'leafhopper', 'lacewing', 'dragonfly', 'damselfly', 'red admiral', 'ringlet', 'monarch butterfly', 'cabbage white', 'lycaenid', 'starfish', 'sea urchin', 'sea cucumber', 'cottontail rabbit', 'hare', 'Angora rabbit', 'hamster', 'porcupine', 'fox squirrel', 'marmot', 'beaver', 'guinea pig', 'common sorrel', 'zebra', 'pig', 'wild boar', 'warthog', 'hippopotamus', 'ox', 'water buffalo', 'bison', 'ram', 'bighorn sheep', 'ibex', 'hartebeest', 'impala', 'gazelle', 'dromedary', 'llama', 'weasel', 'mink', 'polecat', 'black-footed ferret', 'otter', 'skunk', 'badger', 'armadillo', 'three-toed sloth', 'orangutan', 'gorilla', 'chimpanzee', 'gibbon', 'siamang', 'guenon', 'patas monkey', 'baboon', 'macaque', 'langur', 'colobus monkey', 'proboscis monkey', 'marmoset', 'tamarin', 'capuchin', 'howler monkey', 'titi monkey', 'spider monkey', 'squirrel monkey', 'indri', 'Indian elephant', 'African elephant', 'platypus', 'wallaby', 'koala', 'wombat', 'jellyfish', 'sea anemone', 'brain coral', 'flatworm', 'nematode', 'conch', 'snail', 'slug', 'sea slug', 'chiton', 'chambered nautilus', 'Dungeness crab', 'rock crab', 'fiddler crab', 'king crab', 'American lobster', 'spiny lobster', 'crayfish', 'shrimp', 'barnacle', 'turkey', 'groundhog', 'woodchuck', 'chipmunk', 'prairie dog', 'coyote', 'grey wolf', 'Alaskan malamute', 'Siberian husky', 'African hunting dog', 'dingo', 'dhole', 'collie', 'Border collie', 'Bouvier des Flandres', 'Rottweiler', 'German shepherd', 'Doberman', 'miniature pinscher', 'Greater Swiss Mountain Dog', 'Bernese mountain dog', 'Appenzeller dog', 'EntleBucher dog', 'boxer', 'bull mastiff', 'Tibetan mastiff', 'French bulldog', 'Great Dane', 'Saint Bernard', 'Eskimo dog', 'malamute', 'Siberian husky', 'dalmatian', 'poodle', 'Toy poodle', 'miniature poodle', 'water dog', 'German pointer', 'German shorthaired pointer', 'vizsla', 'English setter', 'Irish setter', 'Gordon setter', 'Brittany dog', 'clumber', 'English springer', 'Welsh springer spaniel', 'cocker spaniel', 'Sussex spaniel', 'English foxhound', 'redbone', 'borzoi', 'Irish wolfhound', 'Italian greyhound', 'whippet', 'Irish terrier', 'Kerry blue terrier', 'Bedlington terrier', 'Border terrier', 'Dandie Dinmont terrier', 'Cesky terrier', 'Australian terrier', 'Dachshund', 'norfolk terrier', 'norwich terrier', 'Yorkshire terrier', 'wire fox terrier', 'Lakeland terrier', 'Sealyham terrier', 'Airedale terrier', 'cairn terrier', 'Australian terrier', 'staffordshire bull terrier', 'American Staffordshire terrier', 'Weimaraner', 'Standard Schnauzer', 'miniature schnauzer', 'giant schnauzer', 'schipperke', 'groenendael', 'malinois', 'briard', 'kelpie', 'komondor', 'Old English sheepdog', 'Shetland sheepdog', 'collie', 'Bordet', 'German shepherd', 'miniature pinscher', 'pug', 'Leonberg', 'Newfoundland', 'Great Pyrenees', 'Samoyed', 'Pomeranian', 'chow', 'keeshond', 'Brabancon griffon', 'Pembroke Welsh Corgi', 'Cardigan Welsh Corgi', 'toy poodle', 'miniature poodle', 'standard poodle', 'tabby cat', 'tiger cat', 'Persian cat', 'Siamese cat', 'Egyptian Mau', 'cougar', 'lynx', 'leopard', 'snow leopard', 'jaguar', 'lion', 'tiger', 'cheetah', 'brown bear', 'American black bear', 'polar bear', 'sloth bear', 'mongoose', 'meerkat', 'tiger beetle', 'ladybug', 'ground beetle', 'longhorn beetle', 'leaf beetle', 'dung beetle', 'rhinoceros beetle', 'weevil', 'fly', 'bee', 'wasp', 'cricket', 'cicada', 'leafhopper', 'dragonfly', 'damselfly', 'praying mantis', 'cockroach', 'moth', 'butterfly', 'starfish', 'sea cucumber', 'sea urchin', 'hedgehog', 'echidna', 'platypus', 'wallaby', 'kangaroo', 'koala', 'wombat', 'badger', 'otter', 'skunk', 'beaver', 'guinea pig', 'sorrel', 'zebra', 'pig', 'hog', 'wild boar', 'hippopotamus', 'ox', 'water buffalo', 'bison', 'ram', 'bighorn sheep', 'ibex', 'hartebeest', 'impala', 'gazelle', 'dromedary', 'llama', 'alpaca', 'vicuna', 'camel', 'llama', 'rat', 'mouse', 'hare', 'rabbit', 'chipmunk', 'squirrel', 'marmot', 'beaver', 'guinea pig', 'dog', 'cat', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'lion', 'tiger', 'fox', 'wolf', 'rabbit', 'squirrel', 'pig', 'goat', 'deer', 'camel', 'llama', 'kangaroo', 'koala', 'panda', 'penguin', 'seal', 'whale', 'dolphin', 'shark', 'frog', 'turtle', 'snake', 'lizard', 'crocodile', 'spider', 'insect', 'butterfly', 'bee', 'ant', 'bird', 'chicken', 'duck', 'goose', 'eagle', 'owl', 'hawk', 'falcon', 'parrot', 'swan', 'ostrich', 'flamingo', 'penguin', 'seagull', 'crow', 'raven', 'robin', 'sparrow', 'finch', 'canary', 'cardinal', 'blue jay', 'cardinal', 'lark', 'swallow', 'swift', 'hummingbird', 'woodpecker', 'duck', 'goose', 'swan', 'turkey', 'pheasant', 'quail', 'parrot', 'pigeon', 'dove', 'eagle', 'vulture', 'falcon', 'hawk', 'owl', 'car', 'truck', 'bus', 'motorcycle', 'bicycle', 'airplane', 'ship', 'boat', 'train', 'taxi', 'van', 'suv', 'pickup', 'ambulance', 'fire truck', 'police van', 'jeep', 'tractor', 'harvester', 'crane', 'bulldozer', 'forklift', 'trailer', 'wagon', 'cart', 'stroller', 'motor scooter', 'go-kart', 'dune buggy', 'snowmobile', 'airship', 'balloon', 'helicopter', 'fighter jet', 'rocket', 'space shuttle', 'missile', 'person', 'man', 'woman', 'child', 'baby', 'boy', 'girl', 'teenager', 'adult', 'elderly', 'crowd', 'family', 'couple', 'group', 'mountain', 'hill', 'valley', 'canyon', 'beach', 'coast', 'shore', 'island', 'forest', 'woods', 'jungle', 'desert', 'field', 'meadow', 'prairie', 'grassland', 'lake', 'river', 'waterfall', 'stream', 'ocean', 'sea', 'volcano', 'glacier', 'iceberg', 'snow', 'cliff', 'cave', 'waterhole', 'reef', 'building', 'house', 'home', 'cottage', 'mansion', 'palace', 'castle', 'tower', 'skyscraper', 'office building', 'church', 'cathedral', 'temple', 'mosque', 'synagogue', 'bridge', 'viaduct', 'arch', 'monument', 'statue', 'fountain', 'lighthouse', 'windmill', 'barn', 'stadium', 'theater', 'cinema', 'library', 'museum', 'school', 'university', 'hospital', 'factory', 'warehouse', 'garage', 'shed', 'shop', 'store', 'market', 'restaurant', 'hotel', 'bank', 'post office', 'station', 'airport', 'port', 'harbor', 'dome', 'pyramid', 'obelisk', 'apple', 'banana', 'orange', 'lemon', 'lime', 'grapefruit', 'mango', 'pineapple', 'watermelon', 'strawberry', 'blueberry', 'raspberry', 'grape', 'peach', 'pear', 'cherry', 'plum', 'kiwi', 'tomato', 'potato', 'carrot', 'onion', 'garlic', 'pepper', 'cucumber', 'lettuce', 'spinach', 'broccoli', 'cauliflower', 'cabbage', 'mushroom', 'corn', 'wheat', 'rice', 'bread', 'sandwich', 'burger', 'pizza', 'pasta', 'noodle', 'soup', 'salad', 'meat', 'beef', 'pork', 'chicken', 'fish', 'seafood', 'shrimp', 'crab', 'lobster', 'sushi', 'egg', 'cheese', 'milk', 'coffee', 'tea', 'juice', 'wine', 'beer', 'cake', 'pie', 'cookie', 'ice cream', 'candy', 'chocolate', 'pudding', 'doughnut', 'bagel', 'croissant', 'waffle', 'pancake', 'bacon', 'sausage', 'ham', 'hot dog', 'taco', 'burrito', 'quesadilla', 'nachos', 'popcorn', 'pretzel', 'chips', 'nuts', 'seeds', 'honey', 'jam', 'butter', 'yogurt', 'cereal', 'oatmeal', 'pudding', 'custard', 'gelatin', 'syrup', 'sauce', 'ketchup', 'mustard', 'mayonnaise', 'vinegar', 'oil'
@@ -15,6 +16,12 @@ console.log('[Main] 使用硬编码的 ImageNet 类别列表，共 ' + IMAGENET_
 let imagenetClasses: string[] = IMAGENET_CLASSES
 
 const { readdir, stat, mkdir, move, existsSync } = fs
+
+/** 开发环境主进程热重载会重复执行本模块，须先移除旧 invoke handler 再注册 */
+function ipcHandle(channel: string, listener: (...args: unknown[]) => unknown): void {
+  ipcMain.removeHandler(channel)
+  ipcMain.handle(channel, listener as Parameters<typeof ipcMain.handle>[1])
+}
 
 // 获取文件的 MIME 类型
 function getMimeType(filePath: string): string {
@@ -189,7 +196,7 @@ app.on('window-all-closed', () => {
 })
 
 // IPC 处理器：打开文件
-ipcMain.handle('file:open', async (_event, filePath: string): Promise<boolean> => {
+ipcHandle('file:open', async (_event, filePath: string): Promise<boolean> => {
   try {
     // 使用系统默认程序打开文件
     const result = await shell.openPath(filePath)
@@ -206,7 +213,7 @@ ipcMain.handle('file:open', async (_event, filePath: string): Promise<boolean> =
 })
 
 // IPC 处理器：打开目录选择对话框
-ipcMain.handle('dialog:openDirectory', async () => {
+ipcHandle('dialog:openDirectory', async () => {
   if (!mainWindow) return null
   
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -221,7 +228,7 @@ ipcMain.handle('dialog:openDirectory', async () => {
 })
 
 // IPC 处理器：打开外部链接
-ipcMain.handle('shell:openExternal', async (_event, url: string): Promise<boolean> => {
+ipcHandle('shell:openExternal', async (_event, url: string): Promise<boolean> => {
   try {
     const { shell } = await import('electron')
     await shell.openExternal(url)
@@ -233,7 +240,7 @@ ipcMain.handle('shell:openExternal', async (_event, url: string): Promise<boolea
 })
 
 // IPC 处理器：读取目录内容
-ipcMain.handle('fs:readDirectory', async (_event, path: string): Promise<FileInfo[]> => {
+ipcHandle('fs:readDirectory', async (_event, path: string): Promise<FileInfo[]> => {
   try {
     if (!existsSync(path)) {
       return []
@@ -336,7 +343,7 @@ async function readDirectoryRecursive(dirPath: string): Promise<FileInfo[]> {
 }
 
 // IPC 处理器：递归读取目录
-ipcMain.handle('fs:readDirectoryRecursive', async (_event, path: string): Promise<FileInfo[]> => {
+ipcHandle('fs:readDirectoryRecursive', async (_event, path: string): Promise<FileInfo[]> => {
   try {
     if (!existsSync(path)) {
       return []
@@ -349,7 +356,7 @@ ipcMain.handle('fs:readDirectoryRecursive', async (_event, path: string): Promis
 })
 
 // IPC 处理器：提取文件（将子目录中的指定类型文件提取到当前目录）
-ipcMain.handle('fs:extractFiles', async (_event, targetPath: string, filters: { extensions: string[]; minSize?: number; maxSize?: number; category?: string }, conflictAction: 'skip' | 'overwrite' | 'rename') => {
+ipcHandle('fs:extractFiles', async (_event, targetPath: string, filters: { extensions: string[]; minSize?: number; maxSize?: number; category?: string }, conflictAction: 'skip' | 'overwrite' | 'rename') => {
   try {
     if (!existsSync(targetPath)) {
       throw new Error('目标目录不存在')
@@ -439,7 +446,7 @@ ipcMain.handle('fs:extractFiles', async (_event, targetPath: string, filters: { 
 })
 
 // IPC 处理器：整理文件
-ipcMain.handle('fs:organize', async (_event, config: OrganizeConfig) => {
+ipcHandle('fs:organize', async (_event, config: OrganizeConfig) => {
   try {
     const { sourcePath, rules, options } = config
     const results: Array<{ from: string; to: string; success: boolean; error?: string }> = []
@@ -539,12 +546,12 @@ ipcMain.handle('fs:organize', async (_event, config: OrganizeConfig) => {
 })
 
 // IPC 处理器：获取应用版本
-ipcMain.handle('app:getVersion', () => {
+ipcHandle('app:getVersion', () => {
   return app.getVersion()
 })
 
 // IPC 处理器：获取平台信息
-ipcMain.handle('app:getPlatform', () => {
+ipcHandle('app:getPlatform', () => {
   return process.platform
 })
 
@@ -697,7 +704,7 @@ ipcMain.on('file:preview', (_event, filePath: string, fileList?: FileInfo[], cur
 })
 
 // IPC 处理器：文件重命名
-ipcMain.handle('file:rename', async (_event, oldPath: string, newName: string): Promise<boolean> => {
+ipcHandle('file:rename', async (_event, oldPath: string, newName: string): Promise<boolean> => {
   try {
     const dir = oldPath.substring(0, oldPath.lastIndexOf('\\') || oldPath.lastIndexOf('/'))
     const newPath = `${dir}/${newName}`
@@ -711,7 +718,7 @@ ipcMain.handle('file:rename', async (_event, oldPath: string, newName: string): 
 })
 
 // IPC 处理器：删除文件或文件夹
-ipcMain.handle('file:delete', async (_event, filePath: string): Promise<boolean> => {
+ipcHandle('file:delete', async (_event, filePath: string): Promise<boolean> => {
   try {
     const stats = await stat(filePath)
     if (stats.isDirectory()) {
@@ -729,7 +736,7 @@ ipcMain.handle('file:delete', async (_event, filePath: string): Promise<boolean>
 })
 
 // IPC 处理器：获取图片base64用于预览
-ipcMain.handle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
+ipcHandle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
   try {
     const buffer = await fs.readFile(filePath)
     const mimeType = getMimeType(filePath)
@@ -742,7 +749,7 @@ ipcMain.handle('file:getImageBase64', async (_event, filePath: string): Promise<
 })
 
 // IPC 处理器：获取图片尺寸信息
-ipcMain.handle('file:getImageDimensions', async (_event, filePath: string): Promise<{ width: number; height: number } | null> => {
+ipcHandle('file:getImageDimensions', async (_event, filePath: string): Promise<{ width: number; height: number } | null> => {
   try {
     const metadata = await sharp(filePath).metadata()
     if (metadata.width && metadata.height) {
@@ -759,7 +766,7 @@ ipcMain.handle('file:getImageDimensions', async (_event, filePath: string): Prom
 })
 
 // IPC 处理器：获取图片缩略图base64用于预览（使用sharp，动态质量压缩）
-ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 60): Promise<string> => {
+ipcHandle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 60): Promise<string> => {
   try {
     // 获取文件大小，确保只处理50MB及以下的图片（包括50MB）
     const stats = await stat(filePath)
@@ -1040,7 +1047,7 @@ async function scanImageFiles(config: SimilarityScanConfig): Promise<string[]> {
 // IPC 处理器：扫描相似照片
 let currentScanWindow: BrowserWindow | null = null
 
-ipcMain.handle('similarity:scan', async (event, config: SimilarityScanConfig): Promise<SimilarityScanResult> => {
+ipcHandle('similarity:scan', async (event, config: SimilarityScanConfig): Promise<SimilarityScanResult> => {
   const startTime = Date.now()
   let currentProgress = 0
   let totalFiles = 0
@@ -1167,6 +1174,40 @@ ipcMain.handle('similarity:scan', async (event, config: SimilarityScanConfig): P
 // IPC 处理器：取消扫描
 ipcMain.on('similarity:cancel', () => {
   currentScanWindow = null
+})
+
+let imageQualityScanCancelled = false
+let currentImageQualityWindow: BrowserWindow | null = null
+
+ipcHandle('imageQuality:scan', async (event, config: ImageQualityScanConfig): Promise<ImageQualityScanResult> => {
+  imageQualityScanCancelled = false
+  currentImageQualityWindow = BrowserWindow.fromWebContents(event.sender) || null
+
+  const sendProgress = (progress: Partial<ImageQualityScanProgress>) => {
+    if (currentImageQualityWindow && !currentImageQualityWindow.isDestroyed()) {
+      currentImageQualityWindow.webContents.send('imageQuality:progress', {
+        current: 0,
+        total: 0,
+        status: 'analyzing',
+        ...progress
+      } as ImageQualityScanProgress)
+    }
+  }
+
+  try {
+    const result = await scanImageQuality(config, sendProgress, () => imageQualityScanCancelled)
+    currentImageQualityWindow = null
+    return result
+  } catch (error) {
+    console.error('[Main] 图片质量扫描失败:', error)
+    sendProgress({ status: 'error', currentFile: `错误: ${error}` })
+    currentImageQualityWindow = null
+    throw error
+  }
+})
+
+ipcMain.on('imageQuality:cancel', () => {
+  imageQualityScanCancelled = true
 })
 
 // ==================== 图片内容分类功能（升级版） ====================
@@ -1799,7 +1840,7 @@ async function classifyImage(imagePath: string, modelId: ClassificationModelId =
 }
 
 // IPC 处理器：分类单张图片
-ipcMain.handle('image:classify', async (_event, imagePath: string): Promise<ImageClassificationResult> => {
+ipcHandle('image:classify', async (_event, imagePath: string): Promise<ImageClassificationResult> => {
   return await classifyImage(imagePath)
 })
 
@@ -1807,7 +1848,7 @@ ipcMain.handle('image:classify', async (_event, imagePath: string): Promise<Imag
 let currentClassificationWindow: BrowserWindow | null = null
 let classificationCancelled = false
 
-ipcMain.handle('image:classifyBatch', async (event, config: ImageClassificationConfig): Promise<ImageClassificationBatchResult> => {
+ipcHandle('image:classifyBatch', async (event, config: ImageClassificationConfig): Promise<ImageClassificationBatchResult> => {
   const startTime = Date.now()
   currentClassificationWindow = BrowserWindow.fromWebContents(event.sender) || null
   classificationCancelled = false
@@ -1934,7 +1975,7 @@ ipcMain.on('image:cancelClassification', () => {
 })
 
 // IPC 处理器：应用编辑设置（可用于单图或批量）
-ipcMain.handle('image:applyEdits', async (_event, paths: string[] | string, settings: any): Promise<BatchOperationResult[]> => {
+ipcHandle('image:applyEdits', async (_event, paths: string[] | string, settings: any): Promise<BatchOperationResult[]> => {
   const filePaths = Array.isArray(paths) ? paths : [paths]
   const results: BatchOperationResult[] = []
   for (const p of filePaths) {
@@ -1986,7 +2027,7 @@ ipcMain.handle('image:applyEdits', async (_event, paths: string[] | string, sett
 })
 
 // IPC 处理器：格式转换
-ipcMain.handle('image:convertFormat', async (_event, paths: string[] | string, options: any, outputPath?: string): Promise<BatchOperationResult[]> => {
+ipcHandle('image:convertFormat', async (_event, paths: string[] | string, options: any, outputPath?: string): Promise<BatchOperationResult[]> => {
   const filePaths = Array.isArray(paths) ? paths : [paths]
   const results: BatchOperationResult[] = []
   for (const p of filePaths) {
@@ -2001,7 +2042,7 @@ ipcMain.handle('image:convertFormat', async (_event, paths: string[] | string, o
 })
 
 // IPC 处理器：压缩图片
-ipcMain.handle('image:compress', async (_event, paths: string[] | string, options: any): Promise<BatchOperationResult[]> => {
+ipcHandle('image:compress', async (_event, paths: string[] | string, options: any): Promise<BatchOperationResult[]> => {
   const filePaths = Array.isArray(paths) ? paths : [paths]
   const results: BatchOperationResult[] = []
   for (const p of filePaths) {
@@ -2016,7 +2057,7 @@ ipcMain.handle('image:compress', async (_event, paths: string[] | string, option
 })
 
 // IPC 处理器：预估压缩大小，仅返回单张结果
-ipcMain.handle('image:estimateCompressedSize', async (_event, path: string, options: any): Promise<number> => {
+ipcHandle('image:estimateCompressedSize', async (_event, path: string, options: any): Promise<number> => {
   try {
     const size = await import('./utils/imageUtils').then(mod => mod.estimateCompressedSize(path, options))
     return size
@@ -2036,19 +2077,19 @@ function getModelInfo(modelId: ClassificationModelId) {
 }
 
 // IPC 处理器：获取可用模型列表
-ipcMain.handle('model:getAvailableModels', async (): Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>> => {
+ipcHandle('model:getAvailableModels', async (): Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>> => {
   return CLASSIFICATION_MODELS.map(({ downloadUrls, ...rest }) => rest)
 })
 
 // IPC 处理器：检查指定模型文件是否存在
-ipcMain.handle('model:checkExists', async (_event, modelId?: string): Promise<boolean> => {
+ipcHandle('model:checkExists', async (_event, modelId?: string): Promise<boolean> => {
   const id: ClassificationModelId = (modelId as ClassificationModelId) || 'mobilenetv2'
   const modelPath = join(process.cwd(), 'models', `${id}.onnx`)
   return existsSync(modelPath)
 })
 
 // IPC 处理器：下载模型文件
-ipcMain.handle('model:download', async (_event, modelId?: string): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
+ipcHandle('model:download', async (_event, modelId?: string): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
   const id: ClassificationModelId = (modelId as ClassificationModelId) || 'mobilenetv2'
   const modelInfo = getModelInfo(id)
 
@@ -2221,7 +2262,7 @@ ipcMain.on('model:cancelDownload', () => {
 })
 
 // IPC 处理器：选择并保存模型文件
-ipcMain.handle('model:selectAndSave', async (): Promise<string | null> => {
+ipcHandle('model:selectAndSave', async (): Promise<string | null> => {
   const { dialog } = await import('electron')
 
   console.log('[Main] 打开文件选择器...')
@@ -2252,7 +2293,7 @@ ipcMain.handle('model:selectAndSave', async (): Promise<string | null> => {
 })
 
 // IPC 处理器：保存模型文件
-ipcMain.handle('model:saveFile', async (_event, sourcePath: string): Promise<string | null> => {
+ipcHandle('model:saveFile', async (_event, sourcePath: string): Promise<string | null> => {
   try {
     const filename = sourcePath.split(/[/\\]/).pop()
     if (!filename) return null
@@ -2336,7 +2377,7 @@ async function saveModelFile(sourcePath: string): Promise<string | null> {
 // ==================== 实用工具功能 ====================
 
 // IPC 处理器：批量重命名
-ipcMain.handle('tools:batchRename', async (_event, files: string[], options: any): Promise<any[]> => {
+ipcHandle('tools:batchRename', async (_event, files: string[], options: any): Promise<any[]> => {
   try {
     const { batchRename } = await import('./services/imageToolService')
     return await batchRename(files, options)
@@ -2347,7 +2388,7 @@ ipcMain.handle('tools:batchRename', async (_event, files: string[], options: any
 })
 
 // IPC 处理器：添加水印
-ipcMain.handle('tools:addWatermark', async (_event, files: string[], options: any): Promise<any[]> => {
+ipcHandle('tools:addWatermark', async (_event, files: string[], options: any): Promise<any[]> => {
   try {
     const { addWatermark } = await import('./services/imageToolService')
     return await addWatermark(files, options)
@@ -2358,7 +2399,7 @@ ipcMain.handle('tools:addWatermark', async (_event, files: string[], options: an
 })
 
 // IPC 处理器：水印预览
-ipcMain.handle('tools:previewWatermark', async (_event, filePath: string, options: any): Promise<string> => {
+ipcHandle('tools:previewWatermark', async (_event, filePath: string, options: any): Promise<string> => {
   try {
     const { previewWatermark } = await import('./services/imageToolService')
     return await previewWatermark(filePath, options)
@@ -2369,7 +2410,7 @@ ipcMain.handle('tools:previewWatermark', async (_event, filePath: string, option
 })
 
 // IPC 处理器：图片拼接
-ipcMain.handle('tools:stitchImages', async (_event, images: string[], options: any): Promise<string> => {
+ipcHandle('tools:stitchImages', async (_event, images: string[], options: any): Promise<string> => {
   try {
     const { stitchImages } = await import('./services/imageToolService')
     return await stitchImages(images, options)
@@ -2380,7 +2421,7 @@ ipcMain.handle('tools:stitchImages', async (_event, images: string[], options: a
 })
 
 // IPC 处理器：GIF制作
-ipcMain.handle('tools:createGif', async (_event, frames: any[], options: any): Promise<string> => {
+ipcHandle('tools:createGif', async (_event, frames: any[], options: any): Promise<string> => {
   try {
     const { createGif } = await import('./services/imageToolService')
     return await createGif(frames, options)
@@ -2391,7 +2432,7 @@ ipcMain.handle('tools:createGif', async (_event, frames: any[], options: any): P
 })
 
 // IPC 处理器：图片转PDF
-ipcMain.handle('tools:imagesToPdf', async (_event, images: string[], options: any): Promise<string> => {
+ipcHandle('tools:imagesToPdf', async (_event, images: string[], options: any): Promise<string> => {
   try {
     const { imagesToPdf } = await import('./services/imageToolService')
     return await imagesToPdf(images, options)
@@ -2402,7 +2443,7 @@ ipcMain.handle('tools:imagesToPdf', async (_event, images: string[], options: an
 })
 
 // IPC 处理器：生成缩略图
-ipcMain.handle('tools:generateThumbnails', async (_event, files: string[], options: any): Promise<any[]> => {
+ipcHandle('tools:generateThumbnails', async (_event, files: string[], options: any): Promise<any[]> => {
   try {
     const { generateThumbnails } = await import('./services/imageToolService')
     return await generateThumbnails(files, options)
@@ -2413,7 +2454,7 @@ ipcMain.handle('tools:generateThumbnails', async (_event, files: string[], optio
 })
 
 // IPC 处理器：图片增强
-ipcMain.handle('tools:enhanceImage', async (_event, file: string, options: any): Promise<string> => {
+ipcHandle('tools:enhanceImage', async (_event, file: string, options: any): Promise<string> => {
   try {
     const { enhanceImage } = await import('./services/imageToolService')
     return await enhanceImage(file, options)
@@ -2424,7 +2465,7 @@ ipcMain.handle('tools:enhanceImage', async (_event, file: string, options: any):
 })
 
 // IPC 处理器：图片格式转换
-ipcMain.handle('tools:convertImageFormat', async (_event, images: string[], options: any, outputPath: string): Promise<any> => {
+ipcHandle('tools:convertImageFormat', async (_event, images: string[], options: any, outputPath: string): Promise<any> => {
   try {
     const { convertImageFormat } = await import('./services/imageToolService')
     return await convertImageFormat(images, options, outputPath)
@@ -2435,7 +2476,7 @@ ipcMain.handle('tools:convertImageFormat', async (_event, images: string[], opti
 })
 
 // IPC 处理器：选择文件
-ipcMain.handle('dialog:selectFiles', async (_event, filter?: string): Promise<string[] | null> => {
+ipcHandle('dialog:selectFiles', async (_event, filter?: string): Promise<string[] | null> => {
   try {
     const win = mainWindow
     const result = await (dialog.showOpenDialog as any)(win, {

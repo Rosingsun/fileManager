@@ -1,7 +1,6 @@
 import sharp from 'sharp'
 import { join, dirname, basename, extname } from 'path'
 import { existsSync, mkdirSync, renameSync, copyFileSync, unlinkSync, readdirSync } from 'fs'
-import { ensureDir } from 'fs-extra'
 import type { BatchRenameOptions, RenameResult, WatermarkOptions, StitchOptions, GifFrame, GifOptions, PdfOptions, ThumbnailOptions, ThumbnailResult, EnhanceOptions } from '../../src/types'
 
 function getMimeType(filePath: string): string {

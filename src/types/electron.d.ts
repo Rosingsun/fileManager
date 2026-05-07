@@ -37,6 +37,9 @@ declare global {
       scanSimilarImages: (config: import('./index').SimilarityScanConfig) => Promise<import('./index').SimilarityScanResult>
       onSimilarityScanProgress: (callback: (progress: import('./index').SimilarityScanProgress) => void) => () => void
       cancelSimilarityScan: () => void
+      scanImageQuality: (config: import('./index').ImageQualityScanConfig) => Promise<import('./index').ImageQualityScanResult>
+      onImageQualityScanProgress: (callback: (progress: import('./index').ImageQualityScanProgress) => void) => () => void
+      cancelImageQualityScan: () => void
       classifyImage: (imagePath: string) => Promise<import('./index').ImageClassificationResult>
       classifyImagesBatch: (config: import('./index').ImageClassificationConfig) => Promise<import('./index').ImageClassificationBatchResult>
       onImageClassificationProgress: (callback: (progress: import('./index').ImageClassificationProgress) => void) => () => void
