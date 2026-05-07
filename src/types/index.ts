@@ -215,6 +215,24 @@ export interface ImageQualityScanResult {
   scanTime: number
 }
 
+/** 批量复制/移动时的重名策略 */
+export type FileConflictAction = 'skip' | 'overwrite' | 'rename'
+
+export interface BatchFileOpResult {
+  filePath: string
+  success: boolean
+  newPath?: string
+  error?: string
+}
+
+export interface BatchRelocateEntry {
+  from: string
+  to: string
+}
+
+/** 快速筛选：用户整理意图档位（非 EXIF 星级） */
+export type QuickFilterTier = 'high' | 'medium' | 'low'
+
 // 图片内容分类相关类型 - 升级版（25个细分类）
 export type ImageContentCategory =
   // 人物类

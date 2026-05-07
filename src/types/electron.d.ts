@@ -26,6 +26,15 @@ declare global {
       renameFile: (oldPath: string, newName: string) => Promise<boolean>
       deleteFile: (filePath: string) => Promise<boolean>
       moveFile: (oldPath: string, newPath: string) => Promise<boolean>
+      batchCopyToDirectory: (
+        sources: string[],
+        destDir: string,
+        conflictAction: import('./index').FileConflictAction
+      ) => Promise<import('./index').BatchFileOpResult[]>
+      batchRelocate: (
+        moves: import('./index').BatchRelocateEntry[],
+        conflictAction: import('./index').FileConflictAction
+      ) => Promise<import('./index').BatchFileOpResult[]>
       getImageBase64: (filePath: string) => Promise<string>
       getImageDimensions: (filePath: string) => Promise<{ width: number; height: number } | null>
       getImageThumbnail: (filePath: string, size?: number, quality?: number) => Promise<string>

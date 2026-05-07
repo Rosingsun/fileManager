@@ -3,50 +3,114 @@ import {
   Alert,
   Button,
   Card,
+  Checkbox,
   Col,
   Form,
   Input,
   InputNumber,
+  Modal,
   Progress,
+  Radio,
   Row,
+  Select,
   Slider,
   Space,
   Switch,
   Table,
   Tag,
   Tooltip,
-  Typography
+  Typography,
+  message
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   CopyOutlined,
+  DeleteOutlined,
+  ExportOutlined,
   FilterOutlined,
   FolderOpenOutlined,
   FundProjectionScreenOutlined,
+  InboxOutlined,
   StopOutlined,
+  TagsOutlined,
   ThunderboltOutlined
 } from '@ant-design/icons'
 import {
   DEFAULT_IMAGE_QUALITY_THRESHOLDS,
+  type FileConflictAction,
   type ImageQualityFlag,
   type ImageQualityItemResult,
   type ImageQualityScanConfig,
   type ImageQualityScanProgress,
   type ImageQualityScanResult,
-  type ImageQualityThresholds
+  type ImageQualityThresholds,
+  type QuickFilterTier
 } from '../../types'
 import { PageSection } from '../UnifiedUI'
-import { getElectronApiIssueMessage, imageLoader, waitForElectronApiReady } from '../../utils'
+import {
+  getElectronApiIssueMessage,
+  getQuickFilterOrganizeFolderName,
+  imageLoader,
+  suggestQuickFilterTier,
+  waitForElectronApiReady
+} from '../../utils'
 import './QuickFilter.css'
+
+function basename(filePath: string): string {
+  const idx = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
+  return idx >= 0 ? filePath.slice(idx + 1) : filePath
+}
+
+function joinPath(...parts: string[]): string {
+  if (parts.length === 0) return ''
+  const sep = parts[0].includes('\\') ? '\\' : '/'
+  const normalized = parts.map((part, index) => {
+    if (index === 0) return part.replace(/[\\/]+$/, '')
+    return part.replace(/^[\\/]+|[\\/]+$/g, '')
+  })
+  return normalized.filter(Boolean).join(sep)
+}
 
 const { Paragraph } = Typography
 
 type FilterChip = 'all' | ImageQualityFlag | 'composition'
 
+const TIER_LABEL: Record<QuickFilterTier, string> = {
+  high: '高',
+  medium: '中',
+  low: '低'
+}
+
+const TIER_DIR: Record<QuickFilterTier, string> = {
+  high: '高',
+  medium: '中',
+  low: '低'
+}
+
 function hasCompositionFlag(flags: ImageQualityFlag[]): boolean {
   return flags.some(f =>
     f === 'subjectVeryCentered' || f === 'subjectOffThirds' || f === 'subjectNearEdge'
   )
+}
+
+const FLAG_LABEL: Record<ImageQualityFlag, string> = {
+  overexposed: '过曝',
+  underexposed: '欠曝',
+  lowContrast: '低对比',
+  subjectVeryCentered: '居中',
+  subjectOffThirds: '偏离三分',
+  subjectNearEdge: '贴边'
+}
+
+function removePathsFromScanResult(
+  prev: ImageQualityScanResult | null,
+  paths: Set<string>
+): ImageQualityScanResult | null {
+  if (!prev) return null
+  return {
+    ...prev,
+    items: prev.items.filter(i => !paths.has(i.filePath))
+  }
 }
 
 const QuickFilter: React.FC = () => {
@@ -58,6 +122,21 @@ const QuickFilter: React.FC = () => {
   const [chip, setChip] = useState<FilterChip>('all')
   const [thumbnails, setThumbnails] = useState<Map<string, string>>(new Map())
   const [apiHint, setApiHint] = useState<string | null>(null)
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [tierByPath, setTierByPath] = useState<Partial<Record<string, QuickFilterTier>>>({})
+  const [copyModalOpen, setCopyModalOpen] = useState(false)
+  const [copyDestDir, setCopyDestDir] = useState('')
+  const [copyConflict, setCopyConflict] = useState<FileConflictAction>('rename')
+  const [copyRemoveAfter, setCopyRemoveAfter] = useState(false)
+  const [flagOrgModalOpen, setFlagOrgModalOpen] = useState(false)
+  const [flagOrgConflict, setFlagOrgConflict] = useState<FileConflictAction>('rename')
+  const [tierOrgModalOpen, setTierOrgModalOpen] = useState(false)
+  const [tierOrgConflict, setTierOrgConflict] = useState<FileConflictAction>('rename')
+
+  const changeChip = useCallback((c: FilterChip) => {
+    setChip(c)
+    setSelectedRowKeys([])
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -114,6 +193,26 @@ const QuickFilter: React.FC = () => {
     }
   }, [result, loadThumbnails])
 
+  useEffect(() => {
+    if (!result?.items?.length) {
+      setTierByPath({})
+      return
+    }
+    const keep = new Set(result.items.map(i => i.filePath))
+    setTierByPath(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const k of Object.keys(next)) {
+        if (!keep.has(k)) {
+          delete next[k]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    setSelectedRowKeys(keys => keys.filter(k => keep.has(String(k))))
+  }, [result?.items])
+
   const filteredItems = useMemo(() => {
     if (!result?.items) return []
     if (chip === 'all') return result.items
@@ -122,6 +221,14 @@ const QuickFilter: React.FC = () => {
     }
     return result.items.filter(r => r.flags.includes(chip))
   }, [result, chip])
+
+  const itemByPath = useMemo(() => {
+    const m = new Map<string, ImageQualityItemResult>()
+    if (result?.items) {
+      for (const it of result.items) m.set(it.filePath, it)
+    }
+    return m
+  }, [result])
 
   const handleSelectPath = async () => {
     const ready = await waitForElectronApiReady({ requiredMethod: 'openDirectory' })
@@ -182,6 +289,8 @@ const QuickFilter: React.FC = () => {
       setProgress(null)
       setScanning(true)
       setChip('all')
+      setSelectedRowKeys([])
+      setTierByPath({})
       const config = buildConfig(values)
       const scanResult = await window.electronAPI.scanImageQuality(config)
       setResult(scanResult)
@@ -202,13 +311,207 @@ const QuickFilter: React.FC = () => {
     setProgress(p => (p ? { ...p, status: 'cancelled' } : p))
   }
 
-  const flagLabel: Record<ImageQualityFlag, string> = {
-    overexposed: '过曝',
-    underexposed: '欠曝',
-    lowContrast: '低对比',
-    subjectVeryCentered: '居中',
-    subjectOffThirds: '偏离三分',
-    subjectNearEdge: '贴边'
+  const setTierForPath = useCallback((filePath: string, tier: QuickFilterTier | null) => {
+    setTierByPath(prev => {
+      const next = { ...prev }
+      if (tier === null) delete next[filePath]
+      else next[filePath] = tier
+      return next
+    })
+  }, [])
+
+  const handleSuggestTiers = useCallback(() => {
+    if (!result?.items.length) {
+      message.warning('暂无扫描结果')
+      return
+    }
+    const next: Partial<Record<string, QuickFilterTier>> = {}
+    for (const it of result.items) {
+      next[it.filePath] = suggestQuickFilterTier(it)
+    }
+    setTierByPath(next)
+    message.success('已根据分析结果写入评级（可再手动调整）')
+  }, [result])
+
+  const handleSelectAllFiltered = () => {
+    setSelectedRowKeys(filteredItems.map(i => i.filePath))
+  }
+
+  const handleClearSelection = () => {
+    setSelectedRowKeys([])
+  }
+
+  const handleBulkDelete = () => {
+    const keys = selectedRowKeys.map(String)
+    if (keys.length === 0) {
+      message.warning('请先选择要删除的行')
+      return
+    }
+    Modal.confirm({
+      title: '确认删除',
+      content: `将永久删除选中的 ${keys.length} 个文件，此操作不可撤销。`,
+      okText: '确定删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        const api = window.electronAPI
+        if (!api?.deleteFile) {
+          message.error('Electron API 不可用')
+          return
+        }
+        const successPaths: string[] = []
+        let fail = 0
+        for (const p of keys) {
+          try {
+            const r = await api.deleteFile(p)
+            if (r) successPaths.push(p)
+            else fail += 1
+          } catch {
+            fail += 1
+          }
+        }
+        if (successPaths.length > 0) {
+          setResult(prev => removePathsFromScanResult(prev, new Set(successPaths)))
+        }
+        setSelectedRowKeys([])
+        const ok = successPaths.length
+        if (fail === 0) message.success(`已删除 ${ok} 个文件`)
+        else message.warning(`删除完成：成功 ${ok}，失败 ${fail}`)
+      }
+    })
+  }
+
+  const handleOpenCopyModal = async () => {
+    const keys = selectedRowKeys.map(String)
+    if (keys.length === 0) {
+      message.warning('请先选择要复制的行')
+      return
+    }
+    const ready = await waitForElectronApiReady({ requiredMethod: 'batchCopyToDirectory' })
+    if (!ready || !window.electronAPI?.batchCopyToDirectory) {
+      message.error(getElectronApiIssueMessage('batchCopyToDirectory'))
+      return
+    }
+    const dir = await window.electronAPI.openDirectory()
+    if (!dir) return
+    setCopyDestDir(dir)
+    setCopyConflict('rename')
+    setCopyRemoveAfter(false)
+    setCopyModalOpen(true)
+  }
+
+  const runCopy = async () => {
+    const keys = selectedRowKeys.map(String)
+    const api = window.electronAPI
+    if (!api?.batchCopyToDirectory || !copyDestDir) return
+    const results = await api.batchCopyToDirectory(keys, copyDestDir, copyConflict)
+    const ok = results.filter(r => r.success).length
+    const fail = results.length - ok
+    setCopyModalOpen(false)
+    if (fail === 0) message.success(`已复制 ${ok} 个文件到目标文件夹`)
+    else message.warning(`复制完成：成功 ${ok}，失败 ${fail}`)
+    if (copyRemoveAfter && ok > 0) {
+      const removed = new Set(results.filter(r => r.success).map(r => r.filePath))
+      setResult(prev => removePathsFromScanResult(prev, removed))
+      setSelectedRowKeys([])
+    }
+  }
+
+  const runFlagOrganize = async () => {
+    const keys = selectedRowKeys.map(String)
+    if (keys.length === 0) {
+      message.warning('请先选择行')
+      return
+    }
+    const ready = await waitForElectronApiReady({ requiredMethod: 'batchRelocate' })
+    if (!ready || !window.electronAPI?.batchRelocate) {
+      message.error(getElectronApiIssueMessage('batchRelocate'))
+      return
+    }
+    const root = await window.electronAPI.openDirectory()
+    if (!root) return
+    const moves = keys
+      .map(from => {
+        const item = itemByPath.get(from)
+        if (!item) return null
+        const folder = getQuickFilterOrganizeFolderName(item)
+        return { from, to: joinPath(root, folder, basename(from)) }
+      })
+      .filter(Boolean) as { from: string; to: string }[]
+    const results = await window.electronAPI.batchRelocate(moves, flagOrgConflict)
+    const okPaths = new Set(results.filter(r => r.success).map(r => r.filePath))
+    setResult(prev => removePathsFromScanResult(prev, okPaths))
+    setSelectedRowKeys([])
+    setFlagOrgModalOpen(false)
+    const ok = okPaths.size
+    const fail = results.length - ok
+    if (fail === 0) message.success(`已移动 ${ok} 个文件`)
+    else message.warning(`移动完成：成功 ${ok}，失败 ${fail}`)
+  }
+
+  const runTierOrganize = async () => {
+    const keys = selectedRowKeys.map(String)
+    if (keys.length === 0) {
+      message.warning('请先选择行')
+      return
+    }
+    const unrated = keys.filter(k => tierByPath[k] === undefined)
+    if (unrated.length > 0) {
+      message.warning(`有 ${unrated.length} 项未设置评级，已跳过（仅移动已评级项）`)
+    }
+    const ratedKeys = keys.filter(k => tierByPath[k] !== undefined) as string[]
+    if (ratedKeys.length === 0) {
+      message.warning('所选行中没有已评级项')
+      return
+    }
+    const ready = await waitForElectronApiReady({ requiredMethod: 'batchRelocate' })
+    if (!ready || !window.electronAPI?.batchRelocate) {
+      message.error(getElectronApiIssueMessage('batchRelocate'))
+      return
+    }
+    const root = await window.electronAPI.openDirectory()
+    if (!root) return
+    const moves = ratedKeys.map(from => {
+      const tier = tierByPath[from]!
+      const dirName = TIER_DIR[tier]
+      return { from, to: joinPath(root, dirName, basename(from)) }
+    })
+    const results = await window.electronAPI.batchRelocate(moves, tierOrgConflict)
+    const okPaths = new Set(results.filter(r => r.success).map(r => r.filePath))
+    setResult(prev => removePathsFromScanResult(prev, okPaths))
+    setSelectedRowKeys([])
+    setTierOrgModalOpen(false)
+    const ok = okPaths.size
+    const fail = results.length - ok
+    if (fail === 0) message.success(`已按评级移动 ${ok} 个文件`)
+    else message.warning(`移动完成：成功 ${ok}，失败 ${fail}`)
+  }
+
+  const handleExportCsv = () => {
+    if (!result?.items.length) {
+      message.warning('暂无数据可导出')
+      return
+    }
+    const rows = result.items.map(it => {
+      const tier = tierByPath[it.filePath]
+      const tierText = tier ? TIER_LABEL[tier] : ''
+      const flagsText = it.flags.map(f => FLAG_LABEL[f]).join(';')
+      const folder = getQuickFilterOrganizeFolderName(it)
+      const dim = it.width && it.height ? `${it.width}x${it.height}` : ''
+      return [it.filePath, tierText, flagsText, folder, it.ok ? '是' : '否', dim]
+    })
+    const header = ['路径', '评级', '分析标记', '按标记整理子目录', '分析成功', '尺寸']
+    const escape = (cell: string) => `"${cell.replace(/"/g, '""')}"`
+    const body = [header, ...rows].map(cols => cols.map(escape).join(',')).join('\r\n')
+    const bom = '\uFEFF'
+    const blob = new Blob([bom + body], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `快速筛选导出_${Date.now()}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    message.success('已导出 CSV')
   }
 
   const columns: ColumnsType<ImageQualityItemResult> = useMemo(
@@ -232,6 +535,28 @@ const QuickFilter: React.FC = () => {
         ellipsis: true
       },
       {
+        title: '评级',
+        key: 'tier',
+        width: 108,
+        render: (_, r) => (
+          <Select
+            size="small"
+            allowClear
+            placeholder="未评"
+            value={tierByPath[r.filePath]}
+            style={{ width: '100%' }}
+            options={[
+              { value: 'high' as const, label: '高' },
+              { value: 'medium' as const, label: '中' },
+              { value: 'low' as const, label: '低' }
+            ]}
+            onChange={(v: QuickFilterTier | null | undefined) =>
+              setTierForPath(r.filePath, v === undefined || v === null ? null : v)
+            }
+          />
+        )
+      },
+      {
         title: '尺寸',
         key: 'dim',
         width: 100,
@@ -240,13 +565,13 @@ const QuickFilter: React.FC = () => {
       {
         title: '标记',
         key: 'flags',
-        width: 220,
+        width: 200,
         render: (_, r) =>
           r.flags.length ? (
             <Space size={[4, 4]} wrap>
               {r.flags.map(f => (
                 <Tag key={f} color="orange">
-                  {flagLabel[f]}
+                  {FLAG_LABEL[f]}
                 </Tag>
               ))}
             </Space>
@@ -282,7 +607,7 @@ const QuickFilter: React.FC = () => {
         )
       }
     ],
-    [thumbnails]
+    [thumbnails, tierByPath, setTierForPath]
   )
 
   const progressPercent =
@@ -527,20 +852,27 @@ const QuickFilter: React.FC = () => {
               </Row>
             </PageSection>
 
-            <Space>
+            <div className="quick-filter-action-buttons">
               <Button
                 type="primary"
                 icon={<FundProjectionScreenOutlined />}
                 loading={scanning}
                 disabled={Boolean(apiHint)}
                 onClick={() => void handleStart()}
+                size="large"
               >
                 开始分析
               </Button>
-              <Button danger icon={<StopOutlined />} disabled={!scanning} onClick={handleCancel}>
+              <Button 
+                danger 
+                icon={<StopOutlined />} 
+                disabled={!scanning} 
+                onClick={handleCancel}
+                size="large"
+              >
                 取消
               </Button>
-            </Space>
+            </div>
           </Form>
 
           {scanning && progress && (
@@ -559,23 +891,23 @@ const QuickFilter: React.FC = () => {
           {result && (
             <PageSection
               title="结果"
-              subtitle={`共 ${result.totalImages} 张，跳过 ${result.skipped.length}，耗时 ${(result.scanTime / 1000).toFixed(1)} s`}
+              subtitle={`扫描 ${result.totalImages} 张，列表剩余 ${result.items.length} 项，跳过 ${result.skipped.length}，耗时 ${(result.scanTime / 1000).toFixed(1)} s`}
               extra={<ThunderboltOutlined />}
             >
               <div className="quick-filter-chip-row">
-                <Tag.CheckableTag checked={chip === 'all'} onChange={c => c && setChip('all')}>
+                <Tag.CheckableTag checked={chip === 'all'} onChange={c => c && changeChip('all')}>
                   全部
                 </Tag.CheckableTag>
-                <Tag.CheckableTag checked={chip === 'overexposed'} onChange={c => c && setChip('overexposed')}>
+                <Tag.CheckableTag checked={chip === 'overexposed'} onChange={c => c && changeChip('overexposed')}>
                   过曝
                 </Tag.CheckableTag>
-                <Tag.CheckableTag checked={chip === 'underexposed'} onChange={c => c && setChip('underexposed')}>
+                <Tag.CheckableTag checked={chip === 'underexposed'} onChange={c => c && changeChip('underexposed')}>
                   欠曝
                 </Tag.CheckableTag>
-                <Tag.CheckableTag checked={chip === 'lowContrast'} onChange={c => c && setChip('lowContrast')}>
+                <Tag.CheckableTag checked={chip === 'lowContrast'} onChange={c => c && changeChip('lowContrast')}>
                   低对比
                 </Tag.CheckableTag>
-                <Tag.CheckableTag checked={chip === 'composition'} onChange={c => c && setChip('composition')}>
+                <Tag.CheckableTag checked={chip === 'composition'} onChange={c => c && changeChip('composition')}>
                   构图提示
                 </Tag.CheckableTag>
               </div>
@@ -588,12 +920,49 @@ const QuickFilter: React.FC = () => {
                   description={result.skipped.slice(0, 5).map(s => `${s.path}: ${s.reason}`).join('\n')}
                 />
               )}
+
+              <div className="quick-filter-results-toolbar">
+                <Space wrap size={[8, 8]} align="center">
+                  <Typography.Text type="secondary">已选 {selectedRowKeys.length} 项</Typography.Text>
+                  <Button size="small" onClick={handleSelectAllFiltered}>
+                    全选当前列表
+                  </Button>
+                  <Button size="small" onClick={handleClearSelection}>
+                    取消选择
+                  </Button>
+                  <Tooltip title="根据曝光/对比/构图启发式写入「高/中/低」，仅供参考">
+                    <Button size="small" onClick={handleSuggestTiers}>
+                      按分析初分评级
+                    </Button>
+                  </Tooltip>
+                  <Button size="small" icon={<CopyOutlined />} onClick={() => void handleOpenCopyModal()}>
+                    复制到…
+                  </Button>
+                  <Button size="small" danger icon={<DeleteOutlined />} onClick={handleBulkDelete}>
+                    删除所选
+                  </Button>
+                  <Button size="small" icon={<TagsOutlined />} onClick={() => setFlagOrgModalOpen(true)}>
+                    按标记整理…
+                  </Button>
+                  <Button size="small" icon={<InboxOutlined />} onClick={() => setTierOrgModalOpen(true)}>
+                    按评级整理…
+                  </Button>
+                  <Button size="small" icon={<ExportOutlined />} onClick={handleExportCsv}>
+                    导出 CSV
+                  </Button>
+                </Space>
+              </div>
+
               <div className="quick-filter-results">
                 <Table<ImageQualityItemResult>
                   rowKey="filePath"
                   size="small"
                   pagination={{ pageSize: 25 }}
-                  scroll={{ x: 900 }}
+                  scroll={{ x: 1180 }}
+                  rowSelection={{
+                    selectedRowKeys,
+                    onChange: keys => setSelectedRowKeys(keys)
+                  }}
                   columns={columns}
                   dataSource={filteredItems}
                   expandable={{
@@ -619,6 +988,67 @@ const QuickFilter: React.FC = () => {
           )}
         </div>
       </Card>
+
+      <Modal
+        title="复制到文件夹"
+        open={copyModalOpen}
+        onCancel={() => setCopyModalOpen(false)}
+        onOk={() => void runCopy()}
+        okText="开始复制"
+        destroyOnClose
+      >
+        <Paragraph ellipsis={{ rows: 2 }} type="secondary">
+          目标：{copyDestDir}
+        </Paragraph>
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Typography.Text>重名时</Typography.Text>
+          <Radio.Group value={copyConflict} onChange={e => setCopyConflict(e.target.value)}>
+            <Radio value="rename">自动重命名</Radio>
+            <Radio value="skip">跳过</Radio>
+            <Radio value="overwrite">覆盖</Radio>
+          </Radio.Group>
+          <Checkbox checked={copyRemoveAfter} onChange={e => setCopyRemoveAfter(e.target.checked)}>
+            成功后从当前结果列表移除
+          </Checkbox>
+        </Space>
+      </Modal>
+
+      <Modal
+        title="按标记整理（移动文件）"
+        open={flagOrgModalOpen}
+        onCancel={() => setFlagOrgModalOpen(false)}
+        onOk={() => void runFlagOrganize()}
+        okText="选择根目录并移动"
+        destroyOnClose
+      >
+        <Paragraph type="secondary">
+          将把选中文件移动到您选择的根目录下的子文件夹（过曝、欠曝、低对比、构图提示、未标记、曝光矛盾、分析失败等）。原路径不再保留。
+        </Paragraph>
+        <Typography.Text>重名时</Typography.Text>
+        <Radio.Group value={flagOrgConflict} onChange={e => setFlagOrgConflict(e.target.value)} style={{ marginTop: 8 }}>
+          <Radio value="rename">自动重命名</Radio>
+          <Radio value="skip">跳过</Radio>
+          <Radio value="overwrite">覆盖</Radio>
+        </Radio.Group>
+      </Modal>
+
+      <Modal
+        title="按评级整理（移动文件）"
+        open={tierOrgModalOpen}
+        onCancel={() => setTierOrgModalOpen(false)}
+        onOk={() => void runTierOrganize()}
+        okText="选择根目录并移动"
+        destroyOnClose
+      >
+        <Paragraph type="secondary">
+          仅移动已设置「高/中/低」评级的选中项到根目录下的「高」「中」「低」子文件夹。未评级项将跳过。
+        </Paragraph>
+        <Radio.Group value={tierOrgConflict} onChange={e => setTierOrgConflict(e.target.value)}>
+          <Radio value="rename">自动重命名</Radio>
+          <Radio value="skip">跳过</Radio>
+          <Radio value="overwrite">覆盖</Radio>
+        </Radio.Group>
+      </Modal>
     </div>
   )
 }

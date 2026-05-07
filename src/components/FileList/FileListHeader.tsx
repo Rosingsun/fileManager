@@ -14,6 +14,7 @@ interface FileListHeaderProps {
   selectedCategory: string
   selectedSubExtensions: string[]
   selectedImageCategory: string
+  selectedQuality: string
   imageClassificationResults: Map<string, { category: string; confidence: number }>
   filteredFileList: FileInfo[]
   viewMode: 'list' | 'grid'
@@ -25,6 +26,7 @@ interface FileListHeaderProps {
   onSubExtensionChange: (value: string[]) => void
   onResetFilter: () => void
   onImageCategoryChange: (value: string) => void
+  onQualityChange: (value: string) => void
   onViewModeChange: (mode: 'list' | 'grid') => void
   onPageChange: (page: number, pageSize: number) => void
 }
@@ -35,6 +37,7 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   selectedCategory,
   selectedSubExtensions,
   selectedImageCategory,
+  selectedQuality,
   imageClassificationResults,
   filteredFileList,
   viewMode,
@@ -46,6 +49,7 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   onSubExtensionChange,
   onResetFilter,
   onImageCategoryChange,
+  onQualityChange,
   onViewModeChange,
   onPageChange
 }) => {
@@ -156,6 +160,32 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
                 icon={<ClearOutlined />}
                 onClick={() => onImageCategoryChange('all')}
                 title="清除分类筛选"
+              />
+            )}
+          </div>
+        )}
+        {showImageFilter && (
+          <div className="filter-chip is-emphasis">
+            <span className="filter-chip__label">照片质量</span>
+            <Select
+              value={selectedQuality}
+              onChange={onQualityChange}
+              style={{ width: 100 }}
+              size="small"
+              dropdownMatchSelectWidth={false}
+            >
+              <Select.Option value="all">全部</Select.Option>
+              <Select.Option value="high">高质量</Select.Option>
+              <Select.Option value="medium">中等质量</Select.Option>
+              <Select.Option value="low">低质量</Select.Option>
+            </Select>
+            {selectedQuality !== 'all' && (
+              <Button
+                type="text"
+                size="small"
+                icon={<ClearOutlined />}
+                onClick={() => onQualityChange('all')}
+                title="清除质量筛选"
               />
             )}
           </div>

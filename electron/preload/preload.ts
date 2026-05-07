@@ -96,6 +96,21 @@ try {
       return ipcRenderer.invoke('file:move', oldPath, newPath)
     },
 
+    batchCopyToDirectory: (
+      sources: string[],
+      destDir: string,
+      conflictAction: import('../../src/types').FileConflictAction
+    ): Promise<import('../../src/types').BatchFileOpResult[]> => {
+      return ipcRenderer.invoke('files:batchCopyToDirectory', sources, destDir, conflictAction)
+    },
+
+    batchRelocate: (
+      moves: import('../../src/types').BatchRelocateEntry[],
+      conflictAction: import('../../src/types').FileConflictAction
+    ): Promise<import('../../src/types').BatchFileOpResult[]> => {
+      return ipcRenderer.invoke('files:batchRelocate', moves, conflictAction)
+    },
+
     // 获取图片base64用于预览
     getImageBase64: (filePath: string): Promise<string> => {
       return ipcRenderer.invoke('file:getImageBase64', filePath)

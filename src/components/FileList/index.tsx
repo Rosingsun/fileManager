@@ -14,11 +14,10 @@ import { useFilePreview } from './useFilePreview'
 import { FileListHeader } from './FileListHeader'
 import { FileListTable } from './FileListTable'
 import { FileListGrid } from './FileListGrid'
-import ImageViewer from '../ImageViewer/ImageViewer'
-import type { Image } from '../ImageViewer/types'
 import ImageEditor from '../ImageEditor/ImageEditor'
 import BatchEditModal from '../ImageEditor/BatchEditModal'
 import { SelectionActionBar } from '../UnifiedUI'
+import ImagePreview from '../ImagePreview/ImagePreview'
 import type { FileInfo } from '../../types'
 import { MAX_IMAGE_SIZE } from './types'
 
@@ -41,6 +40,7 @@ const FileList: React.FC = () => {
   const { results: classificationResultsFromStore } = useImageClassificationStore()
 
   const [selectedImageCategory, setSelectedImageCategory] = useState<string>('all')
+  const [selectedQuality, setSelectedQuality] = useState<string>('all')
   const [renameModalVisible, setRenameModalVisible] = useState(false)
   const [renamingFile, setRenamingFile] = useState<FileInfo | null>(null)
   const [newFileName, setNewFileName] = useState('')
@@ -67,7 +67,7 @@ const FileList: React.FC = () => {
 
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
   const [previewIndex, setPreviewIndex] = useState(0)
-  const [previewImages, setPreviewImages] = useState<Image[]>([])
+  const [previewImages, setPreviewImages] = useState<string[]>([])
   const [previewableFiles, setPreviewableFiles] = useState<FileInfo[]>([])
 
   // 编辑器
@@ -139,105 +139,6 @@ const FileList: React.FC = () => {
     return fileList.filter(f => !f.isDirectory && isPreviewable(f))
   }, [fileList, isPreviewable])
 
-  const convertFileToImage = useCallback(async (file: FileInfo, imageUrl: string): Promise<Image> => {
-    let width = 0
-    let height = 0
-
-    try {
-      const dimensions = await window.electronAPI?.getImageDimensions(file.path)
-      if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
-        width = dimensions.width
-        height = dimensions.height
-      } else {
-        throw new Error('无法从 electron 端获取尺寸')
-      }
-    } catch (error) {
-      try {
-        const img = new Image()
-        img.src = imageUrl
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('加载超时')), 10000)
-          img.onload = () => {
-            clearTimeout(timeout)
-            width = img.naturalWidth || img.width || 0
-            height = img.naturalHeight || img.height || 0
-            resolve()
-          }
-          img.onerror = () => {
-            clearTimeout(timeout)
-            reject(new Error('图片加载失败'))
-          }
-        })
-      } catch (imgError) {
-        width = 1920
-        height = 1080
-      }
-    }
-
-    let classification = undefined
-    try {
-      const savedResults = localStorage.getItem('image_classification_results')
-      if (savedResults) {
-        const resultsMap = JSON.parse(savedResults)
-        const classificationResult = resultsMap[file.path]
-        if (classificationResult) {
-          classification = classificationResult
-        }
-      }
-    } catch (e) {
-      console.warn('加载分类结果失败:', e)
-    }
-
-    return {
-      id: file.path,
-      url: imageUrl,
-      filename: file.name,
-      width,
-      height,
-      size: file.size,
-      format: getFileExtension(file.name).toLowerCase() || 'unknown',
-      createdAt: new Date(file.createdTime).toISOString(),
-      modifiedAt: new Date(file.modifiedTime).toISOString(),
-      description: '',
-      tags: [],
-      classification
-    }
-  }, [])
-
-  const loadImageForPreview = useCallback(async (index: number, filePath: string, file: FileInfo) => {
-    const previewData = previews.get(filePath)
-    if (previewData?.full?.trim()) {
-      const image = await convertFileToImage(file, previewData.full)
-      setPreviewImages(prev => {
-        const newImages = [...prev]
-        newImages[index] = image
-        return newImages
-      })
-      return
-    }
-
-    try {
-      const result = await imageLoader.loadSmart(filePath, {
-        useCache: true,
-        timeout: 20000,
-        retryCount: 1,
-        fallbackSize: 200,
-        fallbackQuality: 70
-      })
-
-      if (result.data) {
-        const image = await convertFileToImage(file, result.data)
-        setPreviewImages(prev => {
-          const newImages = [...prev]
-          newImages[index] = image
-          return newImages
-        })
-      }
-    } catch (error) {
-      console.error('加载图片失败:', error)
-    }
-  }, [previews, convertFileToImage])
-
   const handleEdit = useCallback((file: FileInfo) => {
     setEditorFilePath(file.path)
     setEditorVisible(true)
@@ -255,43 +156,23 @@ const FileList: React.FC = () => {
     if (index >= 0) {
       setPreviewableFiles(imageFiles)
 
-      const initialImages: Image[] = imageFiles.map((f) => ({
-        id: f.path,
-        url: '',
-        filename: f.name,
-        width: 0,
-        height: 0,
-        size: f.size,
-        format: getFileExtension(f.name).toLowerCase() || 'unknown',
-        createdAt: new Date(f.createdTime).toISOString(),
-        modifiedAt: new Date(f.modifiedTime).toISOString(),
-        description: '',
-        tags: [],
-        classification: undefined
-      }))
+      const imageUrls: string[] = imageFiles.map((f) => {
+        const previewData = previews.get(f.path)
+        if (previewData?.full?.trim()) {
+          return previewData.full
+        }
+        return `file://${f.path}`
+      })
 
-      setPreviewImages(initialImages)
+      setPreviewImages(imageUrls)
       setPreviewIndex(index)
-
-      try {
-        await loadImageForPreview(index, imageFiles[index].path, imageFiles[index])
-        setPreviewModalVisible(true)
-      } catch (error) {
-        console.error('加载第一张图片失败:', error)
-        setPreviewModalVisible(true)
-      }
+      setPreviewModalVisible(true)
     }
-  }, [getImageFiles, loadImageForPreview])
+  }, [getImageFiles, previews])
 
-  const handlePreviewIndexChange = useCallback(async (newIndex: number) => {
+  const handlePreviewIndexChange = useCallback((newIndex: number) => {
     setPreviewIndex(newIndex)
-    if (previewableFiles[newIndex]) {
-      const currentImage = previewImages[newIndex]
-      if (!currentImage || !currentImage.url || currentImage.url.trim() === '') {
-        await loadImageForPreview(newIndex, previewableFiles[newIndex].path, previewableFiles[newIndex])
-      }
-    }
-  }, [previewableFiles, previewImages, loadImageForPreview])
+  }, [])
 
   const filteredFileList = useMemo(() => {
     let files = filterFiles(fileList, selectedCategory, selectedSubExtensions)
@@ -303,8 +184,15 @@ const FileList: React.FC = () => {
       })
     }
 
+    if (selectedQuality !== 'all') {
+      files = files.filter(file => {
+        const classification = imageClassificationResults.get(file.path)
+        return classification && classification.quality === selectedQuality
+      })
+    }
+
     return files
-  }, [fileList, selectedCategory, selectedSubExtensions, imageClassificationResults, selectedImageCategory])
+  }, [fileList, selectedCategory, selectedSubExtensions, imageClassificationResults, selectedImageCategory, selectedQuality])
 
   const handleGoBack = useCallback(() => {
     if (!currentPath) return
@@ -474,12 +362,14 @@ const FileList: React.FC = () => {
   const handleDoubleClick = useCallback(async (file: FileInfo) => {
     if (file.isDirectory) {
       loadDirectory(file.path, false)
+    } else if (isPreviewable(file)) {
+      handlePreview(file)
     } else {
       if (window.electronAPI && window.electronAPI.openFile) {
         await window.electronAPI.openFile(file.path)
       }
     }
-  }, [loadDirectory])
+  }, [loadDirectory, isPreviewable, handlePreview])
 
   const handleSelectionChange = useCallback((keys: string[], rows: FileInfo[]) => {
     setSelectedRowKeys(keys)
@@ -517,6 +407,7 @@ const FileList: React.FC = () => {
             selectedCategory={selectedCategory}
             selectedSubExtensions={selectedSubExtensions}
             selectedImageCategory={selectedImageCategory}
+            selectedQuality={selectedQuality}
             imageClassificationResults={imageClassificationResults}
             filteredFileList={filteredFileList}
             viewMode={viewMode}
@@ -528,6 +419,7 @@ const FileList: React.FC = () => {
             onSubExtensionChange={handleSubExtensionChange}
             onResetFilter={handleResetFilter}
             onImageCategoryChange={setSelectedImageCategory}
+            onQualityChange={setSelectedQuality}
             onViewModeChange={handleViewModeChange}
             onPageChange={handlePageChange}
           />
@@ -665,11 +557,12 @@ const FileList: React.FC = () => {
       </Card>
 
       {previewModalVisible && previewImages.length > 0 && (
-        <ImageViewer
+        <ImagePreview
+          visible={previewModalVisible}
           images={previewImages}
           currentIndex={previewIndex}
-          onIndexChange={handlePreviewIndexChange}
           onClose={() => setPreviewModalVisible(false)}
+          onIndexChange={handlePreviewIndexChange}
         />
       )}
 

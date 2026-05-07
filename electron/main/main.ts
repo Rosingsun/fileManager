@@ -1,12 +1,12 @@
 import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
-import { join } from 'path'
+import { basename, dirname, join, parse } from 'path'
 import { mkdirSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
 import sharp from 'sharp'
 import crypto from 'crypto'
 import { InferenceSession, Tensor } from 'onnxruntime-node'
-import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanProgress, SimilarityScanResult, ImageContentCategory, ImageClassificationResult, ImageClassificationConfig, ImageClassificationProgress, ImageClassificationBatchResult, ImageQualityScanConfig, ImageQualityScanResult, ImageQualityScanProgress } from '../../src/types'
+import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanProgress, SimilarityScanResult, ImageContentCategory, ImageClassificationResult, ImageClassificationConfig, ImageClassificationProgress, ImageClassificationBatchResult, ImageQualityScanConfig, ImageQualityScanResult, ImageQualityScanProgress, BatchFileOpResult, BatchRelocateEntry, FileConflictAction } from '../../src/types'
 import { scanImageQuality } from './services/imageQualityService'
 
 const IMAGENET_CLASSES: string[] = [
@@ -21,6 +21,17 @@ const { readdir, stat, mkdir, move, existsSync } = fs
 function ipcHandle(channel: string, listener: (...args: unknown[]) => unknown): void {
   ipcMain.removeHandler(channel)
   ipcMain.handle(channel, listener as Parameters<typeof ipcMain.handle>[1])
+}
+
+function uniqueFilePathInDir(dir: string, filename: string): string {
+  let candidate = join(dir, filename)
+  let n = 1
+  const { name, ext } = parse(filename)
+  while (existsSync(candidate)) {
+    candidate = join(dir, `${name}_${n}${ext}`)
+    n += 1
+  }
+  return candidate
 }
 
 // 获取文件的 MIME 类型
@@ -734,6 +745,95 @@ ipcHandle('file:delete', async (_event, filePath: string): Promise<boolean> => {
     return false
   }
 })
+
+ipcHandle('file:move', async (_event, oldPath: string, newPath: string): Promise<boolean> => {
+  try {
+    const destDir = dirname(newPath)
+    await mkdir(destDir, { recursive: true })
+    await move(oldPath, newPath, { overwrite: false })
+    console.log('[Main] 文件移动成功:', oldPath, '->', newPath)
+    return true
+  } catch (error) {
+    console.error('[Main] 移动失败:', error)
+    return false
+  }
+})
+
+ipcHandle(
+  'files:batchCopyToDirectory',
+  async (
+    _event,
+    sources: string[],
+    destDir: string,
+    conflictAction: FileConflictAction
+  ): Promise<BatchFileOpResult[]> => {
+    const out: BatchFileOpResult[] = []
+    try {
+      await mkdir(destDir, { recursive: true })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return sources.map(s => ({ filePath: s, success: false, error: msg }))
+    }
+    for (const src of sources) {
+      const base = basename(src)
+      let dest = join(destDir, base)
+      try {
+        if (!existsSync(src)) {
+          out.push({ filePath: src, success: false, error: '源文件不存在' })
+          continue
+        }
+        if (existsSync(dest)) {
+          if (conflictAction === 'skip') {
+            out.push({ filePath: src, success: false, error: '目标已存在' })
+            continue
+          }
+          if (conflictAction === 'rename') {
+            dest = uniqueFilePathInDir(destDir, base)
+          }
+        }
+        await fs.copy(src, dest, { overwrite: conflictAction === 'overwrite' })
+        out.push({ filePath: src, success: true, newPath: dest })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        out.push({ filePath: src, success: false, error: msg })
+      }
+    }
+    return out
+  }
+)
+
+ipcHandle(
+  'files:batchRelocate',
+  async (_event, moves: BatchRelocateEntry[], conflictAction: FileConflictAction): Promise<BatchFileOpResult[]> => {
+    const out: BatchFileOpResult[] = []
+    for (const { from, to } of moves) {
+      try {
+        if (!existsSync(from)) {
+          out.push({ filePath: from, success: false, error: '源文件不存在' })
+          continue
+        }
+        const dir = dirname(to)
+        await mkdir(dir, { recursive: true })
+        let dest = to
+        if (existsSync(dest)) {
+          if (conflictAction === 'skip') {
+            out.push({ filePath: from, success: false, error: '目标已存在' })
+            continue
+          }
+          if (conflictAction === 'rename') {
+            dest = uniqueFilePathInDir(dir, basename(to))
+          }
+        }
+        await move(from, dest, { overwrite: conflictAction === 'overwrite' })
+        out.push({ filePath: from, success: true, newPath: dest })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        out.push({ filePath: from, success: false, error: msg })
+      }
+    }
+    return out
+  }
+)
 
 // IPC 处理器：获取图片base64用于预览
 ipcHandle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {

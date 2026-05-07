@@ -1,4 +1,5 @@
 export * from './electronApiReady'
+export * from './quickFilterTierSuggest'
 export * from './fileUtils'
 export * from './organizer'
 export * from './imageLoader'
