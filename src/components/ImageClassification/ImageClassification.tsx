@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { Card, Button, Progress, Statistic, Table, Tag, Space, message, Alert, Modal, Typography, Select } from 'antd'
+import { Card, Button, Progress, Table, Tag, Space, message, Alert, Modal, Typography, Select } from 'antd'
 import {
   ApiOutlined,
   DeleteOutlined,
@@ -7,16 +7,16 @@ import {
   DownloadOutlined,
   FolderOpenOutlined,
   InboxOutlined,
-  UserOutlined,
   FrownOutlined,
-  PictureOutlined,
-  BuildOutlined,
-  CoffeeOutlined,
-  CarOutlined,
   AppstoreOutlined
 } from '@ant-design/icons'
 import type { ImageContentCategory, ImageClassificationResult, ImageClassificationProgress } from '../../types'
-import { useFileStore } from '../../stores/fileStore'
+import {
+  IMAGE_CATEGORY_LABELS,
+  IMAGE_CATEGORY_ORDER,
+  migrateLegacyImageCategory
+} from '../../types'
+import { useFileStore, useImageClassificationStore } from '../../stores'
 import ImageViewer from '../ImageViewer/ImageViewer'
 import type { Image } from '../ImageViewer/types'
 import { CategoryTag, PageSection, StatCard } from '../UnifiedUI'
@@ -196,16 +196,6 @@ const ManualDownloadModal: React.FC<{
   )
 }
 
-const CATEGORY_LABELS: Record<ImageContentCategory, string> = {
-  person: '人物', portrait: '人像', selfie: '自拍',
-  dog: '狗', cat: '猫', bird: '鸟类', wild_animal: '野生动物', marine_animal: '海洋生物', insect: '昆虫', pet: '宠物',
-  landscape: '风景', mountain: '山脉', beach: '海滩', sunset: '日落', forest: '森林', cityscape: '城市风光', night_scene: '夜景',
-  building: '建筑', landmark: '地标', interior: '室内', street: '街道',
-  food: '食物', drink: '饮品', dessert: '甜点',
-  vehicle: '车辆', aircraft: '飞机', ship: '船舶',
-  art: '艺术', technology: '科技', document: '文档', other: '其他'
-}
-
 interface ClassificationResult {
   key: number
   filePath: string
@@ -256,7 +246,7 @@ const ImageClassification: React.FC = () => {
   const [viewerImages, setViewerImages] = useState<Image[]>([])
   const [viewerCurrentIndex, setViewerCurrentIndex] = useState(0)
   const [availableModels, setAvailableModels] = useState<ClassificationModel[]>([])
-  const [selectedModel, setSelectedModel] = useState<string>('mobilenetv2')
+  const [selectedModel, setSelectedModel] = useState<string>('clip_vit_b32_quant')
   const [modelExistsMap, setModelExistsMap] = useState<Record<string, boolean>>({})
 
   // 分类图片选择器状态
@@ -304,8 +294,13 @@ const ImageClassification: React.FC = () => {
       const saved = localStorage.getItem(STORAGE_KEY)
       if (saved) {
         const resultsArray: Array<[string, ImageClassificationResult]> = JSON.parse(saved)
-        const loadedResults = new Map(resultsArray)
+        const loadedResults = new Map<string, ImageClassificationResult>()
+        for (const [path, r] of resultsArray) {
+          const category = migrateLegacyImageCategory(String(r.category))
+          loadedResults.set(path, { ...r, category })
+        }
         setResults(loadedResults)
+        useImageClassificationStore.getState().setResults(Array.from(loadedResults.values()))
         console.log(`[分类] 已加载 ${loadedResults.size} 条保存的分类结果`)
       }
     } catch (e) {
@@ -467,6 +462,7 @@ const ImageClassification: React.FC = () => {
         newResults.set(r.filePath, r)
       }
       setResults(newResults)
+      useImageClassificationStore.getState().setResults(Array.from(newResults.values()))
       console.log('[分类] 结果已设置，共', newResults.size, '条')
 
       try {
@@ -487,6 +483,8 @@ const ImageClassification: React.FC = () => {
 
   const handleClearResults = () => {
     setResults(new Map())
+    useImageClassificationStore.getState().clearResults()
+    useFileStore.getState().clearImageClassificationResults()
     try {
       localStorage.removeItem(STORAGE_KEY)
     } catch (e) {
@@ -566,17 +564,6 @@ const ImageClassification: React.FC = () => {
        message.error('打开图片失败: ' + (error instanceof Error ? error.message : String(error)))
      }
    }
-
-   // 分类标签映射
-const CATEGORY_NAME_MAP: Record<string, string> = {
-   person: '人物', portrait: '人像', selfie: '自拍',
-   dog: '狗', cat: '猫', bird: '鸟类', wild_animal: '野生动物', marine_animal: '海洋生物', insect: '昆虫', pet: '宠物',
-   landscape: '风景', mountain: '山脉', beach: '海滩', sunset: '日落', forest: '森林', cityscape: '城市风光', night_scene: '夜景',
-   building: '建筑', landmark: '地标', interior: '室内', street: '街道',
-   food: '食物', drink: '饮品', dessert: '甜点',
-   vehicle: '车辆', aircraft: '飞机', ship: '船舶',
-   art: '艺术', technology: '科技', document: '文档', other: '其他'
- }
 
  const handleViewCategory = async (categories: ImageContentCategory[], categoryName: string) => {
      try {
@@ -687,7 +674,7 @@ const CATEGORY_NAME_MAP: Record<string, string> = {
       render: (category: ImageContentCategory) => (
         <CategoryTag
           color={getCategoryTagColor(category)}
-          label={CATEGORY_LABELS[category] || category}
+          label={IMAGE_CATEGORY_LABELS[category] || category}
         />
       )
     },
@@ -705,66 +692,16 @@ const CATEGORY_NAME_MAP: Record<string, string> = {
     }
   ]
 
-  // 分类统计数据
   const stats = {
     total: results.size,
     success: Array.from(results.values()).filter(r => r.confidence > 0).length,
-    // 人物类
-    people: Array.from(results.values()).filter(r => ['person', 'portrait', 'selfie'].includes(r.category)).length,
-    // 动物类
-    animals: Array.from(results.values()).filter(r => ['dog', 'cat', 'bird', 'wild_animal', 'marine_animal', 'insect', 'pet'].includes(r.category)).length,
-    // 风景类
-    landscapes: Array.from(results.values()).filter(r => ['landscape', 'mountain', 'beach', 'sunset', 'forest', 'cityscape', 'night_scene'].includes(r.category)).length,
-    // 建筑类
-    buildings: Array.from(results.values()).filter(r => ['building', 'landmark', 'interior', 'street'].includes(r.category)).length,
-    // 食物类
-    food: Array.from(results.values()).filter(r => ['food', 'drink', 'dessert'].includes(r.category)).length,
-    // 交通类
-    transportation: Array.from(results.values()).filter(r => ['vehicle', 'aircraft', 'ship'].includes(r.category)).length,
-    // 其他类
-    other: Array.from(results.values()).filter(r => ['art', 'technology', 'document', 'other'].includes(r.category)).length
-  }
-
-  // 详细分类统计
-  const detailedStats = {
-    // 人物类
-    person: Array.from(results.values()).filter(r => r.category === 'person').length,
-    portrait: Array.from(results.values()).filter(r => r.category === 'portrait').length,
-    selfie: Array.from(results.values()).filter(r => r.category === 'selfie').length,
-    // 动物类
-    dog: Array.from(results.values()).filter(r => r.category === 'dog').length,
-    cat: Array.from(results.values()).filter(r => r.category === 'cat').length,
-    bird: Array.from(results.values()).filter(r => r.category === 'bird').length,
-    wild_animal: Array.from(results.values()).filter(r => r.category === 'wild_animal').length,
-    marine_animal: Array.from(results.values()).filter(r => r.category === 'marine_animal').length,
-    insect: Array.from(results.values()).filter(r => r.category === 'insect').length,
-    pet: Array.from(results.values()).filter(r => r.category === 'pet').length,
-    // 风景类
-    landscape: Array.from(results.values()).filter(r => r.category === 'landscape').length,
-    mountain: Array.from(results.values()).filter(r => r.category === 'mountain').length,
-    beach: Array.from(results.values()).filter(r => r.category === 'beach').length,
-    sunset: Array.from(results.values()).filter(r => r.category === 'sunset').length,
-    forest: Array.from(results.values()).filter(r => r.category === 'forest').length,
-    cityscape: Array.from(results.values()).filter(r => r.category === 'cityscape').length,
-    night_scene: Array.from(results.values()).filter(r => r.category === 'night_scene').length,
-    // 建筑类
-    building: Array.from(results.values()).filter(r => r.category === 'building').length,
-    landmark: Array.from(results.values()).filter(r => r.category === 'landmark').length,
-    interior: Array.from(results.values()).filter(r => r.category === 'interior').length,
-    street: Array.from(results.values()).filter(r => r.category === 'street').length,
-    // 食物类
-    food: Array.from(results.values()).filter(r => r.category === 'food').length,
-    drink: Array.from(results.values()).filter(r => r.category === 'drink').length,
-    dessert: Array.from(results.values()).filter(r => r.category === 'dessert').length,
-    // 交通类
-    vehicle: Array.from(results.values()).filter(r => r.category === 'vehicle').length,
-    aircraft: Array.from(results.values()).filter(r => r.category === 'aircraft').length,
-    ship: Array.from(results.values()).filter(r => r.category === 'ship').length,
-    // 其他类
-    art: Array.from(results.values()).filter(r => r.category === 'art').length,
-    technology: Array.from(results.values()).filter(r => r.category === 'technology').length,
-    document: Array.from(results.values()).filter(r => r.category === 'document').length,
-    other: Array.from(results.values()).filter(r => r.category === 'other').length
+    counts: IMAGE_CATEGORY_ORDER.reduce(
+      (acc, cat) => {
+        acc[cat] = Array.from(results.values()).filter(r => r.category === cat).length
+        return acc
+      },
+      {} as Record<ImageContentCategory, number>
+    )
   }
 
   // 计算平均置信度
@@ -954,13 +891,16 @@ const CATEGORY_NAME_MAP: Record<string, string> = {
                   <StatCard title="平均置信度" value={`${Math.round(avgConfidence * 100)}%`} icon={<CheckCircleOutlined />} accent="var(--app-warning)" subtle />
                 </div>
                 <div className="classification-stats-grid">
-                  <StatCard title="人物" value={stats.people} icon={<UserOutlined />} accent={getCategoryTagColor('person')} onClick={() => handleViewCategory(['person', 'portrait', 'selfie'], '人物')} />
-                  <StatCard title="动物" value={stats.animals} icon={<FrownOutlined />} accent={getCategoryTagColor('dog')} onClick={() => handleViewCategory(['dog', 'cat', 'bird', 'wild_animal', 'marine_animal', 'insect', 'pet'], '动物')} />
-                  <StatCard title="风景" value={stats.landscapes} icon={<PictureOutlined />} accent={getCategoryTagColor('landscape')} onClick={() => handleViewCategory(['landscape', 'mountain', 'beach', 'sunset', 'forest', 'cityscape', 'night_scene'], '风景')} />
-                  <StatCard title="建筑" value={stats.buildings} icon={<BuildOutlined />} accent={getCategoryTagColor('building')} onClick={() => handleViewCategory(['building', 'landmark', 'interior', 'street'], '建筑')} />
-                  <StatCard title="食物" value={stats.food} icon={<CoffeeOutlined />} accent={getCategoryTagColor('food')} onClick={() => handleViewCategory(['food', 'drink', 'dessert'], '食物')} />
-                  <StatCard title="交通" value={stats.transportation} icon={<CarOutlined />} accent={getCategoryTagColor('vehicle')} onClick={() => handleViewCategory(['vehicle', 'aircraft', 'ship'], '交通')} />
-                  <StatCard title="其他" value={stats.other} icon={<AppstoreOutlined />} accent={getCategoryTagColor('other')} onClick={() => handleViewCategory(['art', 'technology', 'document', 'other'], '其他')} />
+                  {IMAGE_CATEGORY_ORDER.map((cat) => (
+                    <StatCard
+                      key={cat}
+                      title={IMAGE_CATEGORY_LABELS[cat]}
+                      value={stats.counts[cat]}
+                      icon={<AppstoreOutlined />}
+                      accent={getCategoryTagColor(cat)}
+                      onClick={() => handleViewCategory([cat], IMAGE_CATEGORY_LABELS[cat])}
+                    />
+                  ))}
                 </div>
               </PageSection>
 
@@ -988,7 +928,7 @@ const CATEGORY_NAME_MAP: Record<string, string> = {
               {modelExists ? (
                 <>
                   <p className="app-empty-state__title">点击“开始分类”分析当前目录图片内容</p>
-                  <p className="app-empty-state__description">支持人物、动物、风景、建筑、食物、交通等 25 个细分类别的智能识别。</p>
+                  <p className="app-empty-state__description">基于 CLIP 零样本与 ImageNet 聚合，输出 9 大内容类别。</p>
                 </>
               ) : (
                 <>

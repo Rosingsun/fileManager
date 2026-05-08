@@ -159,8 +159,8 @@ export const FileListTable: React.FC<FileListTableProps> = ({
         const classification = imageClassificationResults.get(record.path)
         if (classification) {
           return (
-            <Tag color={CATEGORY_COLORS[classification.category] || CATEGORY_COLORS.other}>
-              {CATEGORY_LABELS[classification.category] || classification.category}
+            <Tag color={CATEGORY_COLORS[classification.category as keyof typeof CATEGORY_COLORS] || 'default'}>
+              {CATEGORY_LABELS[classification.category as keyof typeof CATEGORY_LABELS] || classification.category}
             </Tag>
           )
         }

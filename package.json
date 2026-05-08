@@ -13,7 +13,8 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "seed": "node seeds/seed.js"
+    "seed": "node seeds/seed.js",
+    "eval:classify": "node scripts/eval-classification.mjs"
   },
   "keywords": [
     "electron",

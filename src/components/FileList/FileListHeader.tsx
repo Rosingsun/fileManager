@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons'
 import { FILE_CATEGORIES } from '../../stores'
 import type { FileInfo } from '../../types'
+import { IMAGE_CATEGORY_LABELS, IMAGE_CATEGORY_ORDER } from '../../types'
 
 interface FileListHeaderProps {
   currentPath: string
@@ -137,13 +138,11 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
               dropdownMatchSelectWidth={false}
             >
               <Select.Option value="all">全部</Select.Option>
-              <Select.Option value="animal">动物</Select.Option>
-              <Select.Option value="vehicle">车辆</Select.Option>
-              <Select.Option value="person">人物</Select.Option>
-              <Select.Option value="landscape">风景</Select.Option>
-              <Select.Option value="architecture">建筑</Select.Option>
-              <Select.Option value="food">食物</Select.Option>
-              <Select.Option value="other">其他</Select.Option>
+              {IMAGE_CATEGORY_ORDER.map((key) => (
+                <Select.Option key={key} value={key}>
+                  {IMAGE_CATEGORY_LABELS[key]}
+                </Select.Option>
+              ))}
             </Select>
             {selectedImageCategory !== 'all' && (
               <Button

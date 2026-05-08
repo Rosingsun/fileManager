@@ -1,4 +1,5 @@
-import type { FileInfo } from '../../types'
+import type { FileInfo, ImageContentCategory } from '../../types'
+import { IMAGE_CATEGORY_COLORS, IMAGE_CATEGORY_LABELS } from '../../types'
 
 export interface FileListProps {
   className?: string
@@ -26,25 +27,10 @@ export interface FileListState {
   gridColumns: number
 }
 
-export const CATEGORY_COLORS: Record<string, string> = {
-  animal: '#30b95a',
-  vehicle: '#4d8eff',
-  person: '#c45cff',
-  landscape: '#2cc5c9',
-  architecture: '#ff9f0a',
-  food: '#ff5f57',
-  other: '#8b95a7'
-}
+/** 与 Ant Design Tag `color` 一致，供列表「分类」列使用 */
+export const CATEGORY_COLORS: Record<ImageContentCategory, string> = IMAGE_CATEGORY_COLORS
 
-export const CATEGORY_LABELS: Record<string, string> = {
-  animal: '动物',
-  vehicle: '车辆',
-  person: '人物',
-  landscape: '风景',
-  architecture: '建筑',
-  food: '食物',
-  other: '其他'
-}
+export const CATEGORY_LABELS: Record<ImageContentCategory, string> = IMAGE_CATEGORY_LABELS
 
 export const MAX_IMAGE_SIZE = 50 * 1024 * 1024
 

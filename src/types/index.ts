@@ -233,46 +233,93 @@ export interface BatchRelocateEntry {
 /** 快速筛选：用户整理意图档位（非 EXIF 星级） */
 export type QuickFilterTier = 'high' | 'medium' | 'low'
 
-// 图片内容分类相关类型 - 升级版（25个细分类）
+/** 图片内容分类（9 大类：CLIP 零样本 + ImageNet 聚合） */
 export type ImageContentCategory =
-  // 人物类
-  | 'person'           // 人物
-  | 'portrait'         // 人像
-  | 'selfie'           // 自拍
-  // 动物类
-  | 'dog'              // 狗
-  | 'cat'              // 猫
-  | 'bird'             // 鸟类
-  | 'wild_animal'      // 野生动物
-  | 'marine_animal'    // 海洋生物
-  | 'insect'           // 昆虫
-  | 'pet'              // 宠物
-  // 风景类
-  | 'landscape'        // 风景
-  | 'mountain'         // 山脉
-  | 'beach'            // 海滩
-  | 'sunset'           // 日落
-  | 'forest'           // 森林
-  | 'cityscape'        // 城市风光
-  | 'night_scene'      // 夜景
-  // 建筑类
-  | 'building'         // 建筑
-  | 'landmark'         // 地标
-  | 'interior'         // 室内
-  | 'street'           // 街道
-  // 食物类
-  | 'food'             // 食物
-  | 'drink'            // 饮品
-  | 'dessert'          // 甜点
-  // 交通类
-  | 'vehicle'          // 车辆
-  | 'aircraft'         // 飞机
-  | 'ship'             // 船舶
-  // 其他
-  | 'art'              // 艺术
-  | 'technology'       // 科技产品
-  | 'document'         // 文档图片
-  | 'other'            // 其他
+  | 'person'
+  | 'animal'
+  | 'landscape'
+  | 'urban'
+  | 'indoor'
+  | 'food'
+  | 'vehicle'
+  | 'document'
+  | 'other'
+
+export const IMAGE_CATEGORY_ORDER: readonly ImageContentCategory[] = [
+  'person',
+  'animal',
+  'landscape',
+  'urban',
+  'indoor',
+  'food',
+  'vehicle',
+  'document',
+  'other'
+] as const
+
+export const IMAGE_CATEGORY_LABELS: Record<ImageContentCategory, string> = {
+  person: '人物',
+  animal: '动物',
+  landscape: '自然风景',
+  urban: '城市建筑',
+  indoor: '室内',
+  food: '食物',
+  vehicle: '交通工具',
+  document: '文档界面',
+  other: '其他'
+}
+
+export const IMAGE_CATEGORY_COLORS: Record<ImageContentCategory, string> = {
+  person: 'purple',
+  animal: 'green',
+  landscape: 'cyan',
+  urban: 'geekblue',
+  indoor: 'lime',
+  food: 'red',
+  vehicle: 'blue',
+  document: 'gold',
+  other: 'default'
+}
+
+/** 将旧版细分类结果映射到 9 大类（用于 localStorage 迁移） */
+export function migrateLegacyImageCategory(raw: string): ImageContentCategory {
+  const table: Record<string, ImageContentCategory> = {
+    person: 'person',
+    portrait: 'person',
+    selfie: 'person',
+    dog: 'animal',
+    cat: 'animal',
+    bird: 'animal',
+    wild_animal: 'animal',
+    marine_animal: 'animal',
+    insect: 'animal',
+    pet: 'animal',
+    landscape: 'landscape',
+    mountain: 'landscape',
+    beach: 'landscape',
+    sunset: 'landscape',
+    forest: 'landscape',
+    cityscape: 'urban',
+    night_scene: 'urban',
+    building: 'urban',
+    landmark: 'urban',
+    street: 'urban',
+    interior: 'indoor',
+    food: 'food',
+    drink: 'food',
+    dessert: 'food',
+    vehicle: 'vehicle',
+    aircraft: 'vehicle',
+    ship: 'vehicle',
+    art: 'document',
+    technology: 'document',
+    document: 'document',
+    other: 'other'
+  }
+  if (table[raw]) return table[raw]
+  if (IMAGE_CATEGORY_ORDER.includes(raw as ImageContentCategory)) return raw as ImageContentCategory
+  return 'other'
+}
 
 export interface ImageClassificationResult {
   filePath: string
@@ -305,7 +352,8 @@ export interface ImageClassificationBatchResult {
   successCount: number
   errorCount: number
   classificationTime: number // 分类耗时（毫秒）
-}// ͼƬ�༭�������
+}
+
 export interface ImageEditSettings {
   brightness?: number // 百分比，100为原始
   contrast?: number

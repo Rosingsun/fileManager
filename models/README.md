@@ -1,60 +1,41 @@
-# 图片分类模型文件
+# 图片分类相关文件
 
-本目录用于存放图片内容分类所需的 ONNX 模型文件。
+本目录存放 **ImageNet 辅助模型**、**CLIP 视觉 ONNX**（可选）及 **预计算文本向量**。
 
-## 模型要求
+## 必需
 
-- **模型格式**: ONNX (.onnx)
-- **模型类型**: 图像分类模型（推荐使用 MobileNetV2 或 ResNet）
-- **输入尺寸**: 224x224 RGB 图像
-- **输入格式**: Float32, shape: [1, 3, 224, 224], 值范围: [0, 1]
-- **输出**: ImageNet 1000 类概率分布
+| 文件 | 说明 |
+|------|------|
+| `imagenet1000.json` | ImageNet 1000 类英文标签（与 `mobilenetv2-7.onnx` 等输出顺序一致），随仓库提供。 |
+| `mobilenetv2-7.onnx` | 轻量分类模型；选择「CLIP ViT-B/32」方案时，主进程仍用其做 ImageNet 聚合并与 CLIP 融合。 |
 
-## 推荐模型
+在应用内选择模型并下载，或从 [ONNX Model Zoo](https://github.com/onnx/models/tree/main/validated/vision/classification/mobilenet) 手动放置上述 ONNX。
 
-### MobileNetV2 (推荐)
-- **文件名**: `mobilenetv2-7.onnx`
-- **大小**: 约 14 MB
-- **下载地址**: 
-  - ONNX Model Zoo: https://github.com/onnx/models/tree/main/vision/classification/mobilenet
-  - 或使用以下命令转换 PyTorch 模型：
-    ```bash
-    # 需要安装 torch 和 onnx
-    python -c "import torch; import torchvision.models as models; model = models.mobilenet_v2(pretrained=True); model.eval(); dummy_input = torch.randn(1, 3, 224, 224); torch.onnx.export(model, dummy_input, 'mobilenetv2-7.onnx', opset_version=7)"
-    ```
+## 可选（完整 CLIP 零样本）
 
-### ResNet-50
-- **文件名**: `resnet50.onnx`
-- **大小**: 约 98 MB
-- **下载地址**: ONNX Model Zoo
+| 文件 | 说明 |
+|------|------|
+| `clip-vit-b32-vision-quant.onnx` | Xenova / Hugging Face 上的 CLIP ViT-B/32 **视觉**量化模型。 |
+| `clip-prompts.json` | 每类多条文本 prompt 的 **512 维 L2 归一化向量**（与 ViT-B/32 文本塔一致）。 |
 
-## 模型放置
+若缺少 `clip-prompts.json` 或视觉 ONNX，应用会自动退化为 **仅 ImageNet → 9 大类** 聚合。
 
-将下载的模型文件放置在 `models/` 目录下，主进程会自动加载。
+### 生成 `clip-prompts.json`
 
-## 注意事项
+在可联网环境执行（需 Node，首次会拉取 `@xenova/transformers` 与模型权重）：
 
-1. 模型文件较大，首次使用时需要下载
-2. 模型加载需要一定时间，请耐心等待
-3. 如果模型文件不存在，分类功能将自动禁用，不会影响其他功能
-4. 模型文件路径配置在 `electron/main/main.ts` 中的 `loadClassificationModel()` 函数
+```bash
+cd scripts/_clip_text_gen
+npm install
+node generate-prompts.mjs
+```
 
-## 模型更新
+生成结果写入仓库根目录 `models/clip-prompts.json`。
 
-如果需要更换模型，只需：
-1. 将新模型文件放入 `models/` 目录
-2. 修改 `electron/main/main.ts` 中的模型路径
-3. 重启应用
+## 其他 ImageNet 模型
 
-## 类别映射
+- `efficientnet-b0.onnx`、`efficientnet-b4.onnx`：可在应用内切换；输入尺寸分别为 224 / 380，同样依赖 `imagenet1000.json`。
 
-模型输出的 ImageNet 1000 类会自动映射到以下 7 个自定义类别：
-- 动物 (animal)
-- 车辆 (vehicle)
-- 人物 (person)
-- 风景 (landscape)
-- 建筑 (architecture)
-- 食物 (food)
-- 其他 (other)
+## 九大类映射说明
 
-映射规则在 `electron/main/main.ts` 中的 `categoryMapping` 对象中定义。
+索引 **0–396** 视为生物类，聚合为 **动物**；其余类别按英文标签关键词归入人物、食物、交通工具、文档界面、自然风景、城市建筑、室内等（见 `electron/main/utils/imagenetNine.ts`）。
