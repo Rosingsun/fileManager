@@ -9,14 +9,17 @@ import './InfoPanel.css'
 
 export interface ColorPaletteProps {
   imageUrl: string | null
+  /** 图片源尚未就绪（如正在将 file:// 读成 data URL） */
+  sourceLoading?: boolean
   backgroundColor: string | null
   onBackgroundColorChange: (color: string | null) => void
 }
 
-const ColorPalette: React.FC<ColorPaletteProps> = ({ 
+const ColorPalette: React.FC<ColorPaletteProps> = ({
   imageUrl,
+  sourceLoading = false,
   backgroundColor,
-  onBackgroundColorChange 
+  onBackgroundColorChange
 }) => {
   const { colors, isLoading } = useColorExtractor(imageUrl, 8)
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null)
@@ -46,6 +49,17 @@ const ColorPalette: React.FC<ColorPaletteProps> = ({
   const isSelected = (hex: string) => {
     if (!backgroundColor) return false
     return backgroundColor.toLowerCase() === hex.toLowerCase()
+  }
+
+  if (sourceLoading) {
+    return (
+      <div className="info-section">
+        <h3 className="info-section-title">主要颜色</h3>
+        <div className="info-section-content">
+          <div className="info-empty">正在加载图片...</div>
+        </div>
+      </div>
+    )
   }
 
   if (isLoading) {

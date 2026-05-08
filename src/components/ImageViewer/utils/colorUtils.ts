@@ -16,8 +16,10 @@ export async function extractDominantColors(
 ): Promise<ColorInfo[]> {
   return new Promise((resolve, reject) => {
     const img = new Image()
-    img.crossOrigin = 'anonymous'
-    
+    if (/^https?:\/\//i.test(imageUrl)) {
+      img.crossOrigin = 'anonymous'
+    }
+
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas')

@@ -297,6 +297,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         <div className="image-viewer-info-wrapper">
           <InfoPanel
             image={currentImage}
+            paletteImageUrl={displayImageUrl}
+            paletteSourceLoading={isLoadingBlob}
             currentIndex={currentIndex}
             totalCount={images.length}
             rotation={rotation}

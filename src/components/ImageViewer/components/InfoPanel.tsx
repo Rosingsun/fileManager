@@ -14,6 +14,10 @@ import './InfoPanel.css'
 
 export interface InfoPanelProps {
   image: Image | null
+  /** 与画布一致的可采样 URL（如 data:/blob:），用于主色提取；勿传未转换的 file:// */
+  paletteImageUrl?: string | null
+  /** file:// 转 blob/base64 过程中为 true，避免误判为「无法提取」 */
+  paletteSourceLoading?: boolean
   currentIndex: number
   totalCount: number
   rotation: number
@@ -37,6 +41,8 @@ export interface InfoPanelProps {
 
 const InfoPanel: React.FC<InfoPanelProps> = ({
   image,
+  paletteImageUrl,
+  paletteSourceLoading,
   currentIndex,
   totalCount,
   rotation,
@@ -70,8 +76,9 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
       <div className="info-panel-content">
         <FileInfoSection image={image} />
         <ExifInfoSection image={image} />
-        <ColorPalette 
-            imageUrl={image.url} 
+        <ColorPalette
+            imageUrl={paletteImageUrl ?? image.url}
+            sourceLoading={paletteSourceLoading}
             backgroundColor={backgroundColor}
             onBackgroundColorChange={onBackgroundColorChange}
           />

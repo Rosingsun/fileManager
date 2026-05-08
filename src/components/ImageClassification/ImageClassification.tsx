@@ -723,6 +723,7 @@ const ImageClassification: React.FC = () => {
   }
 
   return (
+    <>
     <Card
       title={
         <Space>
@@ -940,8 +941,8 @@ const ImageClassification: React.FC = () => {
           )}
         </div>
       )}
+    </Card>
 
-      {/* 图片查看器 */}
       {viewerVisible && viewerImages.length > 0 && (
         <ImageViewer
           images={viewerImages}
@@ -951,7 +952,6 @@ const ImageClassification: React.FC = () => {
         />
       )}
 
-      {/* 分类图片选择器模态窗口 */}
       <CategoryImageSelector
         visible={categorySelectorVisible}
         images={categorySelectorImages}
@@ -960,7 +960,6 @@ const ImageClassification: React.FC = () => {
         onConfirm={handleCategoryImageSelect}
       />
 
-      {/* 手动下载 Modal */}
       <ManualDownloadModal
         visible={manualDownloadModalVisible}
         modelId={selectedModel}
@@ -972,7 +971,7 @@ const ImageClassification: React.FC = () => {
           setManualDownloadModalVisible(false)
         }}
       />
-    </Card>
+    </>
   )
 }
 

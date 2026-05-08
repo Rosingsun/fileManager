@@ -16,8 +16,11 @@ export async function extractDominantColors(
 ): Promise<ColorInfo[]> {
   return new Promise((resolve, reject) => {
     const img = new Image()
-    img.crossOrigin = 'anonymous'
-    
+    // 仅远程 http(s) 需要 CORS；file:// / data: / blob: 设置 anonymous 会导致加载失败或无法读像素
+    if (/^https?:\/\//i.test(imageUrl)) {
+      img.crossOrigin = 'anonymous'
+    }
+
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas')
