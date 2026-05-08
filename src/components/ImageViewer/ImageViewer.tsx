@@ -15,10 +15,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   currentIndex: initialIndex,
   onIndexChange,
   onClose,
-  onImageEdit,
-  onTagsUpdate,
-  onDescriptionUpdate,
-  onImageDelete,
   onImageRotate,
   onImageFlip
 }) => {
@@ -106,7 +102,17 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     console.log('[ImageViewer] blobUrl:', blobUrl)
   }, [currentImage, displayImageUrl, blobUrl])
 
-  const { isLoading, isError, retry } = useImageLoader(displayImageUrl)
+  const { isLoading, isError, retry, naturalWidth, naturalHeight } = useImageLoader(displayImageUrl)
+
+  const infoPanelImage = useMemo(() => {
+    if (!currentImage) return null
+    const w = naturalWidth ?? currentImage.width
+    const h = naturalHeight ?? currentImage.height
+    if (w === currentImage.width && h === currentImage.height) {
+      return currentImage
+    }
+    return { ...currentImage, width: w, height: h }
+  }, [currentImage, naturalWidth, naturalHeight])
 
   // 当图片切换或 URL 变化时，重置状态
   useEffect(() => {
@@ -187,67 +193,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     setViewMode('fit')
   }, [])
 
-  // 描述和标签更新
-  const handleDescriptionSave = useCallback((description: string) => {
-    if (currentImage) {
-      if (onDescriptionUpdate) {
-        onDescriptionUpdate(currentImage.id, description)
-      }
-      if (onImageEdit) {
-        onImageEdit(currentImage.id, { description })
-      }
-    }
-  }, [currentImage, onDescriptionUpdate, onImageEdit])
-
-  const handleTagsChange = useCallback((tags: string[]) => {
-    if (currentImage) {
-      if (onTagsUpdate) {
-        onTagsUpdate(currentImage.id, tags)
-      }
-      if (onImageEdit) {
-        onImageEdit(currentImage.id, { tags })
-      }
-    }
-  }, [currentImage, onTagsUpdate, onImageEdit])
-
-  // 删除功能
-  const handleDelete = useCallback(() => {
-    if (currentImage && onImageDelete) {
-      if (window.confirm('确定要删除这张图片吗？')) {
-        onImageDelete(currentImage.id)
-        // 删除后切换到下一张或上一张
-        if (currentIndex < images.length - 1) {
-          handleNext()
-        } else if (currentIndex > 0) {
-          handlePrev()
-        } else {
-          // 最后一张，关闭查看器
-          if (onClose) {
-            onClose()
-          }
-        }
-      }
-    }
-  }, [currentImage, currentIndex, images.length, onImageDelete, onClose, handleNext, handlePrev])
-
-  // 下载功能
-  const handleDownload = useCallback(() => {
-    if (currentImage) {
-      const link = document.createElement('a')
-      link.href = currentImage.url
-      link.download = currentImage.filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    }
-  }, [currentImage])
-
-  // 收藏功能（可选）
-  const handleFavorite = useCallback(() => {
-    // 这里可以添加收藏逻辑
-    console.log('收藏功能待实现')
-  }, [])
-
   // 键盘快捷键
   useKeyboardShortcuts({
     onEscape: onClose,
@@ -296,7 +241,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
 {/* 右侧：信息面板 */}
         <div className="image-viewer-info-wrapper">
           <InfoPanel
-            image={currentImage}
+            image={infoPanelImage}
             paletteImageUrl={displayImageUrl}
             paletteSourceLoading={isLoadingBlob}
             currentIndex={currentIndex}
@@ -306,17 +251,12 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             flipVertical={flipVertical}
             backgroundColor={backgroundColor}
             onBackgroundColorChange={setBackgroundColor}
-            onDescriptionSave={handleDescriptionSave}
-            onTagsChange={handleTagsChange}
             onPrev={handlePrev}
             onNext={handleNext}
             onRotate={handleRotate}
             onFlipHorizontal={handleFlipHorizontal}
             onFlipVertical={handleFlipVertical}
             onReset={handleReset}
-            onDelete={handleDelete}
-            onDownload={handleDownload}
-            onFavorite={handleFavorite}
           />
         </div>
       </div>

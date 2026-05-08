@@ -11,6 +11,7 @@ import type {
   SimilarityScanConfig
 } from '../../../src/types'
 import { DEFAULT_IMAGE_QUALITY_THRESHOLDS } from '../../../src/types'
+import { suggestQuickFilterTier } from '../../../src/utils/quickFilterTierSuggest'
 import { scanImageFiles } from './similarityService'
 
 const LARGE_FILE_BYTES = 50 * 1024 * 1024
@@ -254,6 +255,13 @@ async function analyzeImageFile(
       }
     }
   }
+}
+
+/** 单张图片照片质量档位（与快速筛选页启发式一致），供内容分类流程附带写入 */
+export async function computePhotoQualityTierForImage(filePath: string): Promise<'high' | 'medium' | 'low'> {
+  const thresholds = mergeThresholds()
+  const item = await analyzeImageFile(filePath, 640, thresholds)
+  return suggestQuickFilterTier(item)
 }
 
 async function runPool<T, R>(

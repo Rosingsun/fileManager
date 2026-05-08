@@ -6,7 +6,7 @@ import { watch } from 'chokidar'
 import sharp from 'sharp'
 import crypto from 'crypto'
 import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanProgress, SimilarityScanResult, ImageContentCategory, ImageClassificationResult, ImageClassificationConfig, ImageClassificationProgress, ImageClassificationBatchResult, ImageQualityScanConfig, ImageQualityScanResult, ImageQualityScanProgress, BatchFileOpResult, BatchRelocateEntry, FileConflictAction } from '../../src/types'
-import { scanImageQuality } from './services/imageQualityService'
+import { scanImageQuality, computePhotoQualityTierForImage } from './services/imageQualityService'
 import type { ClassificationModelId } from './utils/classificationModels'
 export type { ClassificationModelId } from './utils/classificationModels'
 import { CLASSIFICATION_MODELS, getClassificationModelPath, MODEL_FILE_NAMES, modelIdFromOnnxBasename } from './utils/classificationModels'
@@ -1320,7 +1320,14 @@ async function classifyImage(
   imagePath: string,
   modelId: ClassificationModelId = 'clip_vit_b32_quant'
 ): Promise<ImageClassificationResult> {
-  return runClassifyImage(imagePath, process.cwd(), modelId)
+  const base = await runClassifyImage(imagePath, process.cwd(), modelId)
+  try {
+    const quality = await computePhotoQualityTierForImage(imagePath)
+    return { ...base, quality }
+  } catch (e) {
+    console.warn('[Main] 照片质量档位计算失败:', imagePath, e)
+    return { ...base, quality: 'low' }
+  }
 }
 
 ipcHandle('image:classify', async (_event, imagePath: string): Promise<ImageClassificationResult> => {

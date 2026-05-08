@@ -25,8 +25,6 @@ export function ImageViewerExample() {
       format: 'jpeg',
       createdAt: new Date().toISOString(),
       modifiedAt: new Date().toISOString(),
-      description: '示例图片1',
-      tags: ['风景', '自然'],
       exif: {
         make: 'Canon',
         model: 'EOS 5D Mark IV',
@@ -47,8 +45,6 @@ export function ImageViewerExample() {
       format: 'jpeg',
       createdAt: new Date().toISOString(),
       modifiedAt: new Date().toISOString(),
-      description: '示例图片2',
-      tags: ['人像'],
       exif: {
         make: 'Nikon',
         model: 'D850',
@@ -58,34 +54,6 @@ export function ImageViewerExample() {
       }
     }
   ]
-
-  // 处理图片编辑
-  const handleImageEdit = async (imageId: string, updates: any) => {
-    console.log('编辑图片:', imageId, updates)
-    // 这里可以调用后端API保存更改
-    // await window.electronAPI?.updateImageMetadata(imageId, updates)
-  }
-
-  // 处理标签更新
-  const handleTagsUpdate = async (imageId: string, tags: string[]) => {
-    console.log('更新标签:', imageId, tags)
-    // 这里可以调用后端API保存标签
-    // await window.electronAPI?.updateImageTags(imageId, tags)
-  }
-
-  // 处理描述更新
-  const handleDescriptionUpdate = async (imageId: string, description: string) => {
-    console.log('更新描述:', imageId, description)
-    // 这里可以调用后端API保存描述
-    // await window.electronAPI?.updateImageDescription(imageId, description)
-  }
-
-  // 处理图片删除
-  const handleImageDelete = async (imageId: string) => {
-    console.log('删除图片:', imageId)
-    // 这里可以调用后端API删除图片
-    // await window.electronAPI?.deleteFile(imagePath)
-  }
 
   // 处理图片旋转
   const handleImageRotate = async (imageId: string, rotation: number) => {
@@ -115,10 +83,6 @@ export function ImageViewerExample() {
           currentIndex={currentIndex}
           onIndexChange={setCurrentIndex}
           onClose={() => setIsViewerOpen(false)}
-          onImageEdit={handleImageEdit}
-          onTagsUpdate={handleTagsUpdate}
-          onDescriptionUpdate={handleDescriptionUpdate}
-          onImageDelete={handleImageDelete}
           onImageRotate={handleImageRotate}
           onImageFlip={handleImageFlip}
         />
@@ -163,8 +127,6 @@ export function useImageViewerWithFileList() {
             format: file.name.split('.').pop() || 'unknown',
             createdAt: new Date(file.createdTime).toISOString(),
             modifiedAt: new Date(file.modifiedTime).toISOString(),
-            description: '',
-            tags: [],
             exif: undefined // 需要从后端获取EXIF数据
           }
         })

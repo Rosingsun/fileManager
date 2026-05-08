@@ -17,9 +17,6 @@ export interface ToolbarProps {
   onFlipHorizontal: () => void
   onFlipVertical: () => void
   onReset: () => void
-  onDelete?: () => void
-  onDownload?: () => void
-  onFavorite?: () => void
 }
 
 const Toolbar: React.FC<ToolbarProps> = ({
@@ -33,10 +30,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   onRotate,
   onFlipHorizontal,
   onFlipVertical,
-  onReset,
-  onDelete,
-  onDownload,
-  onFavorite
+  onReset
 }) => {
   return (
     <div className="info-section">
@@ -100,40 +94,6 @@ const Toolbar: React.FC<ToolbarProps> = ({
             >
               ↺
             </button>
-          </div>
-        </div>
-
-        {/* 其他操作 */}
-        <div className="toolbar-group">
-          <div className="toolbar-label">其他</div>
-          <div className="toolbar-buttons">
-            {onDownload && (
-              <button
-                className="toolbar-btn"
-                onClick={onDownload}
-                title="下载原图"
-              >
-                ⬇
-              </button>
-            )}
-            {onFavorite && (
-              <button
-                className="toolbar-btn"
-                onClick={onFavorite}
-                title="设为收藏"
-              >
-                ⭐
-              </button>
-            )}
-            {onDelete && (
-              <button
-                className="toolbar-btn toolbar-btn-danger"
-                onClick={onDelete}
-                title="删除图片"
-              >
-                🗑
-              </button>
-            )}
           </div>
         </div>
       </div>

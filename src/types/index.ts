@@ -325,6 +325,8 @@ export interface ImageClassificationResult {
   filePath: string
   category: ImageContentCategory
   confidence: number // 置信度 0-1
+  /** 曝光/对比度/构图启发式档位，与快速筛选一致；批量或单张分类时由主进程写入 */
+  quality?: QuickFilterTier
   topPredictions?: Array<{
     category: ImageContentCategory
     confidence: number

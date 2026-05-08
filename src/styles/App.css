@@ -207,15 +207,6 @@
   gap: 8px;
 }
 
-.file-filter-bar__path {
-  max-width: 360px;
-  overflow: hidden;
-  font-size: 13px;
-  color: var(--app-text-secondary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .filter-chip {
   display: inline-flex;
   align-items: center;

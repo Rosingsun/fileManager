@@ -6,8 +6,6 @@ import React from 'react'
 import FileInfoSection from './FileInfoSection'
 import ExifInfoSection from './ExifInfoSection'
 import ColorPalette from './ColorPalette'
-import DescriptionEditor from './DescriptionEditor'
-import TagManager from './TagManager'
 import Toolbar from './Toolbar'
 import type { Image } from '../types'
 import './InfoPanel.css'
@@ -25,18 +23,12 @@ export interface InfoPanelProps {
   flipVertical: boolean
   backgroundColor: string | null
   onBackgroundColorChange: (color: string | null) => void
-  onDescriptionSave: (description: string) => void
-  onTagsChange: (tags: string[]) => void
   onPrev: () => void
   onNext: () => void
   onRotate: () => void
   onFlipHorizontal: () => void
   onFlipVertical: () => void
   onReset: () => void
-  onDelete?: () => void
-  onDownload?: () => void
-  onFavorite?: () => void
-  tagSuggestions?: string[]
 }
 
 const InfoPanel: React.FC<InfoPanelProps> = ({
@@ -50,18 +42,12 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
   flipVertical,
   backgroundColor,
   onBackgroundColorChange,
-  onDescriptionSave,
-  onTagsChange,
   onPrev,
   onNext,
   onRotate,
   onFlipHorizontal,
   onFlipVertical,
-  onReset,
-  onDelete,
-  onDownload,
-  onFavorite,
-  tagSuggestions
+  onReset
 }) => {
   if (!image) {
     return (
@@ -82,16 +68,6 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
             backgroundColor={backgroundColor}
             onBackgroundColorChange={onBackgroundColorChange}
           />
-        <DescriptionEditor
-          description={image.description || ''}
-          onSave={onDescriptionSave}
-          classification={image.classification}
-        />
-        <TagManager
-          tags={image.tags || []}
-          onTagsChange={onTagsChange}
-          suggestions={tagSuggestions}
-        />
         <Toolbar
           currentIndex={currentIndex}
           totalCount={totalCount}
@@ -104,9 +80,6 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
           onFlipHorizontal={onFlipHorizontal}
           onFlipVertical={onFlipVertical}
           onReset={onReset}
-          onDelete={onDelete}
-          onDownload={onDownload}
-          onFavorite={onFavorite}
         />
       </div>
     </div>

@@ -11,13 +11,15 @@ import { IMAGE_CATEGORY_LABELS, IMAGE_CATEGORY_ORDER } from '../../types'
 
 interface FileListHeaderProps {
   currentPath: string
-  historyList: Array<{ path: string; name: string }>
   selectedCategory: string
   selectedSubExtensions: string[]
   selectedImageCategory: string
   selectedQuality: string
-  imageClassificationResults: Map<string, { category: string; confidence: number }>
   filteredFileList: FileInfo[]
+  analyzableImageCount: number
+  hasClassifiedImagesInFolder: boolean
+  isAnalyzingImages: boolean
+  onAnalyzeImages: () => void
   viewMode: 'list' | 'grid'
   currentPage: number
   pageSize: number
@@ -34,13 +36,15 @@ interface FileListHeaderProps {
 
 export const FileListHeader: React.FC<FileListHeaderProps> = ({
   currentPath,
-  historyList,
   selectedCategory,
   selectedSubExtensions,
   selectedImageCategory,
   selectedQuality,
-  imageClassificationResults,
   filteredFileList,
+  analyzableImageCount,
+  hasClassifiedImagesInFolder,
+  isAnalyzingImages,
+  onAnalyzeImages,
   viewMode,
   currentPage,
   pageSize,
@@ -57,7 +61,8 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   const currentCategoryInfo = FILE_CATEGORIES.find(c => c.key === selectedCategory)
   const subExtensions = currentCategoryInfo?.extensions || []
 
-  const showImageFilter = imageClassificationResults.size > 0
+  const showImageAnalysis = analyzableImageCount > 0
+  const showImageFilters = showImageAnalysis && hasClassifiedImagesInFolder
 
   return (
     <div className="file-filter-bar">
@@ -72,9 +77,6 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
         >
           返回
         </Button>
-        <span className="file-filter-bar__path" title={currentPath}>
-          当前路径: {currentPath}
-        </span>
         <div className="filter-chip">
           <FilterOutlined style={{ color: 'var(--app-text-secondary)' }} />
           <span className="filter-chip__label">类型</span>
@@ -127,7 +129,18 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
             ({filteredFileList.length} 项)
           </span>
         )}
-        {showImageFilter && (
+        {showImageAnalysis && (
+          <Button
+            type="default"
+            size="small"
+            loading={isAnalyzingImages}
+            onClick={onAnalyzeImages}
+            title="对当前目录中的图片进行内容分类与照片质量分析"
+          >
+            分析图片
+          </Button>
+        )}
+        {showImageFilters && (
           <div className="filter-chip is-emphasis">
             <span className="filter-chip__label">内容分类</span>
             <Select
@@ -155,7 +168,7 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
             )}
           </div>
         )}
-        {showImageFilter && (
+        {showImageFilters && (
           <div className="filter-chip is-emphasis">
             <span className="filter-chip__label">照片质量</span>
             <Select

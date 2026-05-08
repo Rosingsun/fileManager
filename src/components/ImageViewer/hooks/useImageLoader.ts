@@ -16,14 +16,20 @@ export function useImageLoader(imageUrl: string | null) {
     isError: false,
     error: null
   })
+  const [naturalWidth, setNaturalWidth] = useState<number | null>(null)
+  const [naturalHeight, setNaturalHeight] = useState<number | null>(null)
 
   useEffect(() => {
     if (!imageUrl || imageUrl.trim() === '') {
       setState({ isLoading: false, isError: false, error: null })
+      setNaturalWidth(null)
+      setNaturalHeight(null)
       return
     }
 
     setState({ isLoading: true, isError: false, error: null })
+    setNaturalWidth(null)
+    setNaturalHeight(null)
 
     const img = new Image()
     let isCancelled = false
@@ -31,6 +37,8 @@ export function useImageLoader(imageUrl: string | null) {
     const handleLoad = () => {
       if (!isCancelled) {
         setState({ isLoading: false, isError: false, error: null })
+        setNaturalWidth(img.naturalWidth)
+        setNaturalHeight(img.naturalHeight)
       }
     }
 
@@ -41,6 +49,8 @@ export function useImageLoader(imageUrl: string | null) {
           isError: true,
           error: new Error('图片加载失败')
         })
+        setNaturalWidth(null)
+        setNaturalHeight(null)
       }
     }
 
@@ -63,17 +73,27 @@ export function useImageLoader(imageUrl: string | null) {
   const retry = useCallback(() => {
     if (imageUrl) {
       setState({ isLoading: true, isError: false, error: null })
+      setNaturalWidth(null)
+      setNaturalHeight(null)
       const img = new Image()
-      img.onload = () => setState({ isLoading: false, isError: false, error: null })
-      img.onerror = () => setState({
-        isLoading: false,
-        isError: true,
-        error: new Error('图片加载失败')
-      })
+      img.onload = () => {
+        setState({ isLoading: false, isError: false, error: null })
+        setNaturalWidth(img.naturalWidth)
+        setNaturalHeight(img.naturalHeight)
+      }
+      img.onerror = () => {
+        setState({
+          isLoading: false,
+          isError: true,
+          error: new Error('图片加载失败')
+        })
+        setNaturalWidth(null)
+        setNaturalHeight(null)
+      }
       img.src = imageUrl
     }
   }, [imageUrl])
 
-  return { ...state, retry }
+  return { ...state, retry, naturalWidth, naturalHeight }
 }
 

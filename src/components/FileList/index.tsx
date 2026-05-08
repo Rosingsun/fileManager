@@ -74,6 +74,7 @@ const FileList: React.FC = () => {
   const [editorVisible, setEditorVisible] = useState(false)
   const [editorFilePath, setEditorFilePath] = useState<string | null>(null)
   const [batchEditorVisible, setBatchEditorVisible] = useState(false)
+  const [isAnalyzingImages, setIsAnalyzingImages] = useState(false)
 
   const previewEnabled = true
 
@@ -126,7 +127,12 @@ const FileList: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [fileList, pageSize, selectedCategory, selectedSubExtensions])
+  }, [fileList, pageSize, selectedCategory, selectedSubExtensions, selectedImageCategory, selectedQuality])
+
+  useEffect(() => {
+    setSelectedImageCategory('all')
+    setSelectedQuality('all')
+  }, [currentPath])
 
   const isPreviewable = useCallback((file: FileInfo): boolean => {
     if (file.isDirectory) return false
@@ -187,7 +193,7 @@ const FileList: React.FC = () => {
     if (selectedQuality !== 'all') {
       files = files.filter(file => {
         const classification = imageClassificationResults.get(file.path)
-        return classification && classification.quality === selectedQuality
+        return classification?.quality === selectedQuality
       })
     }
 
@@ -389,6 +395,56 @@ const FileList: React.FC = () => {
     setPageSize(pageSize)
   }, [])
 
+  const analyzableImageCount = useMemo(
+    () => fileList.filter(f => !f.isDirectory && isPreviewable(f)).length,
+    [fileList, isPreviewable]
+  )
+
+  const hasClassifiedImagesInFolder = useMemo(
+    () => fileList.some(f => !f.isDirectory && imageClassificationResults.has(f.path)),
+    [fileList, imageClassificationResults]
+  )
+
+  const handleAnalyzeImages = useCallback(async () => {
+    const imagePaths = fileList.filter(f => !f.isDirectory && isPreviewable(f)).map(f => f.path)
+    if (imagePaths.length === 0) {
+      message.warning('当前目录没有可分析的图片')
+      return
+    }
+    if (!window.electronAPI?.classifyImagesBatch) {
+      message.error('图片分析不可用')
+      return
+    }
+    let modelOk = true
+    try {
+      modelOk = (await window.electronAPI.checkModelExists?.()) ?? false
+    } catch {
+      modelOk = false
+    }
+    if (!modelOk) {
+      message.warning('请先下载图片分类模型（可在「图片分类」页下载）')
+      return
+    }
+    setIsAnalyzingImages(true)
+    try {
+      const result = await window.electronAPI.classifyImagesBatch({
+        imagePaths,
+        batchSize: 8,
+        modelId: 'clip_vit_b32_quant'
+      })
+      const prev = new Map(useImageClassificationStore.getState().results)
+      for (const r of result.results) {
+        prev.set(r.filePath, r)
+      }
+      useImageClassificationStore.getState().setResults(Array.from(prev.values()))
+      message.success(`分析完成：成功 ${result.successCount} 张，失败 ${result.errorCount} 张`)
+    } catch (e) {
+      message.error('分析失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setIsAnalyzingImages(false)
+    }
+  }, [fileList, isPreviewable])
+
   const startIndex = (currentPage - 1) * pageSize
   const endIndex = startIndex + pageSize
   const paginatedFileList = filteredFileList.slice(startIndex, endIndex)
@@ -411,13 +467,15 @@ const FileList: React.FC = () => {
         title={
           <FileListHeader
             currentPath={currentPath}
-            historyList={historyList}
             selectedCategory={selectedCategory}
             selectedSubExtensions={selectedSubExtensions}
             selectedImageCategory={selectedImageCategory}
             selectedQuality={selectedQuality}
-            imageClassificationResults={imageClassificationResults}
             filteredFileList={filteredFileList}
+            analyzableImageCount={analyzableImageCount}
+            hasClassifiedImagesInFolder={hasClassifiedImagesInFolder}
+            isAnalyzingImages={isAnalyzingImages}
+            onAnalyzeImages={handleAnalyzeImages}
             viewMode={viewMode}
             currentPage={currentPage}
             pageSize={pageSize}
@@ -566,17 +624,20 @@ const FileList: React.FC = () => {
 
       {previewModalVisible && previewImages.length > 0 && (
         <ImageViewer
-          images={previewImages.map((src, index) => ({
-            id: `${index}-${src}`,
-            url: src,
-            filename: previewableFiles[index]?.name || `image-${index + 1}`,
-            width: 0,
-            height: 0,
-            size: 0,
-            format: getFileExtension(previewableFiles[index]?.name || 'jpg'),
-            createdAt: '',
-            modifiedAt: ''
-          }))}
+          images={previewImages.map((src, index) => {
+            const f = previewableFiles[index]
+            return {
+              id: `${index}-${src}`,
+              url: src,
+              filename: f?.name || `image-${index + 1}`,
+              width: 0,
+              height: 0,
+              size: f?.size ?? 0,
+              format: getFileExtension(f?.name || 'jpg'),
+              createdAt: f ? new Date(f.createdTime).toISOString() : '',
+              modifiedAt: f ? new Date(f.modifiedTime).toISOString() : ''
+            }
+          })}
           currentIndex={previewIndex}
           onIndexChange={handlePreviewIndexChange}
           onClose={() => setPreviewModalVisible(false)}
