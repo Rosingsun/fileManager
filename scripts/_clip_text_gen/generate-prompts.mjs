@@ -13,61 +13,79 @@ const root = join(__dirname, '..', '..')
 const PROMPTS_BY_CATEGORY = {
   person: [
     'a photo of a person',
-    'a portrait of a human',
-    'people in the photo',
-    '人物照片',
-    '人像摄影',
-    '面部特写'
+    'a portrait of a human face or body',
+    'people standing walking sitting in the scene',
+    'human subject main focus not an animal',
+    'adult or child human figure',
+    '人物照片人像',
+    '真人特写或全身',
+    '自拍或合影',
+    '以人为主体不是动物'
   ],
   animal: [
-    'a photo of an animal',
-    'wildlife or pet',
-    'dog cat bird or other animals',
-    '动物照片',
-    '宠物或野生动物'
+    'a photo of an animal or bird or insect or fish',
+    'wildlife creature pet dog cat bird not a human',
+    'zoo or nature animal as main subject',
+    'no human face or body as the main focus',
+    '动物野生或宠物',
+    '鸟类昆虫水产四足动物',
+    '主体是动物不是人物'
   ],
   landscape: [
-    'a landscape photo',
-    'nature scenery mountains ocean forest',
-    'outdoor natural scenery',
-    '自然风景',
-    '山水海景森林'
+    'natural outdoor scenery without city buildings',
+    'mountains ocean lake forest field sunset sky',
+    'national park hiking trail countryside',
+    '自然风景山水海天',
+    '原野森林湖泊海滩',
+    '无建筑的户外自然风光'
   ],
   urban: [
-    'a cityscape or urban scene',
-    'buildings street skyline at night',
-    '城市建筑街景',
-    '夜景或地标'
+    'city buildings downtown skyline skyscrapers',
+    'busy street traffic urban architecture',
+    'bridge plaza landmark exterior urban night lights',
+    '城市街景建筑外景',
+    '马路车流立交桥商圈',
+    '室外人造城市环境'
   ],
   indoor: [
-    'an indoor scene',
-    'inside a room or building interior',
-    '室内场景',
-    '家居室内环境'
+    'inside a room home office classroom ceiling walls furniture',
+    'interior of building living room kitchen bedroom',
+    'indoor lighting wallpaper floor indoor plants',
+    '室内房间家居办公',
+    '天花板墙壁门窗室内陈设',
+    '建筑物内部不是室外街景'
   ],
   food: [
-    'a photo of food or drink',
-    'meal dish dessert beverage',
-    '食物饮品甜点',
-    '餐桌上的美食'
+    'cooked meal dish plate bowl on table',
+    'restaurant cafe bakery food close-up',
+    'fruits vegetables dessert snack beverage drink',
+    '食物菜肴饮品特写',
+    '餐桌上的饭菜甜点',
+    '美食料理点心水果'
   ],
   vehicle: [
-    'a vehicle car truck bus motorcycle',
-    'airplane ship boat transportation',
-    '交通工具汽车飞机船舶',
-    '街道上的车辆'
+    'car truck bus motorcycle bicycle train airplane boat ship',
+    'transportation vehicle wheels engine vehicle exterior',
+    'parking lot highway vehicle driving',
+    '汽车火车飞机船舶交通工具',
+    '机动车非机动车外景',
+    '驶中的交通工具'
   ],
   document: [
-    'a document screenshot text poster',
-    'screenshot of text or UI',
-    '文档截图文字界面',
-    '纸质文件或屏幕截图'
+    'screenshot of computer phone UI text interface',
+    'printed paper poster book page handwriting chart',
+    'slide presentation spreadsheet dense text',
+    '屏幕截图文字密集界面',
+    '纸质海报书本图表',
+    '办公文档表格幻灯片'
   ],
   other: [
-    'something else',
-    'unclear category',
-    '其他内容',
-    '无法归类的图片'
+    'abstract pattern texture wallpaper macro object unclear',
+    'toys tools sports equipment close-up without clear scene',
+    'miscellaneous object not fitting other categories',
+    '难以归类的小物件特写',
+    '抽象纹理图案',
+    '无法判断场景的杂物'
   ]
 }
 

@@ -13,7 +13,9 @@ import { preprocessLetterbox } from '../utils/classificationPreprocess'
 import {
   softmax,
   aggregateImagenetToNine,
-  fuseClipAndImagenet,
+  fuseClipAndImagenetAdaptive,
+  rebalancePersonAnimalFromTopPredictions,
+  disambiguatePersonAnimalWithClip,
   argmaxNine,
   nineProbabilitiesToTopPredictions
 } from '../utils/imagenetNine'
@@ -23,6 +25,7 @@ import {
   scoreClipZeroShot,
   loadPromptsFile
 } from '../utils/clipClassifier'
+import { classifyWithCognivisionTf } from './cognivisionTfClassifier'
 
 let imagenetLabelsCache: string[] | null = null
 
@@ -100,6 +103,10 @@ export async function classifyImage(
   cwd: string,
   modelId: ClassificationModelId = 'clip_vit_b32_quant'
 ): Promise<ImageClassificationResult> {
+  if (modelId === 'cognivision') {
+    return classifyWithCognivisionTf(imagePath, cwd)
+  }
+
   const fileName = imagePath.split(/[/\\]/).pop() || imagePath
   const labels = loadImagenetLabels(cwd)
   const branchId = imagenetBranchModelId(modelId)
@@ -129,6 +136,7 @@ export async function classifyImage(
     }
 
     let imagenetNine = aggregateImagenetToNine(probs, labels.slice(0, n))
+    imagenetNine = rebalancePersonAnimalFromTopPredictions(probs, labels.slice(0, n), imagenetNine)
 
     let finalNine = { ...imagenetNine }
     const modelsDir = getModelsDir(cwd)
@@ -144,7 +152,8 @@ export async function classifyImage(
         const emb = await encodeClipImagePixels(clipSession, clipPixels, clipSize)
         if (emb) {
           const clipNine = scoreClipZeroShot(emb, prompts)
-          finalNine = fuseClipAndImagenet(clipNine, imagenetNine, 0.7)
+          finalNine = fuseClipAndImagenetAdaptive(clipNine, imagenetNine)
+          finalNine = disambiguatePersonAnimalWithClip(finalNine, clipNine)
           const sorted = (Object.entries(finalNine) as [keyof typeof finalNine, number][])
             .sort((a, b) => b[1] - a[1])
             .slice(0, 3)

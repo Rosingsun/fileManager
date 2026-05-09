@@ -8,7 +8,9 @@ import {
   FileExcelOutlined,
   VideoCameraOutlined,
   SoundOutlined,
-  FileZipOutlined
+  FileZipOutlined,
+  EditOutlined,
+  DeleteOutlined
 } from '@ant-design/icons'
 import { ImageThumbnail } from './ImageThumbnail'
 import { MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
@@ -29,6 +31,8 @@ interface FileListGridProps {
   selectedRowKeys: string[]
   maxImageSize?: number
   onPreview: (file: FileInfo) => void
+  onEdit?: (file: FileInfo) => void
+  onDelete: (file: FileInfo) => void
   onDoubleClick: (file: FileInfo) => void
   onSelectionChange: (keys: string[]) => void
   onRegisterRef: (filePath: string, el: HTMLDivElement | null) => void
@@ -49,6 +53,8 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
   selectedRowKeys,
   maxImageSize = MAX_IMAGE_SIZE,
   onPreview,
+  onEdit,
+  onDelete,
   onDoubleClick,
   onSelectionChange,
   onRegisterRef,
@@ -144,6 +150,40 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
                 ) : (
                   getFileIcon(file)
                 )}
+                <div
+                  className="file-grid-card__preview-actions"
+                  role="presentation"
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                >
+                  {canPreview && onEdit && (
+                    <button
+                      type="button"
+                      className="file-grid-card__preview-action-btn file-grid-card__preview-action-btn--edit"
+                      title="编辑"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEdit(file)
+                      }}
+                    >
+                      <EditOutlined />
+                    </button>
+                  )}
+                  {canPreview && onEdit && (
+                    <span className="file-grid-card__preview-actions-divider" aria-hidden />
+                  )}
+                  <button
+                    type="button"
+                    className="file-grid-card__preview-action-btn file-grid-card__preview-action-btn--delete"
+                    title="删除"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDelete(file)
+                    }}
+                  >
+                    <DeleteOutlined />
+                  </button>
+                </div>
               </div>
               <div className="file-grid-card__name" title={file.name}>
                 {file.name}

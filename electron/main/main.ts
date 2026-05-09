@@ -12,6 +12,7 @@ export type { ClassificationModelId } from './utils/classificationModels'
 import { CLASSIFICATION_MODELS, getClassificationModelPath, MODEL_FILE_NAMES, modelIdFromOnnxBasename } from './utils/classificationModels'
 import { classifyImage as runClassifyImage, clearImagenetSessionCache } from './services/imageClassificationService'
 import { clearClipModelCache } from './utils/clipClassifier'
+import { clearCognivisionMobilenetCache } from './services/cognivisionTfClassifier'
 import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount'
 
 
@@ -1347,6 +1348,7 @@ ipcMain.on('imageQuality:cancel', () => {
 function clearModelCache(modelId?: ClassificationModelId): void {
   clearImagenetSessionCache(modelId)
   clearClipModelCache()
+  clearCognivisionMobilenetCache()
 }
 
 async function classifyImage(
@@ -1613,6 +1615,9 @@ ipcHandle('model:checkExists', async (_event, modelId?: string): Promise<boolean
     const mnPath = getClassificationModelPath(cwd, 'mobilenetv2')
     return existsSync(mnPath)
   }
+  if (id === 'cognivision') {
+    return existsSync(join(cwd, 'models', 'imagenet1000.json'))
+  }
   const modelPath = getClassificationModelPath(cwd, id)
   return existsSync(modelPath)
 })
@@ -1628,6 +1633,10 @@ ipcHandle('model:download', async (_event, modelId?: string): Promise<{ success:
 
   if (!modelInfo) {
     return { success: false, error: '未知的模型 ID', downloadUrls: [] }
+  }
+
+  if (id === 'cognivision') {
+    return { success: true }
   }
 
   const https = await import('https')

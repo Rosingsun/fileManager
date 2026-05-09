@@ -29,8 +29,8 @@
   - 批量操作可在列表中勾选多项，工具栏出现“批量编辑”按钮
 
 ### 🤖 AI智能图片分类
-- **双引擎**：默认 **CLIP ViT-B/32 视觉编码器**（零样本，需 `clip-prompts.json` + 视觉 ONNX）与 **MobileNetV2 ImageNet** 概率聚合（0.7 / 0.3 融合）；亦可单独选用 EfficientNet 等 ImageNet 模型，输出统一为 **9 大类**。
-- **九大类**：人物、动物、自然风景、城市建筑、室内、食物、交通工具、文档界面、其他。
+- **双引擎**：默认 **CLIP ViT-B/32 视觉编码器**（零样本，需 `clip-prompts.json` + 视觉 ONNX）与 **MobileNetV2 ImageNet** 概率经自适应融合；也可选用 EfficientNet 或 **CogniVision（TensorFlow.js MobileNet，与 npm `cognivision` 同款推理，无需 ONNX，首次运行拉取权重）**，输出统一为 **9 大类**。
+- **九大类**：人物、动物、自然风景、城市建筑、室内、食物、交通工具、截图、其他。
 - **预处理**：EXIF 自动转正、letterbox、CLIP / ImageNet 各自归一化；标签使用仓库内 `models/imagenet1000.json`（1000 类）与官方 MobileNet 输出对齐。
 - **置信度与 Top 预测**：主类别置信度及多项候选；文件列表支持按内容分类筛选。
 

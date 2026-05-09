@@ -136,6 +136,7 @@ export function scoreClipZeroShot(
   const catKeys: ImageContentCategory[] = []
 
   for (const block of prompts.categories) {
+    let maxCos = -1
     let sumCos = 0
     let count = 0
     for (const emb of block.embeddings) {
@@ -146,13 +147,15 @@ export function scoreClipZeroShot(
       for (let i = 0; i < imageEmb.length; i++) dot += imageEmb[i] * tnorm[i]
       sumCos += dot
       count += 1
+      if (dot > maxCos) maxCos = dot
     }
-    const logit = count > 0 ? sumCos / count : 0
+    const meanCos = count > 0 ? sumCos / count : 0
+    const logit = maxCos >= 0 ? 0.62 * maxCos + 0.38 * meanCos : meanCos
     logits.push(logit)
     catKeys.push(block.category)
   }
 
-  const probs = softmaxTemperature(logits, 0.05)
+  const probs = softmaxTemperature(logits, 0.058)
   for (let i = 0; i < catKeys.length; i++) {
     out[catKeys[i]] = probs[i] ?? 0
   }

@@ -39,7 +39,9 @@
     "react-dom": "^18.2.0",
     "sharp": "^0.34.5",
     "zustand": "^4.4.7",
-    "onnxruntime-node": "^1.19.2"
+    "onnxruntime-node": "^1.19.2",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow-models/mobilenet": "^2.1.1"
   },
   "devDependencies": {
     "@electron-forge/cli": "^7.11.1",

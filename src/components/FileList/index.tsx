@@ -556,6 +556,8 @@ const FileList: React.FC = () => {
               selectedRowKeys={selectedRowKeys}
               maxImageSize={maxImageSize}
               onPreview={handlePreview}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
               onDoubleClick={handleDoubleClick}
               onSelectionChange={setSelectedRowKeys}
               onRegisterRef={registerImageRef}

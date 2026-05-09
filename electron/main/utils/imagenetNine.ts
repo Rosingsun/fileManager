@@ -1,7 +1,7 @@
 import type { ImageContentCategory } from '../../../src/types'
 
-/** ImageNet 类别索引 0–396 为动植物等生物类别（ILSVRC2012 排序） */
-export const IMAGENET_ORGANISM_MAX_INDEX = 396
+/** ImageNet 千类中 index 0–397 为动植物等生物（398 起为 abacus 等人造物） */
+export const IMAGENET_ORGANISM_MAX_INDEX = 397
 
 export function softmax(logits: Float32Array): Float32Array {
   let max = -Infinity
@@ -19,6 +19,10 @@ export function softmax(logits: Float32Array): Float32Array {
   return out
 }
 
+/** 常见「人身/穿戴/肖像」类 ImageNet 标签（含索引 >397），用于与生物类区分 */
+const PERSON_IMAGENET_CUE =
+  /\b(academic gown|baseball player|bikini|bow tie|bridegroom|cowboy hat|cowboy boot|crash helmet|diaper|football helmet|gas mask|gown|kimono|lab coat|military cap|military uniform|miniskirt|neck brace|oxygen mask|poncho|poke bonnet|sarong|scuba diver|seat belt|ski mask|sombrero|sunglasses|swimming cap|wig|mask)\b/i
+
 /**
  * 将 ImageNet 千类标签映射到 9 大类（仅用于索引 >= 397 的人造物/场景等）
  */
@@ -27,7 +31,8 @@ export function imagenetLabelToNine(label: string): ImageContentCategory {
 
   if (
     /^(baseball player|bridegroom|scuba diver)$/.test(l) ||
-    /\b(mannequin)\b/.test(l)
+    /\b(mannequin)\b/.test(l) ||
+    PERSON_IMAGENET_CUE.test(l)
   ) {
     return 'person'
   }
@@ -141,6 +146,140 @@ export function fuseClipAndImagenet(
   if (sum > 1e-12) {
     for (const k of keys) out[k] /= sum
   }
+  return out
+}
+
+/**
+ * CLIP 概率扁平或 Top1/Top2 差距过小时提高 ImageNet 权重，减少零样本误杀。
+ */
+export function fuseClipAndImagenetAdaptive(
+  clipNine: NineProbabilities,
+  imagenetNine: NineProbabilities
+): NineProbabilities {
+  const keys = Object.keys(EMPTY_NINE) as ImageContentCategory[]
+  const vals = keys.map(k => clipNine[k])
+  const sorted = [...vals].sort((a, b) => b - a)
+  const top = sorted[0]
+  const second = sorted[1]
+  const margin = top - second
+
+  let clipWeight = 0.72
+  if (top < 0.28 || margin < 0.06) {
+    clipWeight = 0.42
+  } else if (top < 0.38 || margin < 0.1) {
+    clipWeight = 0.56
+  } else if (top < 0.48 || margin < 0.14) {
+    clipWeight = 0.64
+  }
+
+  return fuseClipAndImagenet(clipNine, imagenetNine, clipWeight)
+}
+
+/**
+ * 根据 Top-K ImageNet 预测微调「人物 vs 动物」：肖像常被大量生物类概率淹没，但若 Top-K 同时出现服饰/装备类标签，则向 person 挪移一部分 animal。
+ */
+export function rebalancePersonAnimalFromTopPredictions(
+  probs: Float32Array,
+  labels: string[],
+  nine: NineProbabilities,
+  topM = 15
+): NineProbabilities {
+  const n = Math.min(probs.length, labels.length)
+  const ranked = Array.from({ length: n }, (_, i) => ({ i, p: probs[i] }))
+    .sort((a, b) => b.p - a.p)
+    .slice(0, topM)
+
+  let organismMass = 0
+  let personCueMass = 0
+  for (const { i, p } of ranked) {
+    if (i <= IMAGENET_ORGANISM_MAX_INDEX) organismMass += p
+    else if (PERSON_IMAGENET_CUE.test(labels[i])) personCueMass += p
+  }
+
+  const out = { ...nine }
+  const keys = Object.keys(EMPTY_NINE) as ImageContentCategory[]
+
+  const renorm = (): void => {
+    const sum = keys.reduce((s, k) => s + out[k], 0)
+    if (sum > 1e-12) {
+      for (const k of keys) out[k] /= sum
+    }
+  }
+
+  if (
+    out.animal > out.person &&
+    personCueMass >= 0.042 &&
+    organismMass >= 0.08 &&
+    personCueMass >= organismMass * 0.14
+  ) {
+    const shift = Math.min(
+      (out.animal - out.person) * 0.42,
+      personCueMass * 0.55,
+      organismMass * 0.28,
+      0.2
+    )
+    if (shift > 1e-6) {
+      out.animal -= shift
+      out.person += shift
+      renorm()
+    }
+  }
+
+  if (
+    out.person > out.animal &&
+    organismMass >= 0.22 &&
+    organismMass >= personCueMass * 2.8 &&
+    out.person - out.animal < 0.35
+  ) {
+    const shift = Math.min((out.person - out.animal) * 0.38, organismMass * 0.22, 0.16)
+    if (shift > 1e-6) {
+      out.person -= shift
+      out.animal += shift
+      renorm()
+    }
+  }
+
+  return out
+}
+
+/**
+ * CLIP 在人物/动物上意见明确时，微调融合结果（CLIP 对语义区分更强）。
+ */
+export function disambiguatePersonAnimalWithClip(
+  merged: NineProbabilities,
+  clipNine: NineProbabilities
+): NineProbabilities {
+  const cp = clipNine.person
+  const ca = clipNine.animal
+  const out = { ...merged }
+  const keys = Object.keys(EMPTY_NINE) as ImageContentCategory[]
+
+  const renorm = (): void => {
+    const sum = keys.reduce((s, k) => s + out[k], 0)
+    if (sum > 1e-12) {
+      for (const k of keys) out[k] /= sum
+    }
+  }
+
+  const clipSaysPerson = cp >= ca + 0.045 && cp >= 0.13
+  const clipSaysAnimal = ca >= cp + 0.045 && ca >= 0.13
+
+  if (clipSaysPerson && out.animal > out.person && out.animal - out.person < 0.3) {
+    const shift = Math.min(out.animal * 0.24, (cp - ca) * 0.42, 0.17)
+    if (shift > 1e-6) {
+      out.animal -= shift
+      out.person += shift
+      renorm()
+    }
+  } else if (clipSaysAnimal && out.person > out.animal && out.person - out.animal < 0.3) {
+    const shift = Math.min(out.person * 0.24, (ca - cp) * 0.42, 0.17)
+    if (shift > 1e-6) {
+      out.person -= shift
+      out.animal += shift
+      renorm()
+    }
+  }
+
   return out
 }
 

@@ -36,6 +36,10 @@ node generate-prompts.mjs
 
 - `efficientnet-b0.onnx`、`efficientnet-b4.onnx`：可在应用内切换；输入尺寸分别为 224 / 380，同样依赖 `imagenet1000.json`。
 
+## CogniVision（TensorFlow.js MobileNet）
+
+应用内选项 **CogniVision（TensorFlow MobileNet）** 使用 `@tensorflow/tfjs` + `@tensorflow-models/mobilenet`（与 npm 包 `cognivision` 相同的推理栈），**不需要**向 `models/` 放置 ONNX；仅需上述 `imagenet1000.json`。首次分类时会自动下载 TensorFlow.js MobileNet 权重（需联网）。
+
 ## 九大类映射说明
 
-索引 **0–396** 视为生物类，聚合为 **动物**；其余类别按英文标签关键词归入人物、食物、交通工具、文档界面、自然风景、城市建筑、室内等（见 `electron/main/utils/imagenetNine.ts`）。
+索引 **0–397** 视为生物类，聚合为 **动物**；其余类别按英文标签关键词归入人物、食物、交通工具、截图、自然风景、城市建筑、室内等（见 `electron/main/utils/imagenetNine.ts`）。

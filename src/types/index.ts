@@ -265,7 +265,7 @@ export const IMAGE_CATEGORY_LABELS: Record<ImageContentCategory, string> = {
   indoor: '室内',
   food: '食物',
   vehicle: '交通工具',
-  document: '文档界面',
+  document: '截图',
   other: '其他'
 }
 
