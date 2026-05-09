@@ -255,64 +255,38 @@ async function applySharpSettings(sharpInstance: any, settings: ImageEditSetting
   return sharpInstance
 }
 
-export async function applyEdits(filePath: string, settings: ImageEditSettings, outputPath?: string): Promise<void> {
-  console.log('[imageUtils] applyEdits invoked', { filePath, outputPath, settings })
-  let instance = sharp(filePath)
-  instance = await applySharpSettings(instance, settings)
-
-  if (outputPath) {
-    console.log('[imageUtils] writing to explicit outputPath', outputPath)
-    await instance.toFile(outputPath)
-    return
-  }
-
-  // 当不指定输出路径时，sharp 直接写回源文件会失败（或产生损坏），因此先写入临时文件再覆盖
+/** 与同目录原图并排生成唯一文件名，保留扩展名；默认 `{原名}_编辑_{日期时间}` */
+async function generateUniqueEditedOutputPath(sourcePath: string): Promise<string> {
   const path = await import('path')
   const fsExtra = await import('fs-extra')
-
-  const dir = path.dirname(filePath)
-  const base = path.basename(filePath)
-  const tmpName = `${base}.tmp`
-  const tmpPath = path.join(dir, tmpName)
-
-  console.log('[imageUtils] using tmpPath for write', tmpPath)
-
-  try {
-    await instance.toFile(tmpPath)
-    // 覆盖原文件，带重试以应对短时间内的文件锁
-    const maxAttempts = 3
-    let attempt = 0
-    while (true) {
-      try {
-        await fsExtra.move(tmpPath, filePath, { overwrite: true })
-        break
-      } catch (moveErr: any) {
-        attempt += 1
-        console.warn('[imageUtils] move attempt', attempt, 'failed', moveErr.code)
-        if ((moveErr.code === 'EPERM' || moveErr.code === 'EACCES') && attempt < maxAttempts) {
-          // 等待后重试
-          await new Promise(res => setTimeout(res, 100))
-          continue
-        }
-        throw moveErr
-      }
-    }
-  } catch (err: any) {
-    console.error('[imageUtils] error during tmp write/replace', err)
-    // 清理临时文件
-    try {
-      if (fsExtra.existsSync(tmpPath)) {
-        await fsExtra.unlink(tmpPath)
-      }
-    } catch (_e) {
-      // ignore
-    }
-
-    if (err.code === 'EPERM' || err.code === 'EACCES') {
-      throw new Error('文件被占用或权限不足，无法保存')
-    }
-    throw err
+  const dir = path.dirname(sourcePath)
+  const ext = path.extname(sourcePath)
+  const stem = path.basename(sourcePath, ext)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const d = new Date()
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  let candidate = path.join(dir, `${stem}_编辑_${stamp}${ext}`)
+  let i = 1
+  while (await fsExtra.pathExists(candidate)) {
+    candidate = path.join(dir, `${stem}_编辑_${stamp}_${i}${ext}`)
+    i += 1
   }
+  return candidate
+}
+
+/** 将编辑结果写入磁盘；未指定 outputPath 时在同目录新建文件，不覆盖原图。返回实际写入路径。 */
+export async function applyEdits(
+  filePath: string,
+  settings: ImageEditSettings,
+  outputPath?: string
+): Promise<string> {
+  const targetPath = outputPath ?? (await generateUniqueEditedOutputPath(filePath))
+  console.log('[imageUtils] applyEdits invoked', { filePath, targetPath, explicitOutput: !!outputPath, settings })
+
+  let instance = sharp(filePath)
+  instance = await applySharpSettings(instance, settings)
+  await instance.toFile(targetPath)
+  return targetPath
 }
 
 export async function convertFormat(filePath: string, options: FormatConversionOptions, outputPath?: string): Promise<void> {
@@ -425,10 +399,11 @@ export async function compressImage(filePath: string, options: CompressionOption
   }
 
   const path = await import('path')
+  const os = await import('os')
+  const { randomUUID } = await import('crypto')
   const fsExtra = await import('fs-extra')
-  const dir = path.dirname(filePath)
-  const base = path.basename(filePath)
-  const tmpPath = path.join(dir, `${base}.tmp`)
+  /** 中间文件写到系统临时目录，避免在图片同目录出现「xxx.tmp」残留 */
+  const tmpPath = path.join(os.tmpdir(), `filedeal-compress-${randomUUID()}${path.extname(filePath)}`)
 
   try {
     await instance.toFile(tmpPath)

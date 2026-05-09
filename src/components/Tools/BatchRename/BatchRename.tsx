@@ -356,28 +356,51 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                 {displayOutputPath ? displayOutputPath.split(/[/\\]/).pop() : '选择输出目录'}
               </Button>
             </div>
-            <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              style={{
+                flex: 1,
+                overflow: 'hidden',
+                border: '1px solid #d9d9d9',
+                borderRadius: 6,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0
+              }}
+            >
               {files.length === 0 ? (
-                <Empty description="请先选择文件" />
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: 0
+                  }}
+                >
+                  <Empty description="请先选择文件" />
+                </div>
               ) : (
-                <List
-                  size="small"
-                  dataSource={previewResults}
-                  renderItem={(item, index) => (
-                    <List.Item>
-                      <Space>
-                        <Text type="secondary">{index + 1}.</Text>
-                        <Text style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.originalName}
-                        </Text>
-                        <ArrowRightOutlined />
-                        <Text style={{ color: '#52c41a', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {item.newName}
-                        </Text>
-                      </Space>
-                    </List.Item>
-                  )}
-                />
+                <div style={{ flex: 1, minHeight: 0, overflow: 'auto', width: '100%' }}>
+                  <List
+                    size="small"
+                    style={{ width: '100%' }}
+                    dataSource={previewResults}
+                    renderItem={(item, index) => (
+                      <List.Item style={{ width: '100%', maxWidth: '100%', display: 'block' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
+                          <Text type="secondary" style={{ flexShrink: 0 }}>{index + 1}.</Text>
+                          <Text ellipsis style={{ flex: 1, minWidth: 0 }}>
+                            {item.originalName}
+                          </Text>
+                          <ArrowRightOutlined style={{ flexShrink: 0, color: 'rgba(0,0,0,0.45)' }} />
+                          <Text ellipsis style={{ flex: 1, minWidth: 0, color: '#52c41a' }}>
+                            {item.newName}
+                          </Text>
+                        </div>
+                      </List.Item>
+                    )}
+                  />
+                </div>
               )}
             </div>
           {isProcessing && (

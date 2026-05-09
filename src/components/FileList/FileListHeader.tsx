@@ -1,9 +1,9 @@
 import React from 'react'
-import { Button, Select, Space, Switch } from 'antd'
+import { Button, Select, Switch } from 'antd'
 import {
   LeftOutlined,
   FilterOutlined,
-  ClearOutlined
+  ClearOutlined,
 } from '@ant-design/icons'
 import { FILE_CATEGORIES } from '../../stores'
 import type { FileInfo } from '../../types'
@@ -21,17 +21,13 @@ interface FileListHeaderProps {
   isAnalyzingImages: boolean
   onAnalyzeImages: () => void
   viewMode: 'list' | 'grid'
-  currentPage: number
-  pageSize: number
-  total: number
+  onViewModeChange: (mode: 'list' | 'grid') => void
   onGoBack: () => void
   onCategoryChange: (value: string) => void
   onSubExtensionChange: (value: string[]) => void
   onResetFilter: () => void
   onImageCategoryChange: (value: string) => void
   onQualityChange: (value: string) => void
-  onViewModeChange: (mode: 'list' | 'grid') => void
-  onPageChange: (page: number, pageSize: number) => void
 }
 
 export const FileListHeader: React.FC<FileListHeaderProps> = ({
@@ -46,17 +42,13 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   isAnalyzingImages,
   onAnalyzeImages,
   viewMode,
-  currentPage,
-  pageSize,
-  total,
+  onViewModeChange,
   onGoBack,
   onCategoryChange,
   onSubExtensionChange,
   onResetFilter,
   onImageCategoryChange,
-  onQualityChange,
-  onViewModeChange,
-  onPageChange
+  onQualityChange
 }) => {
   const currentCategoryInfo = FILE_CATEGORIES.find(c => c.key === selectedCategory)
   const subExtensions = currentCategoryInfo?.extensions || []
@@ -196,11 +188,6 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
         )}
       </div>
       <div className="file-filter-bar__right">
-        {total > 0 && (
-          <span className="file-filter-bar__meta">
-            第 {currentPage} 页 / 共 {Math.ceil(total / pageSize)} 页
-          </span>
-        )}
         <Switch
           checkedChildren="网格"
           unCheckedChildren="列表"

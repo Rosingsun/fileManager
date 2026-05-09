@@ -3,6 +3,7 @@ import { Modal, Button, Space, Card, InputNumber, Select, Input, message, Typogr
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined } from '@ant-design/icons'
 import type { ThumbnailOptions, ThumbnailResult } from '../../../types'
 import { useToolOutputPathStore } from '../../../stores'
+import LocalFileImagePreview from '../LocalFileImagePreview'
 
 const { Text } = Typography
 
@@ -218,31 +219,53 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-            <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div
+              style={{
+                flex: 1,
+                overflow: 'auto',
+                border: '1px solid #d9d9d9',
+                borderRadius: 6,
+                display: 'flex',
+                flexDirection: 'column',
+                minHeight: 0
+              }}
+            >
             {files.length === 0 ? (
-              <Empty description="请先添加图片" />
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 0
+                }}
+              >
+                <Empty description="请先添加图片" />
+              </div>
             ) : (
-              <div style={{ padding: 8 }}>
+              <div style={{ padding: 8, width: '100%', boxSizing: 'border-box', flex: 1, minHeight: 0 }}>
                 {files.map((file, index) => (
                   <Card
                     size="small"
                     key={index}
                     style={{ marginBottom: 8, width: '100%' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <img
-                          src={`file:///${file.path.replace(/\\/g, '/')}`}
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                        <LocalFileImagePreview
+                          filePath={file.path}
                           alt={file.name}
+                          maxEdge={200}
                           style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
                         />
-                        <Text ellipsis style={{ maxWidth: 260 }}>{file.name}</Text>
+                        <Text ellipsis style={{ flex: 1, minWidth: 0 }}>{file.name}</Text>
                       </div>
                       <Button 
                         size="small" 
                         icon={<DeleteOutlined />}
                         onClick={() => handleRemoveFile(index)}
                         danger
+                        style={{ flexShrink: 0 }}
                       />
                     </div>
                   </Card>

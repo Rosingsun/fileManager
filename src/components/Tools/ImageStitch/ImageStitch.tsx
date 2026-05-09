@@ -3,6 +3,7 @@ import { Modal, Button, Space, Card, Select, InputNumber, Radio, message, Typogr
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import type { StitchOptions } from '../../../types'
 import { useToolOutputPathStore } from '../../../stores'
+import LocalFileImagePreview from '../LocalFileImagePreview'
 
 const { Text } = Typography
 
@@ -136,7 +137,19 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
           }}
         >
           {img ? (
-            <Text ellipsis style={{ fontSize: 12 }}>{img.name}</Text>
+            <Text
+              ellipsis
+              style={{
+                fontSize: 12,
+                display: 'block',
+                width: '100%',
+                padding: '0 6px',
+                boxSizing: 'border-box',
+                textAlign: 'center'
+              }}
+            >
+              {img.name}
+            </Text>
           ) : (
             <Text type="secondary">空白</Text>
           )}
@@ -293,27 +306,48 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              border: '1px solid #d9d9d9',
+              borderRadius: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0
+            }}
+          >
             {images.length === 0 ? (
-              <Empty description="请先添加图片" />
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 0
+                }}
+              >
+                <Empty description="请先添加图片" />
+              </div>
             ) : (
-              <div style={{ padding: 8 }}>
+              <div style={{ padding: 8, width: '100%', boxSizing: 'border-box', flex: 1, minHeight: 0 }}>
                   {images.map((img, index) => (
                     <Card
                       size="small"
                       key={index}
                       style={{ marginBottom: 8, width: '100%' }}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 0 }}>
-                          <img
-                            src={`file:///${img.path.replace(/\\/g, '/')}`}
+                      <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                          <LocalFileImagePreview
+                            filePath={img.path}
                             alt={img.name}
+                            maxEdge={320}
                             style={{ width: 90, height: 60, objectFit: 'cover', borderRadius: 4 }}
                           />
-                          <Text ellipsis style={{ maxWidth: '60%', minWidth: 0 }}>{index + 1}. {img.name}</Text>
+                          <Text ellipsis style={{ flex: 1, minWidth: 0 }}>{index + 1}. {img.name}</Text>
                         </div>
-                        <Space>
+                        <Space style={{ flexShrink: 0 }}>
                           <Button 
                             size="small" 
                             icon={<ArrowUpOutlined />}

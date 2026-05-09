@@ -230,7 +230,9 @@ const FileList: React.FC = () => {
     setViewMode(mode)
     try {
       localStorage.setItem('file_list_view_mode', mode)
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   const handleRename = useCallback((file: FileInfo) => {
@@ -285,7 +287,25 @@ const FileList: React.FC = () => {
     setDeletingFile(null)
   }, [deletingFile, currentPath, loadDirectory])
 
-  const handleBatchDelete = useCallback(async () => {
+  const performBatchDelete = useCallback(
+    async (files: FileInfo[]) => {
+      if (files.length === 0) return
+      let successCount = 0
+      for (const file of files) {
+        const success = await window.electronAPI?.deleteFile(file.path)
+        if (success) successCount++
+      }
+      message.success(`批量删除完成：成功 ${successCount} 个，失败 ${files.length - successCount} 个`)
+      setSelectedRowKeys([])
+      setSelectedRows([])
+      if (currentPath) {
+        loadDirectory(currentPath)
+      }
+    },
+    [currentPath, loadDirectory]
+  )
+
+  const handleBatchDelete = useCallback(() => {
     if (selectedRows.length === 0) {
       message.warning('请先选择要删除的文件')
       return
@@ -297,21 +317,9 @@ const FileList: React.FC = () => {
       okText: '确定删除',
       cancelText: '取消',
       okButtonProps: { danger: true },
-      onOk: async () => {
-        let successCount = 0
-        for (const file of selectedRows) {
-          const success = await window.electronAPI?.deleteFile(file.path)
-          if (success) successCount++
-        }
-        message.success(`批量删除完成：成功 ${successCount} 个，失败 ${selectedRows.length - successCount} 个`)
-        setSelectedRowKeys([])
-        setSelectedRows([])
-        if (currentPath) {
-          loadDirectory(currentPath)
-        }
-      }
+      onOk: () => performBatchDelete(selectedRows),
     })
-  }, [selectedRows, currentPath, loadDirectory])
+  }, [selectedRows, performBatchDelete])
 
   const handleBatchRename = useCallback(() => {
     if (selectedRows.length === 0) {
@@ -389,6 +397,15 @@ const FileList: React.FC = () => {
     setSelectedRowKeys(keys)
     setSelectedRows(rows)
   }, [])
+
+  /** 网格仅回传 path keys，需按全量筛选列表还原 row，顶部批量删除等依赖 selectedRows */
+  const handleGridSelectionChange = useCallback(
+    (keys: string[]) => {
+      setSelectedRowKeys(keys)
+      setSelectedRows(filteredFileList.filter(f => keys.includes(f.path)))
+    },
+    [filteredFileList]
+  )
 
   const handlePageChange = useCallback((page: number, pageSize: number) => {
     setCurrentPage(page)
@@ -477,17 +494,13 @@ const FileList: React.FC = () => {
             isAnalyzingImages={isAnalyzingImages}
             onAnalyzeImages={handleAnalyzeImages}
             viewMode={viewMode}
-            currentPage={currentPage}
-            pageSize={pageSize}
-            total={filteredFileList.length}
+            onViewModeChange={handleViewModeChange}
             onGoBack={handleGoBack}
             onCategoryChange={handleCategoryChange}
             onSubExtensionChange={handleSubExtensionChange}
             onResetFilter={handleResetFilter}
             onImageCategoryChange={setSelectedImageCategory}
             onQualityChange={setSelectedQuality}
-            onViewModeChange={handleViewModeChange}
-            onPageChange={handlePageChange}
           />
         }
         className="app-surface-card"
@@ -559,7 +572,7 @@ const FileList: React.FC = () => {
               onEdit={handleEdit}
               onDelete={handleDelete}
               onDoubleClick={handleDoubleClick}
-              onSelectionChange={setSelectedRowKeys}
+              onSelectionChange={handleGridSelectionChange}
               onRegisterRef={registerImageRef}
               onPageChange={handlePageChange}
               isPreviewable={isPreviewable}

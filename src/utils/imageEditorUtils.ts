@@ -1,5 +1,39 @@
 import type { ImageEditSettings } from '../types'
 
+/**
+ * 在图像内计算指定宽高比下的最大内接裁切矩形（居中），用于比例预设。
+ * aspectW:aspectH 表示裁切区域的宽:高（如 16:9、3:4）。
+ */
+export function computeCropRectForAspectRatio(
+  imageWidth: number,
+  imageHeight: number,
+  aspectW: number,
+  aspectH: number
+): { x: number; y: number; width: number; height: number } {
+  const iw = Math.max(0, Math.round(imageWidth))
+  const ih = Math.max(0, Math.round(imageHeight))
+  if (iw === 0 || ih === 0) return { x: 0, y: 0, width: 0, height: 0 }
+  if (aspectW <= 0 || aspectH <= 0) return { x: 0, y: 0, width: iw, height: ih }
+
+  const r = aspectW / aspectH
+  const hMax = Math.min(ih, Math.floor(iw / r))
+  let height = hMax
+  let width = Math.round(height * r)
+  if (width > iw) {
+    width = iw
+    height = Math.round(width / r)
+  }
+  if (height > ih) {
+    height = ih
+    width = Math.round(height * r)
+  }
+  width = Math.min(width, iw)
+  height = Math.min(height, ih)
+  const x = Math.round((iw - width) / 2)
+  const y = Math.round((ih - height) / 2)
+  return { x, y, width, height }
+}
+
 export function getFilterCss(settings: ImageEditSettings): string {
   const filters: string[] = []
   if (settings.brightness != null) filters.push(`brightness(${settings.brightness}%)`)

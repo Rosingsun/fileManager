@@ -108,15 +108,17 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
       console.log('[ImageEditor] applyEdits result:', res)
       const first = res && res[0]
       if (first && first.success) {
-        if (first.newPath) {
-          message.success(`已保存为：${first.newPath}`)
-          imageLoader.clearCache(first.newPath)
-          onSaved && onSaved({ success: true, filePath: first.newPath })
-        } else {
-          message.success('已保存')
+        const savedPath = first.newPath || filePath
+        message.success(
+          first.newPath
+            ? `已另存为新文件（原图未修改）：${first.newPath}`
+            : '已保存'
+        )
+        imageLoader.clearCache(savedPath)
+        if (filePath !== savedPath) {
           imageLoader.clearCache(filePath)
-          onSaved && onSaved({ success: true, filePath })
         }
+        onSaved && onSaved({ success: true, filePath: savedPath })
       } else {
         const errMsg = first?.error || '返回结果为空'
         message.error(`保存失败：${errMsg}`)

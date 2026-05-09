@@ -1503,48 +1503,15 @@ ipcMain.on('image:cancelClassification', () => {
 ipcHandle('image:applyEdits', async (_event, paths: string[] | string, settings: any): Promise<BatchOperationResult[]> => {
   const filePaths = Array.isArray(paths) ? paths : [paths]
   const results: BatchOperationResult[] = []
+  const imageUtils = await import('./utils/imageUtils')
   for (const p of filePaths) {
     try {
       console.log('[Main] applyEdits request for', p)
-      await import('./utils/imageUtils').then(mod => mod.applyEdits(p, settings))
-      results.push({ filePath: p, success: true })
+      const outPath = await imageUtils.applyEdits(p, settings)
+      results.push({ filePath: p, success: true, newPath: outPath })
     } catch (err: any) {
       const msg = err?.message || ''
       console.error('[Main] applyEdits error for', p, msg)
-      // 如果是 sharp 抛出的同路径错误，尝试备用写入逻辑
-      if (msg.includes('same file')) {
-        try {
-          console.log('[Main] applyEdits fallback for', p)
-          const tempPath = `${p}.tmp`
-          await import('./utils/imageUtils').then(mod => mod.applyEdits(p, settings, tempPath))
-          const fsExtra = await import('fs-extra')
-          await fsExtra.move(tempPath, p, { overwrite: true })
-          results.push({ filePath: p, success: true })
-          continue
-        } catch (e: any) {
-          console.error('[Main] fallback applyEdits failed for', p, e?.message)
-          results.push({ filePath: p, success: false, error: e?.message })
-          continue
-        }
-      }
-      // 权限或占用导致无法覆盖原文件时, 改为写入新文件并告知前端路径
-      if (msg.includes('权限不足') || msg.includes('文件被占用') || err.code === 'EPERM' || err.code === 'EACCES') {
-        try {
-          const path = await import('path')
-          const fsExtra = await import('fs-extra')
-          const ext = path.extname(p)
-          const base = path.basename(p, ext)
-          const dir = path.dirname(p)
-          const newPath = path.join(dir, `${base}-edited${ext}`)
-          console.log('[Main] EPERM fallback writing to new file', newPath)
-          await import('./utils/imageUtils').then(mod => mod.applyEdits(p, settings, newPath))
-          results.push({ filePath: p, success: true, newPath })
-          continue
-        } catch (e: any) {
-          console.error('[Main] EPERM fallback new path failed for', p, e?.message)
-          // fall through to error push below
-        }
-      }
       results.push({ filePath: p, success: false, error: msg })
     }
   }

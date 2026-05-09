@@ -148,6 +148,19 @@
   border-bottom-color: var(--app-border);
 }
 
+/* 文件列表筛选栏含「批量删除 + 网格切换」，避免标题区 overflow 裁掉右侧按钮 */
+.app-surface-card .ant-card-head-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: visible;
+  white-space: normal;
+}
+
+.app-surface-card .ant-card-head-wrapper {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
 .app-surface-card .ant-card-body {
   height: calc(100% - 58px);
 }
@@ -445,7 +458,7 @@
 
 .classification-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 12px;
 }
 
@@ -586,4 +599,26 @@
   font-size: 11px;
   color: #999;
   text-align: center;
+}
+
+/* 图片编辑器 Slider：仅保留圆形手柄，去掉外层方形底（antd 由 ::before 绘制圆钮） */
+.editor-controls-slider.ant-slider .ant-slider-handle {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.editor-controls-slider.ant-slider .ant-slider-handle::before {
+  width: 14px;
+  height: 14px;
+  border: 2px solid #007aff;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.editor-controls-slider.ant-slider:hover .ant-slider-handle::before,
+.editor-controls-slider.ant-slider .ant-slider-handle:focus-visible::before {
+  border-color: #007aff;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.35);
 }

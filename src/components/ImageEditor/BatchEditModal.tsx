@@ -42,15 +42,11 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
       if (failed.length) {
         message.error(`部分图片处理失败：${failed.map(f => `${f.filePath}(${f.error || 'error'})`).join(',')}`)
       } else {
-        const moved = res.filter(r => r.success && r.newPath)
-        if (moved.length) {
-          message.success(`部分文件另存为：${moved.map(m => m.newPath).join(',')}`)
-          moved.forEach(m => imageLoader.clearCache(m.newPath || ''))
-        } else {
-          message.success('批量应用完成')
-        }
-        // 清理所有原图片的缓存
-        filePaths.forEach(p => imageLoader.clearCache(p))
+        message.success(`已生成 ${res.length} 张新图片，原文件均未修改`)
+        res.forEach(r => {
+          if (r.newPath) imageLoader.clearCache(r.newPath)
+          imageLoader.clearCache(r.filePath)
+        })
       }
     } catch (e: any) {
       console.error('[BatchEditModal] 批量处理出错', e)

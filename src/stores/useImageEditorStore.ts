@@ -10,6 +10,48 @@ const BUILTIN_SYSTEM_GROUP: PresetGroup = {
   isBuiltIn: true
 }
 
+const BUILTIN_FUJI_GROUP: PresetGroup = {
+  id: 'fuji',
+  name: '富士',
+  isBuiltIn: true
+}
+
+const BUILTIN_CANON_GROUP: PresetGroup = {
+  id: 'canon',
+  name: '佳能',
+  isBuiltIn: true
+}
+
+const BUILTIN_NIKON_GROUP: PresetGroup = {
+  id: 'nikon',
+  name: '尼康',
+  isBuiltIn: true
+}
+
+const BUILTIN_SONY_GROUP: PresetGroup = {
+  id: 'sony',
+  name: '索尼',
+  isBuiltIn: true
+}
+
+const BUILTIN_KODAK_GROUP: PresetGroup = {
+  id: 'kodak',
+  name: '柯达',
+  isBuiltIn: true
+}
+
+const BUILTIN_LEICA_GROUP: PresetGroup = {
+  id: 'leica',
+  name: '徕卡',
+  isBuiltIn: true
+}
+
+const BUILTIN_POLAROID_GROUP: PresetGroup = {
+  id: 'polaroid',
+  name: '宝丽来',
+  isBuiltIn: true
+}
+
 const BUILTIN_UNGROUPED_GROUP: PresetGroup = {
   id: 'ungrouped',
   name: '未分组',
@@ -51,12 +93,37 @@ interface ImageEditorState {
   setSelectedPreset: (presetId: string | null) => void
 }
 
+/** 内置「系统 + 各品牌」分组 ID，用于面板展示内置预设；持久化恢复时需过滤避免与用户分组冲突 */
+export const BUILTIN_PRESET_COLLECTION_IDS = [
+  'system',
+  'fuji',
+  'canon',
+  'nikon',
+  'sony',
+  'kodak',
+  'leica',
+  'polaroid',
+] as const
+
+export function isBuiltinPresetCollectionGroup(id: string): boolean {
+  return (BUILTIN_PRESET_COLLECTION_IDS as readonly string[]).includes(id)
+}
+
+const RESERVED_BUILTIN_GROUP_IDS = new Set<string>(BUILTIN_PRESET_COLLECTION_IDS)
+
 const loadInitialGroups = (): PresetGroup[] => {
   const stored = safeStorage.get<PresetGroup[]>(GROUPS_STORAGE_KEY, [])
-  const userGroups = stored.filter(g => g.id !== 'system' && g.id !== 'ungrouped')
-  
+  const userGroups = stored.filter(g => !RESERVED_BUILTIN_GROUP_IDS.has(g.id))
+
   return [
     BUILTIN_SYSTEM_GROUP,
+    BUILTIN_FUJI_GROUP,
+    BUILTIN_CANON_GROUP,
+    BUILTIN_NIKON_GROUP,
+    BUILTIN_SONY_GROUP,
+    BUILTIN_KODAK_GROUP,
+    BUILTIN_LEICA_GROUP,
+    BUILTIN_POLAROID_GROUP,
     BUILTIN_UNGROUPED_GROUP,
     ...userGroups
   ]

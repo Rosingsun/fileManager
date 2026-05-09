@@ -1,7 +1,18 @@
 import React from 'react'
 import { Slider, InputNumber, Switch, Space, Button } from 'antd'
 import { ScissorOutlined, SwapOutlined } from '@ant-design/icons'
+import { computeCropRectForAspectRatio } from '../../utils'
 import type { ImageEditSettings } from '../../types'
+
+const CROP_ASPECT_PRESETS: readonly { label: string; w: number; h: number }[] = [
+  { label: '1:1', w: 1, h: 1 },
+  { label: '4:3', w: 4, h: 3 },
+  { label: '3:4', w: 3, h: 4 },
+  { label: '16:9', w: 16, h: 9 },
+  { label: '9:16', w: 9, h: 16 },
+  { label: '3:2', w: 3, h: 2 },
+  { label: '2:3', w: 2, h: 3 },
+]
 
 interface EditorControlsProps {
   settings: ImageEditSettings
@@ -65,6 +76,7 @@ const ControlRow: React.FC<{
       </span>
     </div>
     <Slider
+      className="editor-controls-slider"
       min={min}
       max={max}
       value={value}
@@ -80,20 +92,12 @@ const ControlRow: React.FC<{
           borderRadius: 4,
           height: 4
         },
+        /** 外层不要用白底+阴影，否则会与 antd 圆形 ::before 旋钮叠成「方块+圆」 */
         handle: {
-          width: 16,
-          height: 16,
+          background: 'transparent',
           border: 'none',
-          background: '#ffffff',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
-          '&:hover': {
-            boxShadow: '0 4px 12px rgba(0, 122, 255, 0.4)'
-          },
-          '&:active': {
-            boxShadow: '0 4px 12px rgba(0, 122, 255, 0.4)',
-            transform: 'scale(1.1)'
-          }
-        }
+          boxShadow: 'none',
+        },
       }}
       transitionName="slider-transition"
     />
@@ -136,6 +140,8 @@ const FilterButton: React.FC<{
   </Button>
 )
 
+const MIN_CROP_DIM = 20
+
 const EditorControls: React.FC<EditorControlsProps> = ({ settings, onChange, showCropMode, onToggleCropMode, imageWidth = 800, imageHeight = 600 }) => {
   const handleSlider = (key: keyof ImageEditSettings) => (value: number) => {
     onChange({ [key]: value })
@@ -145,9 +151,30 @@ const EditorControls: React.FC<EditorControlsProps> = ({ settings, onChange, sho
     onChange({ [key]: checked })
   }
 
+  const clampCropRect = (rect: NonNullable<ImageEditSettings['crop']>): NonNullable<ImageEditSettings['crop']> => {
+    let { x, y, width, height } = rect
+    width = Math.max(MIN_CROP_DIM, Math.min(width, imageWidth))
+    height = Math.max(MIN_CROP_DIM, Math.min(height, imageHeight))
+    x = Math.max(0, Math.min(x, imageWidth - MIN_CROP_DIM))
+    y = Math.max(0, Math.min(y, imageHeight - MIN_CROP_DIM))
+    width = Math.min(width, imageWidth - x)
+    height = Math.min(height, imageHeight - y)
+    width = Math.max(MIN_CROP_DIM, width)
+    height = Math.max(MIN_CROP_DIM, height)
+    return {
+      x: Math.round(x),
+      y: Math.round(y),
+      width: Math.round(width),
+      height: Math.round(height),
+    }
+  }
+
   const handleCropChange = (field: keyof NonNullable<ImageEditSettings['crop']>) => (value: number | null) => {
-    const v = value || 0
-    onChange({ crop: { ...(settings.crop || { x: 0, y: 0, width: 0, height: 0 }), [field]: v } })
+    const v = value ?? 0
+    const base =
+      settings.crop ?? { x: 0, y: 0, width: imageWidth, height: imageHeight }
+    const next = clampCropRect({ ...base, [field]: v })
+    onChange({ crop: next })
   }
 
   const handleToggleFilter = (key: keyof ImageEditSettings, value: any) => () => {
@@ -483,146 +510,120 @@ const EditorControls: React.FC<EditorControlsProps> = ({ settings, onChange, sho
                 >
                   自由
                 </Button>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    const size = Math.min(imageWidth, imageHeight)
-                    onChange({ crop: { x: 0, y: 0, width: size, height: size } })
-                  }}
-                  style={{
-                    borderRadius: 8,
-                    fontSize: 13,
-                    padding: '6px 12px',
-                    fontWeight: 500,
-                    border: '1px solid rgba(0, 0, 0, 0.1)',
-                    background: '#ffffff',
-                    color: '#1d1d1f'
-                  }}
-                >
-                  1:1
-                </Button>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    const w = imageWidth
-                    const h = Math.round(w * 3 / 4)
-                    onChange({ crop: { x: 0, y: 0, width: Math.min(w, imageWidth), height: Math.min(h, imageHeight) } })
-                  }}
-                  style={{
-                    borderRadius: 8,
-                    fontSize: 13,
-                    padding: '6px 12px',
-                    fontWeight: 500,
-                    border: '1px solid rgba(0, 0, 0, 0.1)',
-                    background: '#ffffff',
-                    color: '#1d1d1f'
-                  }}
-                >
-                  4:3
-                </Button>
-                <Button
-                  size="small"
-                  onClick={() => {
-                    const w = imageWidth
-                    const h = Math.round(w * 9 / 16)
-                    onChange({ crop: { x: 0, y: 0, width: Math.min(w, imageWidth), height: Math.min(h, imageHeight) } })
-                  }}
-                  style={{
-                    borderRadius: 8,
-                    fontSize: 13,
-                    padding: '6px 12px',
-                    fontWeight: 500,
-                    border: '1px solid rgba(0, 0, 0, 0.1)',
-                    background: '#ffffff',
-                    color: '#1d1d1f'
-                  }}
-                >
-                  16:9
-                </Button>
+                {CROP_ASPECT_PRESETS.map(preset => (
+                  <Button
+                    key={`${preset.w}-${preset.h}`}
+                    size="small"
+                    onClick={() => {
+                      const rect = computeCropRectForAspectRatio(imageWidth, imageHeight, preset.w, preset.h)
+                      onChange({ crop: rect })
+                    }}
+                    style={{
+                      borderRadius: 8,
+                      fontSize: 13,
+                      padding: '6px 10px',
+                      fontWeight: 500,
+                      border: '1px solid rgba(0, 0, 0, 0.1)',
+                      background: '#ffffff',
+                      color: '#1d1d1f'
+                    }}
+                  >
+                    {preset.label}
+                  </Button>
+                ))}
               </div>
-            </div>
-      
-            <div style={{
-              padding: '0 16px'
-            }}>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 8
+              {!settings.crop && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: '#6e6e73',
+                    marginBottom: 8,
+                    letterSpacing: 0.3,
+                  }}>
+                    像素微调
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 8,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>X</div>
+                      <InputNumber
+                        value={0}
+                        onChange={handleCropChange('x')}
+                        min={0}
+                        max={Math.max(0, imageWidth - MIN_CROP_DIM)}
+                        size="small"
+                        style={{
+                          width: '100%',
+                          borderRadius: 6,
+                          border: '1px solid rgba(0, 0, 0, 0.1)',
+                          fontSize: 12,
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>Y</div>
+                      <InputNumber
+                        value={0}
+                        onChange={handleCropChange('y')}
+                        min={0}
+                        max={Math.max(0, imageHeight - MIN_CROP_DIM)}
+                        size="small"
+                        style={{
+                          width: '100%',
+                          borderRadius: 6,
+                          border: '1px solid rgba(0, 0, 0, 0.1)',
+                          fontSize: 12,
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>宽度</div>
+                      <InputNumber
+                        value={imageWidth}
+                        onChange={handleCropChange('width')}
+                        min={MIN_CROP_DIM}
+                        max={imageWidth}
+                        size="small"
+                        style={{
+                          width: '100%',
+                          borderRadius: 6,
+                          border: '1px solid rgba(0, 0, 0, 0.1)',
+                          fontSize: 12,
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: '#6e6e73', marginBottom: 4 }}>高度</div>
+                      <InputNumber
+                        value={imageHeight}
+                        onChange={handleCropChange('height')}
+                        min={MIN_CROP_DIM}
+                        max={imageHeight}
+                        size="small"
+                        style={{
+                          width: '100%',
+                          borderRadius: 6,
+                          border: '1px solid rgba(0, 0, 0, 0.1)',
+                          fontSize: 12,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p style={{
+                margin: 0,
+                fontSize: 11,
+                color: '#86868b',
+                lineHeight: 1.45,
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
               }}>
-                <div>
-                  <div style={{
-                    fontSize: 11,
-                    color: '#6e6e73',
-                    marginBottom: 4
-                  }}>X</div>
-                  <InputNumber
-                    value={settings.crop?.x || 0}
-                    onChange={handleCropChange('x')}
-                    size="small"
-                    style={{
-                      width: '100%',
-                      borderRadius: 6,
-                      border: '1px solid rgba(0, 0, 0, 0.1)',
-                      fontSize: 12
-                    }}
-                  />
-                </div>
-                <div>
-                  <div style={{
-                    fontSize: 11,
-                    color: '#6e6e73',
-                    marginBottom: 4
-                  }}>Y</div>
-                  <InputNumber
-                    value={settings.crop?.y || 0}
-                    onChange={handleCropChange('y')}
-                    size="small"
-                    style={{
-                      width: '100%',
-                      borderRadius: 6,
-                      border: '1px solid rgba(0, 0, 0, 0.1)',
-                      fontSize: 12
-                    }}
-                  />
-                </div>
-                <div>
-                  <div style={{
-                    fontSize: 11,
-                    color: '#6e6e73',
-                    marginBottom: 4
-                  }}>宽度</div>
-                  <InputNumber
-                    value={settings.crop?.width || 0}
-                    onChange={handleCropChange('width')}
-                    size="small"
-                    style={{
-                      width: '100%',
-                      borderRadius: 6,
-                      border: '1px solid rgba(0, 0, 0, 0.1)',
-                      fontSize: 12
-                    }}
-                  />
-                </div>
-                <div>
-                  <div style={{
-                    fontSize: 11,
-                    color: '#6e6e73',
-                    marginBottom: 4
-                  }}>高度</div>
-                  <InputNumber
-                    value={settings.crop?.height || 0}
-                    onChange={handleCropChange('height')}
-                    size="small"
-                    style={{
-                      width: '100%',
-                      borderRadius: 6,
-                      border: '1px solid rgba(0, 0, 0, 0.1)',
-                      fontSize: 12
-                    }}
-                  />
-                </div>
-              </div>
+                在左侧预览上拖动选区移动；拖动角点或边调整大小；在深色遮罩上按下拖动可框选新的裁切范围。
+              </p>
             </div>
           </>
         )}

@@ -3,6 +3,7 @@ import { Modal, Button, Space, Card, InputNumber, Select, message, Typography, E
 import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined, FolderOutlined } from '@ant-design/icons'
 import type { GifFrame, GifOptions } from '../../../types'
 import { useToolOutputPathStore } from '../../../stores'
+import LocalFileImagePreview from '../LocalFileImagePreview'
 
 const { Text } = Typography
 
@@ -229,7 +230,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <Text strong>帧列表 ({frames.length} 帧)</Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>（拖拽调整顺序）</Text>
+              {/* <Text type="secondary" style={{ marginLeft: 8 }}>（拖拽调整顺序）</Text> */}
             </div>
             <Button 
               type="link" 
@@ -240,29 +241,50 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              border: '1px solid #d9d9d9',
+              borderRadius: 6,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0
+            }}
+          >
             {frames.length === 0 ? (
-              <Empty description="请先添加图片作为帧" />
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minHeight: 0
+                }}
+              >
+                <Empty description="请先添加图片作为帧" />
+              </div>
             ) : (
-              <div style={{ padding: 8 }}>
+              <div style={{ padding: 8, width: '100%', boxSizing: 'border-box', flex: 1, minHeight: 0 }}>
                 {frames.map((frame, index) => (
                   <Card
                     size="small"
                     key={index}
                     style={{ marginBottom: 8, width: '100%' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', minWidth: 0 }}>
-                        <img
-                          src={`file:///${frame.path.replace(/\\/g, '/')}`}
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                        <LocalFileImagePreview
+                          filePath={frame.path}
                           alt={frame.name}
+                          maxEdge={200}
                           style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
                         />
-                        <Text ellipsis style={{ flex: 1, marginRight: 8, maxWidth: 200 }}>
+                        <Text ellipsis style={{ flex: 1, minWidth: 0 }}>
                           {index + 1}. {frame.name}
                         </Text>
                       </div>
-                      <Space size="small">
+                      <Space size="small" style={{ flexShrink: 0 }}>
                         <InputNumber 
                           size="small"
                           value={frame.delay}
