@@ -116,6 +116,13 @@ try {
       return ipcRenderer.invoke('file:getImageBase64', filePath)
     },
 
+    /** 本地文件大小与创建/修改时间（毫秒时间戳），用于预览侧栏信息补全 */
+    getFileStats: (
+      filePath: string
+    ): Promise<{ size: number; createdTime: number; modifiedTime: number } | null> => {
+      return ipcRenderer.invoke('file:getFileStats', filePath)
+    },
+
     // 获取图片尺寸信息
     getImageDimensions: (filePath: string): Promise<{ width: number; height: number } | null> => {
       return ipcRenderer.invoke('file:getImageDimensions', filePath)
@@ -124,6 +131,13 @@ try {
     // 获取图片缩略图base64用于预览
     getImageThumbnail: (filePath: string, size?: number, quality?: number): Promise<string> => {
       return ipcRenderer.invoke('file:getImageThumbnail', filePath, size, quality)
+    },
+
+    /** 从本地文件读取快门次数（需磁盘路径；依赖 ExifTool） */
+    getShutterCount: (
+      filePath: string
+    ): Promise<{ count: number | null; message?: string }> => {
+      return ipcRenderer.invoke('file:getShutterCount', filePath)
     },
     
     // 打开文件

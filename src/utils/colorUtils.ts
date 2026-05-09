@@ -158,6 +158,59 @@ function rgbToHex(r: number, g: number, b: number): string {
   }).join('')}`
 }
 
+/** 规范为带 # 的小写十六进制 */
+export function normalizeHex(hex: string): string {
+  const s = hex.trim()
+  if (!s) return '#000000'
+  return (s.startsWith('#') ? s : `#${s}`).toLowerCase()
+}
+
+/** `rgb(255, 128, 64)` */
+export function formatRgbCss(r: number, g: number, b: number): string {
+  return `rgb(${r}, ${g}, ${b})`
+}
+
+/** `255, 128, 64` */
+export function formatRgbComma(r: number, g: number, b: number): string {
+  return `${r}, ${g}, ${b}`
+}
+
+/** RGB → HSL，h∈[0,360]，s、l 为百分比 0–100 */
+export function rgbToHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
+  const rn = r / 255
+  const gn = g / 255
+  const bn = b / 255
+  const max = Math.max(rn, gn, bn)
+  const min = Math.min(rn, gn, bn)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+
+  if (Math.abs(max - min) >= 1e-10) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+    if (max === rn) {
+      h = ((gn - bn) / d + (gn < bn ? 6 : 0)) / 6
+    } else if (max === gn) {
+      h = ((bn - rn) / d + 2) / 6
+    } else {
+      h = ((rn - gn) / d + 4) / 6
+    }
+  }
+
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100)
+  }
+}
+
+/** `hsl(220, 50%, 50%)` */
+export function formatHslCss(r: number, g: number, b: number): string {
+  const { h, s, l } = rgbToHsl(r, g, b)
+  return `hsl(${h}, ${s}%, ${l}%)`
+}
+
 /**
  * 复制文本到剪贴板
  */

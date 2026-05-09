@@ -46,9 +46,10 @@ import {
   type ImageQualityThresholds,
   type QuickFilterTier
 } from '../../types'
-import { PageSection } from '../UnifiedUI'
+import { ImageViewer, PageSection } from '../'
 import {
   getElectronApiIssueMessage,
+  getFileExtension,
   getQuickFilterOrganizeFolderName,
   imageLoader,
   suggestQuickFilterTier,
@@ -132,6 +133,9 @@ const QuickFilter: React.FC = () => {
   const [flagOrgConflict, setFlagOrgConflict] = useState<FileConflictAction>('rename')
   const [tierOrgModalOpen, setTierOrgModalOpen] = useState(false)
   const [tierOrgConflict, setTierOrgConflict] = useState<FileConflictAction>('rename')
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState(0)
+  const [previewItems, setPreviewItems] = useState<ImageQualityItemResult[]>([])
 
   const changeChip = useCallback((c: FilterChip) => {
     setChip(c)
@@ -221,6 +225,18 @@ const QuickFilter: React.FC = () => {
     }
     return result.items.filter(r => r.flags.includes(chip))
   }, [result, chip])
+
+  const handleOpenPreview = useCallback((item: ImageQualityItemResult) => {
+    const list = filteredItems
+    const idx = list.findIndex(i => i.filePath === item.filePath)
+    if (idx < 0 || list.length === 0) {
+      message.warning('当前列表中无可预览项')
+      return
+    }
+    setPreviewItems(list)
+    setPreviewIndex(idx)
+    setPreviewOpen(true)
+  }, [filteredItems])
 
   const itemByPath = useMemo(() => {
     const m = new Map<string, ImageQualityItemResult>()
@@ -520,10 +536,17 @@ const QuickFilter: React.FC = () => {
         title: '预览',
         dataIndex: 'filePath',
         width: 76,
-        render: (p: string) => {
-          const src = thumbnails.get(p)
+        render: (_p: string, r) => {
+          const src = thumbnails.get(r.filePath)
           return src ? (
-            <img className="quick-filter-thumb" src={src} alt="" />
+            <img
+              className="quick-filter-thumb quick-filter-thumb--clickable"
+              src={src}
+              alt=""
+              title="点击预览"
+              onClick={() => handleOpenPreview(r)}
+              role="presentation"
+            />
           ) : (
             <div className="quick-filter-thumb" />
           )
@@ -592,8 +615,8 @@ const QuickFilter: React.FC = () => {
         width: 140,
         render: (_, r) => (
           <Space>
-            <Button type="link" size="small" onClick={() => window.electronAPI?.openFile(r.filePath)}>
-              打开
+            <Button type="link" size="small" onClick={() => handleOpenPreview(r)}>
+              预览
             </Button>
             <Button
               type="link"
@@ -607,7 +630,7 @@ const QuickFilter: React.FC = () => {
         )
       }
     ],
-    [thumbnails, tierByPath, setTierForPath]
+    [thumbnails, tierByPath, setTierForPath, handleOpenPreview]
   )
 
   const progressPercent =
@@ -1049,6 +1072,29 @@ const QuickFilter: React.FC = () => {
           <Radio value="overwrite">覆盖</Radio>
         </Radio.Group>
       </Modal>
+
+      {previewOpen && previewItems.length > 0 && (
+        <ImageViewer
+          images={previewItems.map((item, index) => {
+            const name = basename(item.filePath)
+            return {
+              id: `${index}-${item.filePath}`,
+              url: `file://${item.filePath}`,
+              filePath: item.filePath,
+              filename: name,
+              width: item.width ?? 0,
+              height: item.height ?? 0,
+              size: 0,
+              format: getFileExtension(name || 'jpg'),
+              createdAt: '',
+              modifiedAt: ''
+            }
+          })}
+          currentIndex={previewIndex}
+          onIndexChange={setPreviewIndex}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
     </div>
   )
 }

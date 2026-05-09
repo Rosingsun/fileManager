@@ -8,6 +8,7 @@ import InfoPanel from './components/InfoPanel'
 import { useImageLoader } from './hooks/useImageLoader'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import type { ImageViewerProps, ViewMode } from './types'
+import { getFilePathFromFileUrl } from '../../utils/electronFileUrl'
 import './ImageViewer.css'
 
 const ImageViewer: React.FC<ImageViewerProps> = ({
@@ -27,6 +28,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [isLoadingBlob, setIsLoadingBlob] = useState(false)
   const [backgroundColor, setBackgroundColor] = useState<string | null>(null)
+  const [diskFileMeta, setDiskFileMeta] = useState<{
+    size: number
+    createdAt: string
+    modifiedAt: string
+  } | null>(null)
 
   const currentImage = useMemo(() => {
     return images[currentIndex] || null
@@ -52,7 +58,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
       if (url.startsWith('file://')) {
         setIsLoadingBlob(true)
         try {
-          const filePath = url.replace('file://', '')
+          const filePath =
+            currentImage.filePath?.trim() ||
+            getFilePathFromFileUrl(url) ||
+            url.replace(/^file:\/\//i, '')
           if (window.electronAPI?.getImageBase64) {
             const base64Data = await window.electronAPI.getImageBase64(filePath)
             if (base64Data && base64Data.startsWith('data:image')) {
@@ -76,7 +85,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     }
 
     loadBlobUrl()
-  }, [currentImage?.url])
+  }, [currentImage?.url, currentImage?.filePath])
 
   // 确定要传递给 ImageCanvas 的 URL
   const displayImageUrl = useMemo(() => {
@@ -108,11 +117,49 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     if (!currentImage) return null
     const w = naturalWidth ?? currentImage.width
     const h = naturalHeight ?? currentImage.height
-    if (w === currentImage.width && h === currentImage.height) {
-      return currentImage
+    let merged =
+      w === currentImage.width && h === currentImage.height
+        ? currentImage
+        : { ...currentImage, width: w, height: h }
+    if (diskFileMeta) {
+      merged = {
+        ...merged,
+        size: diskFileMeta.size,
+        createdAt: diskFileMeta.createdAt,
+        modifiedAt: diskFileMeta.modifiedAt
+      }
     }
-    return { ...currentImage, width: w, height: h }
-  }, [currentImage, naturalWidth, naturalHeight])
+    return merged
+  }, [currentImage, naturalWidth, naturalHeight, diskFileMeta])
+
+  const imageFilePathForMeta = useMemo(
+    () =>
+      (currentImage?.filePath?.trim() ||
+        (currentImage?.url ? getFilePathFromFileUrl(currentImage.url) : null)) ??
+      null,
+    [currentImage?.filePath, currentImage?.url]
+  )
+
+  useEffect(() => {
+    const fp = imageFilePathForMeta
+    if (!fp || !window.electronAPI?.getFileStats) {
+      setDiskFileMeta(null)
+      return
+    }
+    let cancelled = false
+    setDiskFileMeta(null)
+    void window.electronAPI.getFileStats(fp).then(s => {
+      if (cancelled || !s) return
+      setDiskFileMeta({
+        size: s.size,
+        createdAt: new Date(s.createdTime).toISOString(),
+        modifiedAt: new Date(s.modifiedTime).toISOString()
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [imageFilePathForMeta])
 
   // 当图片切换或 URL 变化时，重置状态
   useEffect(() => {
@@ -242,6 +289,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         <div className="image-viewer-info-wrapper">
           <InfoPanel
             image={infoPanelImage}
+            imageFilePath={imageFilePathForMeta}
             paletteImageUrl={displayImageUrl}
             paletteSourceLoading={isLoadingBlob}
             currentIndex={currentIndex}

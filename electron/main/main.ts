@@ -12,6 +12,7 @@ export type { ClassificationModelId } from './utils/classificationModels'
 import { CLASSIFICATION_MODELS, getClassificationModelPath, MODEL_FILE_NAMES, modelIdFromOnnxBasename } from './utils/classificationModels'
 import { classifyImage as runClassifyImage, clearImagenetSessionCache } from './services/imageClassificationService'
 import { clearClipModelCache } from './utils/clipClassifier'
+import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount'
 
 
 const { readdir, stat, mkdir, move, existsSync } = fs
@@ -203,6 +204,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  void shutdownExiftool()
 })
 
 // IPC 处理器：打开文件
@@ -835,6 +840,13 @@ ipcHandle(
 )
 
 // IPC 处理器：获取图片base64用于预览
+ipcHandle(
+  'file:getShutterCount',
+  async (_event, filePath: string): Promise<{ count: number | null; message?: string }> => {
+    return readShutterCountFromFile(filePath)
+  }
+)
+
 ipcHandle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
   try {
     const buffer = await fs.readFile(filePath)
@@ -846,6 +858,27 @@ ipcHandle('file:getImageBase64', async (_event, filePath: string): Promise<strin
     return ''
   }
 })
+
+ipcHandle(
+  'file:getFileStats',
+  async (
+    _event,
+    filePath: string
+  ): Promise<{ size: number; createdTime: number; modifiedTime: number } | null> => {
+    try {
+      const stats = await stat(filePath)
+      if (!stats.isFile()) return null
+      return {
+        size: stats.size,
+        createdTime: stats.birthtime.getTime(),
+        modifiedTime: stats.mtime.getTime()
+      }
+    } catch (error) {
+      console.error('[Main] 读取文件属性失败:', error)
+      return null
+    }
+  }
+)
 
 // IPC 处理器：获取图片尺寸信息
 ipcHandle('file:getImageDimensions', async (_event, filePath: string): Promise<{ width: number; height: number } | null> => {

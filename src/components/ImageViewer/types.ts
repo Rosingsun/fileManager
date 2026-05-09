@@ -7,6 +7,8 @@ import type { ImageClassificationResult } from '../../types'
 export interface Image {
   id: string
   url: string // 图片URL
+  /** 本地绝对路径（与 url 对应）；用于主进程读取快门次数等，避免仅依赖 file:// 解析 */
+  filePath?: string
   thumbnailUrl?: string // 缩略图URL
   filename: string
   width: number

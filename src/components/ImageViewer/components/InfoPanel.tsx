@@ -12,6 +12,8 @@ import './InfoPanel.css'
 
 export interface InfoPanelProps {
   image: Image | null
+  /** 本地文件绝对路径（由 file:// URL 解析），用于主进程读取快门次数等 */
+  imageFilePath?: string | null
   /** 与画布一致的可采样 URL（如 data:/blob:），用于主色提取；勿传未转换的 file:// */
   paletteImageUrl?: string | null
   /** file:// 转 blob/base64 过程中为 true，避免误判为「无法提取」 */
@@ -33,6 +35,7 @@ export interface InfoPanelProps {
 
 const InfoPanel: React.FC<InfoPanelProps> = ({
   image,
+  imageFilePath,
   paletteImageUrl,
   paletteSourceLoading,
   currentIndex,
@@ -61,7 +64,12 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
     <div className="info-panel">
       <div className="info-panel-content">
         <FileInfoSection image={image} />
-        <ExifInfoSection image={image} />
+        <ExifInfoSection
+          image={image}
+          imageFilePath={imageFilePath}
+          exifSourceUrl={paletteImageUrl}
+          exifSourceLoading={paletteSourceLoading}
+        />
         <ColorPalette
             imageUrl={paletteImageUrl ?? image.url}
             sourceLoading={paletteSourceLoading}

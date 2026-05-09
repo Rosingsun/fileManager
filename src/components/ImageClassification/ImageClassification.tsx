@@ -535,6 +535,7 @@ const ImageClassification: React.FC = () => {
          const image: Image = {
            id: path,
            url: imageUrl,
+           filePath: path,
            filename: fileName,
            width,
            height,
@@ -611,6 +612,7 @@ const ImageClassification: React.FC = () => {
          const image: Image = {
            id: path,
            url: imageUrl,
+           filePath: path,
            filename: fileName,
            width,
            height,

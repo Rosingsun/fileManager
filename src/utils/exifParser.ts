@@ -10,9 +10,15 @@ import exifr from 'exifr'
  */
 export async function extractExifFromUrl(imageUrl: string): Promise<ExifData | null> {
   try {
-    // 使用exifr库从图片URL中读取EXIF数据
-    // 不设置all选项，exifr默认会解析所有可用的EXIF字段
-    const exifData = await exifr.parse(imageUrl, {
+    // data:/blob: 在 Electron/Chromium 下用 ArrayBuffer 解析更稳定（避免超长 data URL 字符串路径问题）
+    let parseInput: string | ArrayBuffer = imageUrl
+    if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
+      const response = await fetch(imageUrl)
+      if (!response.ok) return null
+      parseInput = await response.arrayBuffer()
+    }
+
+    const exifData = await exifr.parse(parseInput, {
       // 启用GPS数据解析
       gps: true,
       // 启用完整的EXIF数据解析

@@ -629,6 +629,7 @@ const FileList: React.FC = () => {
             return {
               id: `${index}-${src}`,
               url: src,
+              filePath: f?.path,
               filename: f?.name || `image-${index + 1}`,
               width: 0,
               height: 0,

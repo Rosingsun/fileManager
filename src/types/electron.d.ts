@@ -36,8 +36,12 @@ declare global {
         conflictAction: import('./index').FileConflictAction
       ) => Promise<import('./index').BatchFileOpResult[]>
       getImageBase64: (filePath: string) => Promise<string>
+      getFileStats: (
+        filePath: string
+      ) => Promise<{ size: number; createdTime: number; modifiedTime: number } | null>
       getImageDimensions: (filePath: string) => Promise<{ width: number; height: number } | null>
       getImageThumbnail: (filePath: string, size?: number, quality?: number) => Promise<string>
+      getShutterCount: (filePath: string) => Promise<{ count: number | null; message?: string }>
       // image editing operations
       applyEdits: (paths: string[] | string, settings: import('./index').ImageEditSettings) => Promise<import('./index').BatchOperationResult[]>
       convertFormat: (paths: string[] | string, options: import('./index').FormatConversionOptions) => Promise<import('./index').BatchOperationResult[]>

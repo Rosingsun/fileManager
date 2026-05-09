@@ -136,6 +136,14 @@
   background: rgba(0, 0, 0, 0.06);
 }
 
+.quick-filter-thumb--clickable {
+  cursor: pointer;
+}
+
+.quick-filter-thumb--clickable:hover {
+  opacity: 0.92;
+}
+
 .quick-filter-chip-row {
   display: flex;
   flex-wrap: wrap;
