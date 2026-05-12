@@ -14,7 +14,10 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "seed": "node seeds/seed.js",
-    "eval:classify": "node scripts/eval-classification.mjs"
+    "eval:classify": "node scripts/eval-classification.mjs",
+    "dev:auth-api": "npm run dev --prefix backend",
+    "init:backend-env": "node scripts/init-backend-env.mjs",
+    "check:auth-api": "node scripts/check-auth-api.mjs"
   },
   "keywords": [
     "electron",

@@ -61,14 +61,50 @@
   color: var(--app-text-secondary);
 }
 
-.header-tabs {
+.header-tabs-wrap {
   margin-left: auto;
-  background: transparent;
-  border-bottom: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  justify-content: flex-end;
+  overflow: hidden;
 }
 
 .header-tabs .ant-tabs-nav {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
   background: transparent;
+}
+
+.header-tabs .ant-tabs-nav::-webkit-scrollbar {
+  height: 6px;
+}
+
+.header-tabs .ant-tabs-nav-list {
+  flex-wrap: nowrap;
+}
+
+.header-tab-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-user-entry.ant-btn {
+  flex-shrink: 0;
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+.header-tabs {
+  margin-left: 0;
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  border-bottom: none;
 }
 
 .header-tabs .ant-tabs-tab {
@@ -90,6 +126,246 @@
 
 .header-tabs .ant-tabs-nav::before {
   display: none;
+}
+
+/* 用户中心 · 未登录：毛玻璃面板、分段切换、左对齐表单 */
+.user-center-auth-page {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px 32px;
+  overflow: auto;
+}
+
+.user-center-auth-layout {
+  width: 100%;
+  max-width: 420px;
+}
+
+.user-center-auth-panel {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-xl);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  box-shadow: var(--app-shadow-md);
+  padding: 26px 24px 24px;
+  transition: box-shadow var(--app-motion-base);
+}
+
+.user-center-auth-panel:hover {
+  box-shadow: var(--app-shadow-lg);
+}
+
+.user-center-auth-panel--idle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.user-center-auth-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.user-center-auth-brand {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-size: 20px;
+  color: var(--app-primary);
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.16), rgba(90, 200, 250, 0.14));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.user-center-auth-header-text {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.user-center-auth-title {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--app-text-primary);
+}
+
+.user-center-auth-lead {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--app-text-secondary);
+}
+
+.user-center-auth-segment {
+  display: flex;
+  padding: 3px;
+  margin-bottom: 22px;
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.055);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.user-center-auth-segment__btn {
+  flex: 1;
+  margin: 0;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--app-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    color var(--app-motion-fast),
+    background var(--app-motion-fast),
+    box-shadow var(--app-motion-fast),
+    transform var(--app-motion-fast);
+}
+
+.user-center-auth-segment__btn:hover {
+  color: var(--app-text-primary);
+}
+
+.user-center-auth-segment__btn.is-active {
+  color: var(--app-text-primary);
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--app-shadow-xs);
+}
+
+.user-center-auth-segment__btn.is-active:active {
+  transform: scale(0.99);
+}
+
+.user-center-auth-form.ant-form-vertical .ant-form-item-label > label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text-primary);
+}
+
+.user-center-auth-form .ant-form-item {
+  margin-bottom: 16px;
+}
+
+.user-center-auth-form .ant-form-item:last-child {
+  margin-bottom: 0;
+}
+
+.user-center-auth-form .ant-input,
+.user-center-auth-form .ant-input-affix-wrapper {
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.user-center-auth-form .ant-input-affix-wrapper {
+  padding: 6px 11px;
+}
+
+.user-center-auth-form .ant-input:hover,
+.user-center-auth-form .ant-input-affix-wrapper:hover {
+  border-color: rgba(10, 132, 255, 0.35);
+}
+
+.user-center-auth-form .ant-input:focus,
+.user-center-auth-form .ant-input-affix-wrapper-focused {
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.18);
+}
+
+.user-center-auth-form__actions {
+  margin-top: 6px;
+  margin-bottom: 0 !important;
+}
+
+.user-center-auth-submit.ant-btn-primary {
+  height: 46px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(10, 132, 255, 0.28);
+}
+
+.user-center-auth-submit.ant-btn-primary:hover {
+  box-shadow: 0 6px 18px rgba(10, 132, 255, 0.32);
+}
+
+.user-center-auth-secondary {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.user-center-auth-link-btn {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--app-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--app-motion-fast);
+}
+
+.user-center-auth-link-btn:hover {
+  color: var(--app-primary-hover);
+}
+
+.user-center-auth-hint {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--app-text-tertiary);
+}
+
+.user-center-auth-field-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--app-text-tertiary);
+}
+
+.user-center-auth-form .ant-form-item-extra {
+  margin-top: 6px;
+}
+
+.user-center-root .ant-tabs-nav {
+  margin-bottom: 16px;
+}
+
+.user-center-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding-top: 8px;
+}
+
+.user-center-profile-header {
+  width: 100%;
+  justify-content: center !important;
+}
+
+.user-center-profile-header > div:last-child {
+  text-align: center;
 }
 
 .app-content {

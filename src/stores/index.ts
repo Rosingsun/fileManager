@@ -6,3 +6,5 @@ export {
   BUILTIN_PRESET_COLLECTION_IDS,
 } from './useImageEditorStore'
 export { useToolOutputPathStore } from './toolOutputPathStore'
+export { useAuthStore } from './useAuthStore'
+export type { AuthUser } from './useAuthStore'

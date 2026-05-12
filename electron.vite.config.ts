@@ -2,6 +2,8 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
+const projectRoot = resolve(__dirname)
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
@@ -37,6 +39,8 @@ export default defineConfig({
   },
   renderer: {
     root: './src',
+    /** 从仓库根目录加载 .env / .env.development，使 VITE_* 在开发联调时生效 */
+    envDir: projectRoot,
     plugins: [react()],
     build: {
       outDir: 'dist',
@@ -55,7 +59,7 @@ export default defineConfig({
       }
     },
     define: {
-      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development')
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
     },
     esbuild: {
       charset: 'utf8'

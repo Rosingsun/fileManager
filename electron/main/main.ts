@@ -1,6 +1,6 @@
-﻿import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electron'
 import { basename, dirname, join, parse } from 'path'
-import { mkdirSync } from 'fs'
+import { mkdirSync, readFileSync, writeFileSync, existsSync as nodeFileExistsSync, unlinkSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
 import sharp from 'sharp'
@@ -15,6 +15,9 @@ import { clearClipModelCache } from './utils/clipClassifier'
 import { clearCognivisionMobilenetCache } from './services/cognivisionTfClassifier'
 import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount'
 
+function authRefreshTokenPath(): string {
+  return join(app.getPath('userData'), 'auth-refresh.enc')
+}
 
 const { readdir, stat, mkdir, move, existsSync } = fs
 
@@ -569,6 +572,46 @@ ipcHandle('app:getVersion', () => {
 // IPC 处理器：获取平台信息
 ipcHandle('app:getPlatform', () => {
   return process.platform
+})
+
+ipcHandle('auth:saveRefreshToken', async (_event, token: string): Promise<{ ok: boolean; error?: string }> => {
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ok: false, error: 'encryption_unavailable' }
+  }
+  try {
+    const buf = safeStorage.encryptString(token)
+    writeFileSync(authRefreshTokenPath(), buf)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+})
+
+ipcHandle('auth:loadRefreshToken', async (): Promise<string | null> => {
+  if (!safeStorage.isEncryptionAvailable()) {
+    return null
+  }
+  const p = authRefreshTokenPath()
+  if (!nodeFileExistsSync(p)) {
+    return null
+  }
+  try {
+    const buf = readFileSync(p)
+    return safeStorage.decryptString(buf)
+  } catch {
+    return null
+  }
+})
+
+ipcHandle('auth:clearRefreshToken', async (): Promise<void> => {
+  const p = authRefreshTokenPath()
+  if (nodeFileExistsSync(p)) {
+    try {
+      unlinkSync(p)
+    } catch {
+      /* ignore */
+    }
+  }
 })
 
 // IPC 处理器：窗口控制

@@ -16,4 +16,6 @@ export { default as ImageEditor } from './ImageEditor/ImageEditor'
 export { default as BatchEditModal } from './ImageEditor/BatchEditModal'
 
 export { default as ToolsEntry } from './Tools/ToolsEntry'
+export { default as UserCenter } from './UserCenter'
+export { default as EmailAutoComplete } from './EmailAutoComplete'
 export * from './UnifiedUI'

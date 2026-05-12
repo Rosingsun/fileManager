@@ -12,7 +12,14 @@
    npm install
    ```
 
-2. **启动开发服务器**
+2. **（可选）用户中心自建 API（前后端联调）**  
+   - 在 MySQL 中建库并执行 `backend/migrations/` 下 SQL（或按 `backend/README.md` 迁移）。  
+   - 后端环境：`npm run init:backend-env`（若无 `backend/.env` 则从示例复制），再编辑 `JWT_SECRET`（≥16 字符）、`MYSQL_*`。  
+   - 前端 API 地址：仓库已含根目录 `.env.development`，默认 `VITE_AUTH_API_BASE_URL=http://localhost:3847`（与 Vite 默认 `localhost` 页面一致，避免 Chromium 对 `127.0.0.1` 的本地网络预检拦截）；若需改端口可编辑该文件或自建根目录 `.env`。  
+   - 终端一：`npm run dev:auth-api`；自检：`npm run check:auth-api`（需后端已监听）。终端二：`npm run dev`。  
+   - 功能说明见 [docs/user-center-features.md](docs/user-center-features.md)。生产环境注册需**邀请码**；数据库尚无用户时可用 `POST /auth/bootstrap-first-user`（在 `backend/.env` 配置 `BOOTSTRAP_INVITE_SECRET`）创建首个账号以便后续发码。
+
+3. **启动开发服务器**
    ```bash
    npm run dev
    ```
@@ -102,6 +109,12 @@ npm install
 - Vite 开发服务器是否正常启动
 - 控制台是否有错误信息
 - `electron/main/main.ts` 中的路径是否正确
+
+## API 变更记录
+
+| 日期 | 端点 | 摘要 |
+|------|------|------|
+| 2026-05-11 | `POST /users/me`、`POST /users/me/password` | 资料更新与改密由 `PATCH` 改为 `POST`（与 `AGENTS.md` 仅 GET/POST 约定一致）；前端已同步 `useAuthStore`。 |
 
 ## 代码规范
 

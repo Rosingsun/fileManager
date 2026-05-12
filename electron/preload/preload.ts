@@ -286,6 +286,18 @@ try {
       return ipcRenderer.invoke('shell:openExternal', url)
     },
 
+    saveRefreshToken: (token: string): Promise<{ ok: boolean; error?: string }> => {
+      return ipcRenderer.invoke('auth:saveRefreshToken', token)
+    },
+
+    loadRefreshToken: (): Promise<string | null> => {
+      return ipcRenderer.invoke('auth:loadRefreshToken')
+    },
+
+    clearRefreshToken: (): Promise<void> => {
+      return ipcRenderer.invoke('auth:clearRefreshToken')
+    },
+
     // 实用工具
     batchRename: (files: string[], options: any): Promise<any[]> => {
       return ipcRenderer.invoke('tools:batchRename', files, options)
