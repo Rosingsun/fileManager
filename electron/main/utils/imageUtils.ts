@@ -1,9 +1,47 @@
 import sharp from 'sharp'
 import { getMimeType } from './fileUtils'
 
+const RAW_EXTENSIONS = ['.raw', '.cr2', '.cr3', '.nef', '.dng', '.arw', '.rw2', '.orf', '.sr2', '.srw', '.pef', '.raf', '.x3f', '.mrw']
+
+function isRawFile(filePath: string): boolean {
+  const ext = filePath.toLowerCase()
+  return RAW_EXTENSIONS.some(rawExt => ext.endsWith(rawExt))
+}
+
+async function convertRawToJpeg(filePath: string): Promise<Buffer> {
+  const raw = await import('rawkit')
+  try {
+    const image = await raw.decode(filePath)
+    const { data, width, height } = image
+    
+    const buffer = Buffer.from(data)
+    return sharp(buffer, {
+      raw: {
+        width: width,
+        height: height,
+        channels: 3
+      }
+    })
+    .jpeg({ quality: 90 })
+    .toBuffer()
+  } catch (error) {
+    console.error('[Main] RAW图片解码失败:', error)
+    throw error
+  }
+}
+
 export async function getImageDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
   try {
-    const metadata = await sharp(filePath).metadata()
+    let sharpInstance: any
+    
+    if (isRawFile(filePath)) {
+      const rawBuffer = await convertRawToJpeg(filePath)
+      sharpInstance = sharp(rawBuffer)
+    } else {
+      sharpInstance = sharp(filePath)
+    }
+    
+    const metadata = await sharpInstance.metadata()
     if (metadata.width && metadata.height) {
       return { width: metadata.width, height: metadata.height }
     }
@@ -29,43 +67,23 @@ export async function getImageThumbnail(
       return ''
     }
     
-    const mimeType = getMimeType(filePath)
-    const isPng = mimeType === 'image/png' || mimeType === 'image/jpeg' || mimeType === 'image/jpg'
-    const isWebp = mimeType === 'image/webp'
-    const isGif = mimeType === 'image/gif'
-    const isBmp = mimeType === 'image/bmp'
-    const isSvg = mimeType === 'image/svg+xml'
-    
     const effectiveQuality = Math.max(Math.min(quality || 60, 100), 1)
-    const sharpInstance = sharp(filePath)
-      .resize(size, size, { fit: 'cover', position: 'center' })
+    let sharpInstance: any
     
-    let buffer: Buffer
-    
-    if (isPng) {
-      buffer = await sharpInstance.jpeg({
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else if (isWebp) {
-      buffer = await sharpInstance.webp({
-        quality: effectiveQuality,
-        lossless: effectiveQuality === 100
-      }).toBuffer()
-    } else if (isGif || isBmp || isSvg) {
-      buffer = await sharpInstance.jpeg({
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
+    if (isRawFile(filePath)) {
+      const rawBuffer = await convertRawToJpeg(filePath)
+      sharpInstance = sharp(rawBuffer)
     } else {
-      buffer = await sharpInstance.jpeg({
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
+      sharpInstance = sharp(filePath)
     }
+    
+    sharpInstance = sharpInstance.resize(size, size, { fit: 'cover', position: 'center' })
+    
+    const buffer = await sharpInstance.jpeg({
+      quality: effectiveQuality,
+      progressive: effectiveQuality > 80,
+      chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
+    }).toBuffer()
     
     const base64 = buffer.toString('base64')
     return `data:image/jpeg;base64,${base64}`
@@ -77,8 +95,17 @@ export async function getImageThumbnail(
 
 export async function getImageBase64(filePath: string): Promise<string> {
   try {
-    const buffer = await import('fs').then(fs => fs.promises.readFile(filePath))
-    const mimeType = getMimeType(filePath)
+    let buffer: Buffer
+    let mimeType: string
+    
+    if (isRawFile(filePath)) {
+      buffer = await convertRawToJpeg(filePath)
+      mimeType = 'image/jpeg'
+    } else {
+      buffer = await import('fs').then(fs => fs.promises.readFile(filePath))
+      mimeType = getMimeType(filePath)
+    }
+    
     const base64 = buffer.toString('base64')
     return `data:${mimeType};base64,${base64}`
   } catch (error) {
@@ -94,13 +121,23 @@ export async function getImageInfo(imagePath: string): Promise<{
   exif?: Record<string, any>
 }> {
   try {
-    const imageBuffer = await import('fs').then(fs => fs.promises.readFile(imagePath))
+    let imageBuffer: Buffer
+    let format: string
+    
+    if (isRawFile(imagePath)) {
+      imageBuffer = await convertRawToJpeg(imagePath)
+      format = 'raw'
+    } else {
+      imageBuffer = await import('fs').then(fs => fs.promises.readFile(imagePath))
+      format = ''
+    }
+    
     const metadata = await sharp(imageBuffer).metadata()
 
     const info: any = {
       width: metadata.width,
       height: metadata.height,
-      format: metadata.format
+      format: format || metadata.format
     }
 
     if (metadata.exif) {

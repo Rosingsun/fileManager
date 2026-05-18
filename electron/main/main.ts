@@ -28,6 +28,21 @@ function getMimeType(filePath: string): string {
     'bmp': 'image/bmp',
     'svg': 'image/svg+xml',
     'webp': 'image/webp',
+    // RAW图片类型
+    'raw': 'image/x-raw',
+    'cr2': 'image/x-canon-cr2',
+    'cr3': 'image/x-canon-cr3',
+    'nef': 'image/x-nikon-nef',
+    'dng': 'image/x-adobe-dng',
+    'arw': 'image/x-sony-arw',
+    'rw2': 'image/x-panasonic-rw2',
+    'orf': 'image/x-olympus-orf',
+    'sr2': 'image/x-sony-sr2',
+    'srw': 'image/x-samsung-srw',
+    'pef': 'image/x-pentax-pef',
+    'raf': 'image/x-fujifilm-raf',
+    'x3f': 'image/x-sigma-x3f',
+    'mrw': 'image/x-minolta-mrw',
     // 视频类型
     'mp4': 'video/mp4',
     'avi': 'video/x-msvideo',
@@ -592,53 +607,96 @@ ipcMain.on('file:preview', (_event, filePath: string, fileList?: FileInfo[], cur
   const fileName = filePath.split('\\').pop() || filePath.split('/').pop() || ''
   const fileExt = fileName.split('.').pop()?.toLowerCase() || ''
   
+  const RAW_EXTENSIONS = ['raw', 'cr2', 'cr3', 'nef', 'dng', 'arw', 'rw2', 'orf', 'sr2', 'srw', 'pef', 'raf', 'x3f', 'mrw']
+  const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', ...RAW_EXTENSIONS]
+  
   let content = ''
-  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(fileExt)) {
+  if (IMAGE_EXTENSIONS.includes(fileExt)) {
     // 图片预览
-    const normalizedPath = filePath.replace(/\\/g, '/')
-    const encodedPath = normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
+    let imageSrc = ''
+    
+    if (RAW_EXTENSIONS.includes(fileExt)) {
+      const base64Data = await ipcMain.handle('file:getImageBase64', async () => {
+        try {
+          const raw = await import('rawkit')
+          const image = await raw.decode(filePath)
+          const { data, width, height } = image
+          const buffer = Buffer.from(data)
+          const jpegBuffer = await sharp(buffer, {
+            raw: { width, height, channels: 3 }
+          }).jpeg({ quality: 90 }).toBuffer()
+          return `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`
+        } catch (error) {
+          console.error('[Main] RAW图片预览失败:', error)
+          return ''
+        }
+      })
+      imageSrc = await base64Data()
+    } else {
+      const normalizedPath = filePath.replace(/\\/g, '/')
+      imageSrc = `file:///${normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/')}`
+    }
 
-    // 准备导航数据
-    let prevImage: FileInfo | null = null
-    let nextImage: FileInfo | null = null
-    let prevIndex = -1
-    let nextIndex = -1
-
-    if (fileList && currentIndex !== undefined) {
-      // 过滤出图片文件
-      const imageFiles = fileList.filter(f => !f.isDirectory && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(f.name.split('.').pop()?.toLowerCase() || ''))
-      const currentImageIndex = imageFiles.findIndex(f => f.path === filePath)
-      if (currentImageIndex > 0) {
-        prevImage = imageFiles[currentImageIndex - 1]
-        prevIndex = currentImageIndex - 1
-      }
-      if (currentImageIndex < imageFiles.length - 1) {
-        nextImage = imageFiles[currentImageIndex + 1]
-        nextIndex = currentImageIndex + 1
+    const isLivePhoto = ['jpg', 'jpeg'].includes(fileExt)
+    let livePhotoVideoPath = ''
+    if (isLivePhoto) {
+      const dir = filePath.substring(0, filePath.lastIndexOf('\\') || filePath.lastIndexOf('/'))
+      const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'))
+      const movPath = `${dir}\\${nameWithoutExt}.mov`
+      if (existsSync(movPath)) {
+        const normalizedMovPath = movPath.replace(/\\/g, '/')
+        livePhotoVideoPath = `file:///${normalizedMovPath.split('/').map(segment => encodeURIComponent(segment)).join('/')}`
       }
     }
 
     content = `
-      <div style="position: relative; height: 100vh; background: #f0f0f0; display: flex; flex-direction: column;">
-        ${prevImage ? `<button id="prevBtn" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 10; padding: 10px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 5px; cursor: pointer;">◀ 上一张</button>` : ''}
-        ${nextImage ? `<button id="nextBtn" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 10; padding: 10px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 5px; cursor: pointer;">下一张 ▶</button>` : ''}
-        <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
-          <img id="previewImg" src="file:///${encodedPath}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${fileName}" />
-        </div>
+      <div style="position: relative; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0;">
+        <img id="previewImg" src="${imageSrc}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${fileName}" />
+        ${livePhotoVideoPath ? `
+          <button id="playLiveBtn" style="position: absolute; bottom: 30px; right: 30px; padding: 12px 24px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 30px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            播放实况
+          </button>
+          <video id="liveVideo" style="display: none; position: absolute; max-width: 100%; max-height: 100%; object-fit: contain;" muted loop>
+            <source src="${livePhotoVideoPath}" type="video/quicktime">
+          </video>
+          <button id="closeVideoBtn" style="display: none; position: absolute; top: 20px; right: 20px; padding: 8px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 18px;">×</button>
+        ` : ''}
       </div>
       <script>
-        ${prevImage ? `document.getElementById('prevBtn').addEventListener('click', () => {
-          window.electronAPI.previewFile('${prevImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${prevIndex})
-        })` : ''}
-        ${nextImage ? `document.getElementById('nextBtn').addEventListener('click', () => {
-          window.electronAPI.previewFile('${nextImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${nextIndex})
-        })` : ''}
+        ${livePhotoVideoPath ? `
+          const playBtn = document.getElementById('playLiveBtn');
+          const closeBtn = document.getElementById('closeVideoBtn');
+          const img = document.getElementById('previewImg');
+          const video = document.getElementById('liveVideo');
+          
+          playBtn.addEventListener('click', () => {
+            img.style.display = 'none';
+            playBtn.style.display = 'none';
+            video.style.display = 'block';
+            closeBtn.style.display = 'block';
+            video.play();
+          });
+          
+          closeBtn.addEventListener('click', () => {
+            video.pause();
+            video.style.display = 'none';
+            closeBtn.style.display = 'none';
+            img.style.display = 'block';
+            playBtn.style.display = 'flex';
+          });
+          
+          video.addEventListener('click', () => {
+            if (video.paused) {
+              video.play();
+            } else {
+              video.pause();
+            }
+          });
+        ` : ''}
       </script>
-    `
-    content = `
-      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0;">
-        <img src="file:///${encodedPath}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${fileName}" />
-      </div>
     `
   } else if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv'].includes(fileExt)) {
     // 视频预览
@@ -874,18 +932,44 @@ ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: 
 
 // ==================== 相似照片检测功能 ====================
 
-// 支持的图片格式
-const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif']
+// 支持的图片格式（包含RAW格式）
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif', 'raw', 'cr2', 'cr3', 'nef', 'dng', 'arw', 'rw2', 'orf', 'sr2', 'srw', 'pef', 'raf', 'x3f', 'mrw']
 
 // 计算文件MD5哈希
 function calculateFileHash(fileBuffer: Buffer): string {
   return crypto.createHash('md5').update(fileBuffer).digest('hex')
 }
 
+const RAW_EXTENSIONS_SET = new Set(['raw', 'cr2', 'cr3', 'nef', 'dng', 'arw', 'rw2', 'orf', 'sr2', 'srw', 'pef', 'raf', 'x3f', 'mrw'])
+
+async function processImageBuffer(imageBuffer: Buffer, filePath: string): Promise<Buffer> {
+  const ext = filePath.split('.').pop()?.toLowerCase() || ''
+  if (RAW_EXTENSIONS_SET.has(ext)) {
+    try {
+      const raw = await import('rawkit')
+      const image = await raw.decode(filePath)
+      const { data, width, height } = image
+      const rawBuffer = Buffer.from(data)
+      return sharp(rawBuffer, {
+        raw: { width, height, channels: 3 }
+      }).jpeg({ quality: 90 }).toBuffer()
+    } catch (error) {
+      console.error('[Main] RAW图片处理失败:', error)
+      return imageBuffer
+    }
+  }
+  return imageBuffer
+}
+
 // 计算感知哈希（pHash）
-async function calculatePerceptualHash(imageBuffer: Buffer): Promise<string> {
+async function calculatePerceptualHash(imageBuffer: Buffer, filePath?: string): Promise<string> {
   try {
-    const resized = await sharp(imageBuffer)
+    let processedBuffer = imageBuffer
+    if (filePath) {
+      processedBuffer = await processImageBuffer(imageBuffer, filePath)
+    }
+    
+    const resized = await sharp(processedBuffer)
       .resize(8, 8, { fit: 'fill' })
       .greyscale()
       .raw()
@@ -1101,10 +1185,23 @@ ipcMain.handle('similarity:scan', async (event, config: SimilarityScanConfig): P
 
         if (usePerceptualHash) {
           try {
-            const metadata = await sharp(fileBuffer).metadata()
-            width = metadata.width
-            height = metadata.height
-            perceptualHash = await calculatePerceptualHash(fileBuffer)
+            const ext = filePath.split('.').pop()?.toLowerCase() || ''
+            let processedBuffer = fileBuffer
+            
+            if (RAW_EXTENSIONS_SET.has(ext)) {
+              const raw = await import('rawkit')
+              const image = await raw.decode(filePath)
+              const { data, width: rawWidth, height: rawHeight } = image
+              processedBuffer = Buffer.from(data)
+              width = rawWidth
+              height = rawHeight
+            } else {
+              const metadata = await sharp(fileBuffer).metadata()
+              width = metadata.width
+              height = metadata.height
+            }
+            
+            perceptualHash = await calculatePerceptualHash(processedBuffer, filePath)
           } catch (error) {
             console.warn(`[Main] 无法处理图片 ${filePath}:`, error)
           }
