@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { App, Card, Col, Empty, Progress, Row, Segmented, Space, Spin, Statistic, Typography } from 'antd'
+import { App, Col, Empty, Progress, Row, Segmented, Space, Spin, Typography } from 'antd'
+import { BarChartOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import {
   aggregateOperationLogs,
   formatAuthApiError,
@@ -7,7 +8,8 @@ import {
   type OperationLogStatsRange,
   type OperationLogStatsSummary,
 } from '../../utils'
-import { userCenterCardStyle, type UserCenterPanelProps } from './userCenterShared'
+import { PageSection, StatCard } from '../UnifiedUI'
+import { type UserCenterPanelProps } from './userCenterShared'
 
 const { Text } = Typography
 
@@ -43,44 +45,55 @@ const UserCenterUsageStatsTab: React.FC<Pick<UserCenterPanelProps, 'userId'>> = 
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Card style={userCenterCardStyle}>
-        <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+      <PageSection
+        title="使用统计"
+        subtitle="基于本机操作日志汇总，不会上传至服务器"
+        extra={
           <Segmented
             options={RANGE_OPTIONS}
             value={range}
             onChange={(v) => setRange(v as OperationLogStatsRange)}
           />
-          <Text type="secondary">基于本机操作日志统计</Text>
-        </Space>
-      </Card>
+        }
+      >
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          切换时间范围后自动重新统计
+        </Text>
+      </PageSection>
 
       {loading ? (
-        <Card style={userCenterCardStyle}>
+        <PageSection title="加载中">
           <Spin />
-        </Card>
+        </PageSection>
       ) : !summary || summary.total === 0 ? (
-        <Card style={userCenterCardStyle}>
+        <PageSection title="暂无数据">
           <Empty description="暂无操作记录。去「文件整理」选择目录开始使用吧。" />
-        </Card>
+        </PageSection>
       ) : (
         <>
-          <Card title="操作总览" style={userCenterCardStyle}>
-            <Row gutter={[16, 16]}>
+          <PageSection title="操作总览" subtitle={`共 ${summary.total} 条记录`}>
+            <Row gutter={[12, 12]}>
               <Col xs={12} sm={8}>
-                <Statistic title="记录条数" value={summary.total} />
+                <StatCard
+                  title="记录条数"
+                  value={summary.total}
+                  icon={<BarChartOutlined />}
+                  accent="var(--app-primary)"
+                  subtle
+                />
               </Col>
               {summary.byCategory.slice(0, 5).map((c) => (
                 <Col xs={12} sm={8} key={c.category}>
-                  <Statistic title={c.label} value={c.count} />
+                  <StatCard title={c.label} value={c.count} icon={<ThunderboltOutlined />} accent="#7c5cff" subtle />
                 </Col>
               ))}
             </Row>
-          </Card>
+          </PageSection>
 
-          <Card title="分类占比" style={userCenterCardStyle}>
+          <PageSection title="分类占比" subtitle="相对最高频类别的比例">
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
               {summary.byCategory.map((c) => (
-                <div key={c.category}>
+                <div key={c.category} className="user-center-stat-bar">
                   <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                     <Text>{c.label}</Text>
                     <Text type="secondary">{c.count}</Text>
@@ -94,9 +107,9 @@ const UserCenterUsageStatsTab: React.FC<Pick<UserCenterPanelProps, 'userId'>> = 
                 </div>
               ))}
             </Space>
-          </Card>
+          </PageSection>
 
-          <Card title="各能力最近使用" style={userCenterCardStyle}>
+          <PageSection title="各能力最近使用">
             {summary.lastByCategory.length === 0 ? (
               <Text type="secondary">暂无</Text>
             ) : (
@@ -104,7 +117,7 @@ const UserCenterUsageStatsTab: React.FC<Pick<UserCenterPanelProps, 'userId'>> = 
                 {summary.lastByCategory.map((item) => (
                   <div key={item.category} className="user-center-last-action-row">
                     <Text strong>{item.label}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
                       {new Date(item.ts).toLocaleString()} · {item.actionLabel}
                       {item.summary ? ` · ${item.summary}` : ''}
                     </Text>
@@ -112,7 +125,7 @@ const UserCenterUsageStatsTab: React.FC<Pick<UserCenterPanelProps, 'userId'>> = 
                 ))}
               </Space>
             )}
-          </Card>
+          </PageSection>
         </>
       )}
     </Space>

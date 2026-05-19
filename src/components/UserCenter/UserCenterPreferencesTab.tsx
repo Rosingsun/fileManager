@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
-import { App, Button, Card, List, Radio, Space, Switch, Typography } from 'antd'
+import { App, Button, List, Radio, Space, Switch, Typography } from 'antd'
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
 import { useFileStore } from '../../stores'
 import { useImageEditorStore } from '../../stores'
-import { userCenterCardStyle, type UserCenterPanelProps } from './userCenterShared'
+import { PageSection } from '../UnifiedUI'
+import { type UserCenterPanelProps } from './userCenterShared'
 
 const { Text } = Typography
 
@@ -71,17 +72,21 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Card title="使用偏好" style={userCenterCardStyle}>
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          <div>
-            <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-              文件整理 · 列表默认视图
-            </Text>
+      <PageSection title="使用偏好" subtitle="影响文件整理与云图库的默认行为">
+        <div className="user-center-settings-list">
+          <div className="user-center-settings-row">
+            <div className="user-center-settings-row__main">
+              <Text strong>文件列表默认视图</Text>
+              <Text type="secondary" className="user-center-settings-row__hint">
+                在「文件整理」中打开目录时的展示方式
+              </Text>
+            </div>
             <Radio.Group
               value={viewMode}
               onChange={(e) => onViewModeChange(e.target.value as FileListViewMode)}
               optionType="button"
               buttonStyle="solid"
+              size="small"
               options={[
                 { label: '列表', value: 'list' },
                 { label: '树形', value: 'tree' },
@@ -89,36 +94,31 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
               ]}
             />
           </div>
-          <div className="user-center-pref-row">
-            <div>
-              <Text>云图库选图后自动上传</Text>
-              <br />
-              <Text type="secondary" style={{ fontSize: 12 }}>
+          <div className="user-center-settings-row">
+            <div className="user-center-settings-row__main">
+              <Text strong>云图库选图后自动上传</Text>
+              <Text type="secondary" className="user-center-settings-row__hint">
                 与云图库页「选图后自动上传」开关同步
               </Text>
             </div>
             <Switch checked={autoUpload} onChange={onAutoUploadChange} />
           </div>
-        </Space>
-      </Card>
+        </div>
+      </PageSection>
 
-      <Card title="本机数据" style={userCenterCardStyle}>
-        <Space direction="vertical" style={{ width: '100%' }} size="middle">
-          <div>
-            <Text type="secondary">图片编辑预设（本机共享，未按账号隔离）</Text>
-            <div style={{ marginTop: 8 }}>
-              <Text>
-                预设 <Text strong>{presets.length}</Text> 个 · 分组{' '}
-                <Text strong>{groups.filter((g) => !g.isBuiltIn).length}</Text> 个（不含系统内置）
-              </Text>
-            </div>
-          </div>
-        </Space>
-      </Card>
+      <PageSection title="本机数据" subtitle="保存在当前设备，未按账号隔离">
+        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+          图片编辑预设与分组
+        </Text>
+        <Text>
+          预设 <Text strong>{presets.length}</Text> 个 · 自定义分组{' '}
+          <Text strong>{groups.filter((g) => !g.isBuiltIn).length}</Text> 个
+        </Text>
+      </PageSection>
 
-      <Card
+      <PageSection
         title="最近访问目录"
-        style={userCenterCardStyle}
+        subtitle="点击「打开」将跳转到文件整理并定位该路径"
         extra={
           <Button
             danger
@@ -138,10 +138,12 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
           <Text type="secondary">暂无记录</Text>
         ) : (
           <List
+            className="user-center-history-list"
             size="small"
             dataSource={historyList.slice(0, 12)}
             renderItem={(item) => (
               <List.Item
+                className="user-center-history-list__item"
                 actions={[
                   <Button
                     key="open"
@@ -155,13 +157,13 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
                 ]}
               >
                 <List.Item.Meta
-                  title={<Text ellipsis style={{ maxWidth: 360 }}>{item.name || item.path}</Text>}
+                  title={<Text ellipsis className="user-center-history-list__name">{item.name || item.path}</Text>}
                   description={
                     <Space direction="vertical" size={0}>
-                      <Text type="secondary" ellipsis style={{ maxWidth: 400, fontSize: 12 }}>
+                      <Text type="secondary" ellipsis className="user-center-history-list__path">
                         {item.path}
                       </Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>
+                      <Text type="secondary" className="user-center-history-list__time">
                         {new Date(item.timestamp).toLocaleString()}
                       </Text>
                     </Space>
@@ -171,7 +173,7 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
             )}
           />
         )}
-      </Card>
+      </PageSection>
     </Space>
   )
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { App, Button, Card, Col, List, Row, Space, Spin, Typography } from 'antd'
+import { App, Button, Col, List, Row, Space, Spin, Typography } from 'antd'
 import {
   CloudOutlined,
   FolderOpenOutlined,
@@ -19,18 +19,18 @@ import {
   operationLogActionLabel,
   type OperationLogEntry,
 } from '../../utils'
-import UserAvatar from '../UserAvatar'
-import { desensitizeEmail, userCenterCardStyle, type UserCenterPanelProps } from './userCenterShared'
+import { PageSection, StatCard } from '../UnifiedUI'
+import { type UserCenterPanelProps } from './userCenterShared'
 
-const { Text, Paragraph } = Typography
+const { Text } = Typography
 
 const SHORTCUTS = [
-  { key: 'organize', label: '文件整理', icon: <FolderOpenOutlined />, tab: 'organize' as const },
-  { key: 'similarity', label: '相似照片', icon: <CopyOutlined />, tab: 'similarity' as const },
-  { key: 'classify', label: '图片分类', icon: <PictureOutlined />, tab: 'classify' as const },
-  { key: 'quickFilter', label: '快速筛选', icon: <FilterOutlined />, tab: 'quickFilter' as const },
-  { key: 'tools', label: '实用工具', icon: <ToolOutlined />, tab: 'tools' as const },
-  { key: 'cloud', label: '云图库', icon: <CloudOutlined />, tab: 'organize' as const, cloud: true },
+  { key: 'organize', label: '文件整理', icon: <FolderOpenOutlined />, tab: 'organize' as const, accent: '#0a84ff' },
+  { key: 'similarity', label: '相似照片', icon: <CopyOutlined />, tab: 'similarity' as const, accent: '#7c5cff' },
+  { key: 'classify', label: '图片分类', icon: <PictureOutlined />, tab: 'classify' as const, accent: '#30b95a' },
+  { key: 'quickFilter', label: '快速筛选', icon: <FilterOutlined />, tab: 'quickFilter' as const, accent: '#ff9f0a' },
+  { key: 'tools', label: '实用工具', icon: <ToolOutlined />, tab: 'tools' as const, accent: '#5ac8fa' },
+  { key: 'cloud', label: '云图库', icon: <CloudOutlined />, tab: 'organize' as const, cloud: true, accent: '#0a84ff' },
 ]
 
 const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavigateApp, onSwitchUserTab }) => {
@@ -80,42 +80,45 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
 
   if (!user) return null
 
+  const greeting = (() => {
+    const h = new Date().getHours()
+    if (h < 12) return '早上好'
+    if (h < 18) return '下午好'
+    return '晚上好'
+  })()
+
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-      <Card style={userCenterCardStyle}>
-        <Space align="center" size="large" wrap className="user-center-profile-header">
-          <UserAvatar size={64} avatarUrl={user.avatarUrl} />
-          <div>
-            <Text strong style={{ fontSize: 16 }}>
-              {user.displayName}
-            </Text>
-            <div>
-              <Text type="secondary">{desensitizeEmail(user.email)}</Text>
-            </div>
-            <Paragraph
-              copyable={{ text: user.id, tooltips: ['复制用户 ID', '已复制'] }}
-              type="secondary"
-              style={{ marginBottom: 0, marginTop: 6, fontSize: 12 }}
-            >
-              ID：{user.id.slice(0, 8)}…
-            </Paragraph>
-            {user.createdAt != null ? (
-              <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
-                注册于 {new Date(user.createdAt).toLocaleString()}
-              </Text>
-            ) : null}
-          </div>
-        </Space>
-      </Card>
+      <PageSection
+        title={`${greeting}，${user.displayName}`}
+        subtitle="从这里快速进入常用能力，或查看云图库与最近活动"
+      >
+        <Row gutter={[12, 12]}>
+          {SHORTCUTS.map((s) => (
+            <Col xs={12} sm={8} md={8} key={s.key}>
+              <button
+                type="button"
+                className="user-center-shortcut-tile"
+                style={{ ['--shortcut-accent' as string]: s.accent }}
+                onClick={() =>
+                  onNavigateApp({
+                    type: 'tab',
+                    tab: s.tab,
+                    organizeMode: s.cloud ? 'cloud' : 'local',
+                  })
+                }
+              >
+                <span className="user-center-shortcut-tile__icon">{s.icon}</span>
+                <span className="user-center-shortcut-tile__label">{s.label}</span>
+              </button>
+            </Col>
+          ))}
+        </Row>
+      </PageSection>
 
-      <Card
-        title={
-          <span>
-            <CloudOutlined style={{ marginRight: 6 }} />
-            云图库
-          </span>
-        }
-        style={userCenterCardStyle}
+      <PageSection
+        title="云图库"
+        subtitle={cosDisabled ? '服务端未配置对象存储' : '云端图片存储用量概览'}
         extra={
           !cosDisabled ? (
             <Button type="link" size="small" onClick={() => void loadCos()} loading={cosLoading}>
@@ -125,15 +128,31 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
         }
       >
         {cosDisabled ? (
-          <Text type="secondary">未配置对象存储，云图库不可用</Text>
+          <Text type="secondary">未配置对象存储，云图库不可用。可在「关于与服务」中查看 COS 状态。</Text>
         ) : cosLoading && !cosStats ? (
           <Spin size="small" />
         ) : (
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Text>
-              <Text strong>{cosStats?.imageCount ?? 0}</Text> 张图片 ·{' '}
-              <Text strong>{formatFileSize(cosStats?.totalBytes ?? 0)}</Text>
-            </Text>
+          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+            <Row gutter={[12, 12]}>
+              <Col xs={24} sm={12}>
+                <StatCard
+                  title="云端图片"
+                  value={cosStats?.imageCount ?? 0}
+                  icon={<PictureOutlined />}
+                  accent="#0a84ff"
+                  subtle
+                />
+              </Col>
+              <Col xs={24} sm={12}>
+                <StatCard
+                  title="占用空间"
+                  value={formatFileSize(cosStats?.totalBytes ?? 0)}
+                  icon={<CloudOutlined />}
+                  accent="#5ac8fa"
+                  subtle
+                />
+              </Col>
+            </Row>
             <Button
               type="primary"
               onClick={() => onNavigateApp({ type: 'tab', tab: 'organize', organizeMode: 'cloud' })}
@@ -142,35 +161,11 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
             </Button>
           </Space>
         )}
-      </Card>
+      </PageSection>
 
-      <Card title="功能快捷入口" style={userCenterCardStyle}>
-        <Row gutter={[12, 12]}>
-          {SHORTCUTS.map((s) => (
-            <Col xs={12} sm={8} key={s.key}>
-              <Button
-                block
-                size="large"
-                className="user-center-shortcut-btn"
-                icon={s.icon}
-                onClick={() =>
-                  onNavigateApp({
-                    type: 'tab',
-                    tab: s.tab,
-                    organizeMode: s.cloud ? 'cloud' : 'local',
-                  })
-                }
-              >
-                {s.label}
-              </Button>
-            </Col>
-          ))}
-        </Row>
-      </Card>
-
-      <Card
+      <PageSection
         title="最近活动"
-        style={userCenterCardStyle}
+        subtitle="基于本机操作日志，最多展示 8 条"
         extra={
           <Button type="link" size="small" icon={<RightOutlined />} onClick={() => onSwitchUserTab('oplog')}>
             全部日志
@@ -183,16 +178,17 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
           <Text type="secondary">暂无记录。去「文件整理」选择目录开始使用吧。</Text>
         ) : (
           <List
+            className="user-center-activity-list"
             size="small"
             dataSource={recentLogs}
             renderItem={(item) => (
-              <List.Item>
+              <List.Item className="user-center-activity-list__item">
                 <List.Item.Meta
-                  title={operationLogActionLabel(item.action)}
+                  title={<span className="user-center-activity-list__title">{operationLogActionLabel(item.action)}</span>}
                   description={
                     <Space direction="vertical" size={0}>
                       {item.summary ? <Text type="secondary">{item.summary}</Text> : null}
-                      <Text type="secondary" style={{ fontSize: 12 }}>
+                      <Text type="secondary" className="user-center-activity-list__time">
                         {new Date(item.ts).toLocaleString()}
                       </Text>
                     </Space>
@@ -202,7 +198,7 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
             )}
           />
         )}
-      </Card>
+      </PageSection>
     </Space>
   )
 }

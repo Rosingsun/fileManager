@@ -1,10 +1,28 @@
 import type { CSSProperties } from 'react'
 
 export const userCenterCardStyle: CSSProperties = {
-  background: 'rgba(255, 255, 255, 0.72)',
+  background: 'var(--app-surface-elevated)',
   backdropFilter: 'blur(20px) saturate(180%)',
   WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-  borderRadius: 12,
+  borderRadius: 'var(--app-radius-lg)',
+  border: '1px solid var(--app-border)',
+  boxShadow: 'var(--app-shadow-xs)',
+}
+
+export type UserCenterTabKey =
+  | 'overview'
+  | 'stats'
+  | 'preferences'
+  | 'profile'
+  | 'security'
+  | 'oplog'
+  | 'invites'
+  | 'about'
+
+export interface UserCenterNavItem {
+  key: UserCenterTabKey
+  label: string
+  group: 'workspace' | 'account' | 'system'
 }
 
 export type UserCenterAppNavigate =

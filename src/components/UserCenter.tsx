@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Card,
-  Tabs,
   Form,
   Input,
   Button,
@@ -11,8 +10,6 @@ import {
   Alert,
   App,
   Tag,
-  Row,
-  Col,
   Table,
   Modal,
 } from 'antd'
@@ -52,7 +49,13 @@ import OperationLogTab from './OperationLogTab'
 import UserCenterOverviewTab from './UserCenter/UserCenterOverviewTab'
 import UserCenterUsageStatsTab from './UserCenter/UserCenterUsageStatsTab'
 import UserCenterPreferencesTab from './UserCenter/UserCenterPreferencesTab'
-import { desensitizeEmail, userCenterCardStyle, type UserCenterAppNavigate } from './UserCenter/userCenterShared'
+import UserCenterSidebar, { type UserCenterSidebarNavEntry } from './UserCenter/UserCenterSidebar'
+import {
+  desensitizeEmail,
+  userCenterCardStyle,
+  type UserCenterAppNavigate,
+  type UserCenterTabKey,
+} from './UserCenter/userCenterShared'
 
 export interface UserCenterProps {
   focusTab?: string | null
@@ -112,17 +115,10 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
   const [inviteLoading, setInviteLoading] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
-  const [activeUserTab, setActiveUserTab] = useState('overview')
+  const [activeUserTab, setActiveUserTab] = useState<UserCenterTabKey>('overview')
   const [cosConfigured, setCosConfigured] = useState<boolean | null>(null)
 
   const formatTs = (ms: number) => new Date(ms).toLocaleString()
-
-  useEffect(() => {
-    if (focusTab) {
-      setActiveUserTab(focusTab)
-      onFocusTabConsumed?.()
-    }
-  }, [focusTab, onFocusTabConsumed])
 
   const checkCosStatus = useCallback(async () => {
     try {
@@ -150,6 +146,34 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
       setInviteLoading(false)
     }
   }, [message])
+
+  const userCenterNavItems: UserCenterSidebarNavEntry[] = [
+    { key: 'overview', label: '概览', group: 'workspace', icon: <DashboardOutlined /> },
+    { key: 'stats', label: '使用统计', group: 'workspace', icon: <BarChartOutlined /> },
+    { key: 'preferences', label: '偏好与数据', group: 'workspace', icon: <SettingOutlined /> },
+    { key: 'profile', label: '个人信息', group: 'account', icon: <UserOutlined /> },
+    { key: 'security', label: '账号安全', group: 'account', icon: <SafetyOutlined /> },
+    { key: 'invites', label: '我的邀请', group: 'account', icon: <TeamOutlined /> },
+    { key: 'oplog', label: '操作日志', group: 'system', icon: <HistoryOutlined /> },
+    { key: 'about', label: '关于与服务', group: 'system', icon: <InfoCircleOutlined /> },
+  ]
+
+  const onUserTabChange = useCallback(
+    (key: UserCenterTabKey) => {
+      setActiveUserTab(key)
+      if (key === 'invites') void loadInviteLists()
+      if (key === 'about') void checkCosStatus()
+    },
+    [loadInviteLists, checkCosStatus]
+  )
+
+  useEffect(() => {
+    if (!focusTab) return
+    if (userCenterNavItems.some((item) => item.key === focusTab)) {
+      onUserTabChange(focusTab as UserCenterTabKey)
+      onFocusTabConsumed?.()
+    }
+  }, [focusTab, onFocusTabConsumed, onUserTabChange, userCenterNavItems])
 
   const onCreateInvite = async () => {
     setInviteLoading(true)
@@ -317,59 +341,38 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
   const panelProps = {
     userId: user.id,
     onNavigateApp,
-    onSwitchUserTab: setActiveUserTab,
+    onSwitchUserTab: (key: string) => onUserTabChange(key as UserCenterTabKey),
   }
 
   return (
-      <div className="app-tab-panel user-center-root" style={{ padding: 24, overflow: 'auto' }}>
+      <div className="app-tab-panel user-center-root">
         {apiWarning}
-        <Row gutter={[16, 16]} justify="center">
-          <Col xs={24} lg={20} xl={16}>
-            <Tabs
-              activeKey={activeUserTab}
-              onChange={(key) => {
-                setActiveUserTab(key)
-                if (key === 'invites') void loadInviteLists()
-                if (key === 'about') void checkCosStatus()
-              }}
-              items={[
-                {
-                  key: 'overview',
-                  label: (
-                    <span>
-                      <DashboardOutlined /> 概览
-                    </span>
-                  ),
-                  children: <UserCenterOverviewTab {...panelProps} />,
-                },
-                {
-                  key: 'stats',
-                  label: (
-                    <span>
-                      <BarChartOutlined /> 使用统计
-                    </span>
-                  ),
-                  children: <UserCenterUsageStatsTab userId={user.id} />,
-                },
-                {
-                  key: 'preferences',
-                  label: (
-                    <span>
-                      <SettingOutlined /> 偏好与数据
-                    </span>
-                  ),
-                  children: <UserCenterPreferencesTab onNavigateApp={onNavigateApp} />,
-                },
-                {
-                  key: 'profile',
-                  label: (
-                    <span>
-                      <UserOutlined /> 个人信息
-                    </span>
-                  ),
-                  children: (
-                    <Card title="资料与展示" style={cardStyle}>
-                      <Space align="center" size="large" wrap className="user-center-profile-header">
+        <div className="user-center-shell">
+          <UserCenterSidebar
+            items={userCenterNavItems}
+            activeKey={activeUserTab}
+            onChange={onUserTabChange}
+            profile={
+              <button
+                type="button"
+                className="user-center-sidebar-profile"
+                onClick={() => onUserTabChange('profile')}
+              >
+                <UserAvatar size={40} avatarUrl={user.avatarUrl} />
+                <span className="user-center-sidebar-profile__text">
+                  <span className="user-center-sidebar-profile__name">{user.displayName}</span>
+                  <span className="user-center-sidebar-profile__email">{desensitizeEmail(user.email)}</span>
+                </span>
+              </button>
+            }
+          />
+          <main className="user-center-main">
+            {activeUserTab === 'overview' && <UserCenterOverviewTab {...panelProps} />}
+            {activeUserTab === 'stats' && <UserCenterUsageStatsTab userId={user.id} />}
+            {activeUserTab === 'preferences' && <UserCenterPreferencesTab onNavigateApp={onNavigateApp} />}
+            {activeUserTab === 'profile' && (
+              <Card title="资料与展示" style={cardStyle} className="user-center-panel-card">
+                <Space align="start" size="large" wrap className="user-center-profile-header user-center-profile-header--panel">
                         <button
                           type="button"
                           className="user-center-avatar-upload"
@@ -429,18 +432,10 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                           </div>
                         </Form.Item>
                       </Form>
-                    </Card>
-                  ),
-                },
-                {
-                  key: 'security',
-                  label: (
-                    <span>
-                      <SafetyOutlined /> 账号安全
-                    </span>
-                  ),
-                  children: (
-                    <Card
+              </Card>
+            )}
+            {activeUserTab === 'security' && (
+              <Card
                       title="修改登录密码"
                       style={cardStyle}
                       extra={<Tag color="blue">修改后所有设备需重新登录</Tag>}
@@ -495,37 +490,16 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                           </div>
                         </Form.Item>
                       </Form>
-                    </Card>
-                  ),
-                },
-                {
-                  key: 'oplog',
-                  label: (
-                    <span>
-                      <HistoryOutlined /> 操作日志
-                    </span>
-                  ),
-                  children: (
-                    <OperationLogTab userId={user.id} onOpenUsageStats={() => setActiveUserTab('stats')} />
-                  ),
-                },
-                {
-                  key: 'invites',
-                  label: (
-                    <span>
-                      <TeamOutlined /> 我的邀请
-                    </span>
-                  ),
-                  children: (
-                    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              </Card>
+            )}
+            {activeUserTab === 'oplog' && (
+              <OperationLogTab userId={user.id} onOpenUsageStats={() => onUserTabChange('stats')} />
+            )}
+            {activeUserTab === 'invites' && (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                       <Card title="生成邀请码" style={cardStyle}>
-                        <Typography.Paragraph type="secondary" style={{ marginBottom: 16, textAlign: 'center' }}>
-                          同一时间仅保留一条可用邀请码；再次生成会使上一条立即失效。邀请码自创建起 3
-                          {/* 天内有效。每位用户按 UTC
-                          自然日最多生成若干条（默认 2 条，参数表{' '}
-                          <Typography.Text code>invite_max_generations_per_day</Typography.Text>
-                          ）。成功邀请人数上限见参数{' '}
-                          <Typography.Text code>invite_max_redemptions_per_inviter</Typography.Text>。 */}
+                        <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+                          同一时间仅保留一条可用邀请码；再次生成会使上一条立即失效。邀请码自创建起 3 天内有效。
                         </Typography.Paragraph>
                         {inviteQuota && inviteQuota.generationsToday >= inviteQuota.maxGenerationsPerDay ? (
                           <Alert
@@ -648,18 +622,10 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                           }
                         />
                       </Card>
-                    </Space>
-                  ),
-                },
-                {
-                  key: 'about',
-                  label: (
-                    <span>
-                      <InfoCircleOutlined /> 关于与服务
-                    </span>
-                  ),
-                  children: (
-                    <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              </Space>
+            )}
+            {activeUserTab === 'about' && (
+              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                       <Card title="认证服务" style={cardStyle} extra={<ApiOutlined />}>
                         <Space direction="vertical" style={{ width: '100%' }}>
                           <Typography.Text type="secondary">API 地址</Typography.Text>
@@ -690,13 +656,10 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                           </Typography.Paragraph>
                         )}
                       </Card>
-                    </Space>
-                  ),
-                },
-              ]}
-            />
-          </Col>
-        </Row>
+              </Space>
+            )}
+          </main>
+        </div>
       </div>
     )
 }
