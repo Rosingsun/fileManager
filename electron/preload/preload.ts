@@ -143,7 +143,14 @@ try {
     ): Promise<{ count: number | null; message?: string }> => {
       return ipcRenderer.invoke('file:getShutterCount', filePath)
     },
-    
+
+    /** 读取图片对焦点（人脸/主体区域，相对坐标 0–1） */
+    getPhotoFocusPoints: (
+      filePath: string
+    ): Promise<import('../../src/types').PhotoFocusPointsResult> => {
+      return ipcRenderer.invoke('file:getPhotoFocusPoints', filePath)
+    },
+
     // 打开文件
     openFile: (filePath: string): Promise<boolean> => {
       return ipcRenderer.invoke('file:open', filePath)
@@ -359,6 +366,20 @@ try {
 
     enhanceImage: (file: string, options: any): Promise<string> => {
       return ipcRenderer.invoke('tools:enhanceImage', file, options)
+    },
+
+    previewFocusAdjust: (
+      filePath: string,
+      options: import('../../src/types').FocusAdjustOptions
+    ): Promise<string> => {
+      return ipcRenderer.invoke('tools:previewFocusAdjust', filePath, options)
+    },
+
+    applyFocusAdjust: (
+      filePath: string,
+      options: import('../../src/types').FocusAdjustOptions
+    ): Promise<string> => {
+      return ipcRenderer.invoke('tools:applyFocusAdjust', filePath, options)
     },
 
     selectFiles: (filter?: string): Promise<string[] | null> => {

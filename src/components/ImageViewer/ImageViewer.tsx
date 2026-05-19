@@ -2,10 +2,9 @@
  * 全屏图片查看器主组件
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import ImageCanvas from './components/ImageCanvas'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import ImageCanvas, { type ImageCanvasHandle } from './components/ImageCanvas'
 import InfoPanel from './components/InfoPanel'
-import FocusPointOverlay from './components/FocusPointOverlay'
 import LivePhotoPlayer from './components/LivePhotoPlayer'
 import { getPhotoFocusPoints } from '../../utils'
 import type { PhotoFocusPoint } from '../../types'
@@ -41,6 +40,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   const [livePlaybackMode, setLivePlaybackMode] = useState<LivePlaybackMode>('once')
   const [focusPoints, setFocusPoints] = useState<PhotoFocusPoint[]>([])
   const [activeFocusPointIndex, setActiveFocusPointIndex] = useState(0)
+  const imageCanvasRef = useRef<ImageCanvasHandle>(null)
 
   const currentImage = useMemo(() => {
     return images[currentIndex] || null
@@ -266,10 +266,22 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     setViewMode('fit')
   }, [])
 
+  const selectFocusPoint = useCallback((index: number, pan = true) => {
+    if (index < 0 || index >= focusPoints.length) return
+    setActiveFocusPointIndex(index)
+    if (pan) {
+      queueMicrotask(() => imageCanvasRef.current?.centerOnFocusPoint(index))
+    }
+  }, [focusPoints.length])
+
   const cycleFocusPoint = useCallback(
     (direction: 1 | -1) => {
       if (focusPoints.length < 2) return
-      setActiveFocusPointIndex((i) => (i + direction + focusPoints.length) % focusPoints.length)
+      setActiveFocusPointIndex((i) => {
+        const next = (i + direction + focusPoints.length) % focusPoints.length
+        queueMicrotask(() => imageCanvasRef.current?.centerOnFocusPoint(next))
+        return next
+      })
     },
     [focusPoints.length]
   )
@@ -299,9 +311,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         {/* 左侧：图片展示区域 */}
         <div className="image-viewer-canvas-wrapper">
           <ImageCanvas
+            ref={imageCanvasRef}
             imageUrl={displayImageUrl}
-            imageWidth={currentImage?.width || 0}
-            imageHeight={currentImage?.height || 0}
+            imageWidth={naturalWidth ?? currentImage?.width ?? 0}
+            imageHeight={naturalHeight ?? currentImage?.height ?? 0}
             scale={scale}
             rotation={rotation}
             flipHorizontal={flipHorizontal}
@@ -318,12 +331,15 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             isLoading={isLoading || isLoadingBlob}
             isError={isError}
             onRetry={retry}
+            focusPoints={focusPoints}
+            activeFocusPointIndex={activeFocusPointIndex}
+            onFocusPointSelect={index => selectFocusPoint(index)}
           />
-          <FocusPointOverlay
-            points={focusPoints}
-            activeIndex={activeFocusPointIndex}
-            visible={focusPoints.length > 0}
-          />
+          {focusPoints.length > 1 && (
+            <span className="image-viewer-badge image-viewer-badge--focus" title="切换对焦点">
+              对焦点 {activeFocusPointIndex + 1}/{focusPoints.length} · [ ]
+            </span>
+          )}
           {currentImage?.mediaKind === 'raw' && (
             <span className="image-viewer-badge image-viewer-badge--raw">RAW · 嵌入预览</span>
           )}

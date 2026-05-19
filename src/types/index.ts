@@ -584,3 +584,16 @@ export interface PhotoFocusPoint {
 export interface PhotoFocusPointsResult {
   points: PhotoFocusPoint[]
 }
+
+export type FocusAdjustMode = 'subjectRecover' | 'regionSharpen'
+
+export interface FocusAdjustOptions {
+  mode: FocusAdjustMode
+  focusX: number
+  focusY: number
+  radius: number
+  sharpenStrength: number
+  backgroundBlur: number
+  feather: number
+  outputPath?: string
+}

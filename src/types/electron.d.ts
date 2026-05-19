@@ -43,6 +43,7 @@ declare global {
       getImageDimensions: (filePath: string) => Promise<{ width: number; height: number } | null>
       getImageThumbnail: (filePath: string, size?: number, quality?: number) => Promise<string>
       getShutterCount: (filePath: string) => Promise<{ count: number | null; message?: string }>
+      getPhotoFocusPoints: (filePath: string) => Promise<import('./index').PhotoFocusPointsResult>
       // image editing operations
       applyEdits: (paths: string[] | string, settings: import('./index').ImageEditSettings) => Promise<import('./index').BatchOperationResult[]>
       convertFormat: (paths: string[] | string, options: import('./index').FormatConversionOptions) => Promise<import('./index').BatchOperationResult[]>
@@ -89,6 +90,14 @@ declare global {
       imagesToPdf: (images: string[], options: import('./index').PdfOptions) => Promise<string>
       generateThumbnails: (files: string[], options: import('./index').ThumbnailOptions) => Promise<import('./index').ThumbnailResult[]>
       enhanceImage: (file: string, options: import('./index').EnhanceOptions) => Promise<string>
+      previewFocusAdjust: (
+        filePath: string,
+        options: import('./index').FocusAdjustOptions
+      ) => Promise<string>
+      applyFocusAdjust: (
+        filePath: string,
+        options: import('./index').FocusAdjustOptions
+      ) => Promise<string>
       selectFiles: (filter?: string) => Promise<string[] | null>
     }
   }

@@ -133,6 +133,11 @@
   overflow: hidden;
 }
 
+.app-tool-modal--focus-adjust .ant-modal-body {
+  overflow: visible;
+  max-height: calc(100vh - 120px);
+}
+
 .app-tool-modal__title-row {
   display: flex;
   align-items: center;

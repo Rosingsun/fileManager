@@ -112,6 +112,11 @@
   letter-spacing: 0.02em;
 }
 
+.image-viewer-badge--focus {
+  letter-spacing: 0.02em;
+  background: rgba(10, 132, 255, 0.72);
+}
+
 .live-photo-controls {
   padding: 12px 16px;
   border-top: 1px solid #f0f0f0;

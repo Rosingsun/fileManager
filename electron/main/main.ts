@@ -1079,6 +1079,11 @@ ipcHandle(
   }
 )
 
+ipcHandle('file:getPhotoFocusPoints', async (_event, filePath: string) => {
+  const { readPhotoFocusPointsFromFile } = await import('./utils/photoFocusPoints')
+  return readPhotoFocusPointsFromFile(filePath)
+})
+
 ipcHandle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
   const { getImageBase64 } = await import('./utils/imageUtils')
   return getImageBase64(filePath)
@@ -2063,6 +2068,32 @@ ipcHandle('tools:enhanceImage', async (_event, file: string, options: any): Prom
     throw error
   }
 })
+
+ipcHandle(
+  'tools:previewFocusAdjust',
+  async (_event, filePath: string, options: import('../../src/types').FocusAdjustOptions): Promise<string> => {
+    try {
+      const { previewFocusAdjust } = await import('./utils/focusAdjustProcessor')
+      return await previewFocusAdjust(filePath, options)
+    } catch (error) {
+      console.error('[Main] 对焦调整预览失败:', error)
+      throw error
+    }
+  }
+)
+
+ipcHandle(
+  'tools:applyFocusAdjust',
+  async (_event, filePath: string, options: import('../../src/types').FocusAdjustOptions): Promise<string> => {
+    try {
+      const { applyFocusAdjust } = await import('./utils/focusAdjustProcessor')
+      return await applyFocusAdjust(filePath, options)
+    } catch (error) {
+      console.error('[Main] 对焦调整导出失败:', error)
+      throw error
+    }
+  }
+)
 
 // IPC 处理器：图片格式转换
 ipcHandle('tools:convertImageFormat', async (_event, images: string[], options: any, outputPath: string): Promise<any> => {

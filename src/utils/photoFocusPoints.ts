@@ -5,15 +5,13 @@ import type { PhotoFocusPointsResult } from '../types'
  * 当前无 Electron 实现时返回空列表，查看器可正常打开。
  */
 export async function getPhotoFocusPoints(filePath: string): Promise<PhotoFocusPointsResult> {
-  const api = window.electronAPI as { getPhotoFocusPoints?: (path: string) => Promise<PhotoFocusPointsResult> } | undefined
-  if (typeof api?.getPhotoFocusPoints === 'function') {
+  if (typeof window.electronAPI?.getPhotoFocusPoints === 'function') {
     try {
-      const res = await api.getPhotoFocusPoints(filePath)
+      const res = await window.electronAPI.getPhotoFocusPoints(filePath)
       if (res && Array.isArray(res.points)) return res
     } catch {
       /* 忽略解析失败 */
     }
   }
-  void filePath
   return { points: [] }
 }

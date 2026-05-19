@@ -8,6 +8,7 @@ import {
   FilePdfOutlined,
   PictureOutlined,
   ThunderboltOutlined,
+  AimOutlined,
 } from '@ant-design/icons'
 import BatchRename from './BatchRename/BatchRename'
 import Watermark from './Watermark/Watermark'
@@ -16,6 +17,7 @@ import GifMaker from './GifMaker/GifMaker'
 import ImageFormatConverter from './ImageFormatConverter/ImageFormatConverter'
 import ThumbnailGen from './ThumbnailGen/ThumbnailGen'
 import ImageEnhance from './ImageEnhance/ImageEnhance'
+import FocusAdjust from './FocusAdjust/FocusAdjust'
 import './tools.css'
 
 const tools = [
@@ -26,6 +28,7 @@ const tools = [
   { key: 'formatConversion', name: '图片类型转换', description: 'JPEG/PNG/WebP/BMP/TIFF/PDF', icon: <FilePdfOutlined />, accent: '#7c5cff' },
   { key: 'thumbnail', name: '缩略图生成', description: '批量生成指定尺寸缩略图', icon: <ScissorOutlined />, accent: '#5ac8fa' },
   { key: 'enhance', name: '图片增强', description: '一键优化清晰度与曝光', icon: <ThunderboltOutlined />, accent: '#ff6b9d' },
+  { key: 'focusAdjust', name: '对焦调整', description: '点击设定对焦点，锐化主体或虚化背景', icon: <AimOutlined />, accent: '#34c759' },
 ] as const
 
 const ToolsEntry: React.FC = () => {
@@ -48,6 +51,8 @@ const ToolsEntry: React.FC = () => {
         return <ThumbnailGen visible onClose={onClose} />
       case 'enhance':
         return <ImageEnhance visible onClose={onClose} />
+      case 'focusAdjust':
+        return <FocusAdjust visible onClose={onClose} />
       default:
         return null
     }
