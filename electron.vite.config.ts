@@ -1,5 +1,6 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 
 const projectRoot = resolve(__dirname)
@@ -41,7 +42,7 @@ export default defineConfig({
     root: './src',
     /** 从仓库根目录加载 .env / .env.development，使 VITE_* 在开发联调时生效 */
     envDir: projectRoot,
-    plugins: [react()],
+    plugins: [react(), tailwindcss()],
     build: {
       outDir: 'dist',
       rollupOptions: {

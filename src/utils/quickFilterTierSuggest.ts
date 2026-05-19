@@ -14,6 +14,9 @@ export function getQuickFilterOrganizeFolderName(item: ImageQualityItemResult): 
   if (f.includes('overexposed')) return '过曝'
   if (f.includes('underexposed')) return '欠曝'
   if (f.includes('lowContrast')) return '低对比'
+  if (f.includes('blurry')) return '模糊'
+  if (f.includes('noisy')) return '噪点'
+  if (f.includes('colorCast')) return '色偏'
   if (f.some(x => QUICK_FILTER_COMPOSITION_FLAGS.has(x))) return '构图提示'
   return '未标记'
 }
@@ -34,6 +37,9 @@ export function suggestQuickFilterTier(item: ImageQualityItemResult): QuickFilte
   const exposureContrast = flags.filter(
     f => f === 'overexposed' || f === 'underexposed' || f === 'lowContrast'
   )
+  const imageQuality = flags.filter(
+    f => f === 'blurry' || f === 'noisy' || f === 'colorCast'
+  )
   const composition = flags.filter(f => QUICK_FILTER_COMPOSITION_FLAGS.has(f))
 
   if (flags.length >= 2) return 'low'
@@ -42,8 +48,12 @@ export function suggestQuickFilterTier(item: ImageQualityItemResult): QuickFilte
     return exposureContrast[0] === 'lowContrast' ? 'medium' : 'medium'
   }
 
-  if (composition.length >= 1 && exposureContrast.length === 0) {
+  if (composition.length >= 1 && exposureContrast.length === 0 && imageQuality.length === 0) {
     return 'medium'
+  }
+
+  if (imageQuality.length >= 1 && exposureContrast.length === 0 && composition.length === 0) {
+    return imageQuality.includes('blurry') ? 'low' : 'medium'
   }
 
   return 'low'

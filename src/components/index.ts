@@ -7,8 +7,6 @@ export { default as CircularProgress } from './CircularProgress'
 export { default as ImageViewer } from './ImageViewer/ImageViewer'
 export { default as ImagePreview } from './ImagePreview/ImagePreview'
 export { default as SimilarityDetection } from './SimilarityDetection/SimilarityDetection'
-export { default as ScanResults } from './SimilarityDetection/ScanResults'
-export { default as ScanConfig } from './SimilarityDetection/ScanConfig'
 export { default as ImageClassification } from './ImageClassification/ImageClassification'
 export { default as QuickFilter } from './QuickFilter/QuickFilter'
 
@@ -23,3 +21,18 @@ export { default as CosImageLibraryTab } from './CosImageLibraryTab'
 export { default as CosLibrarySummaryCard } from './CosLibrarySummaryCard'
 export { default as EmailAutoComplete } from './EmailAutoComplete'
 export * from './UnifiedUI'
+export { Alert, AlertAction, AlertDescription, AlertTitle } from './ui/alert'
+export {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog'
+export { Badge, badgeVariants } from './ui/badge'
+export { Button, buttonVariants } from './ui/button'
+export { Checkbox } from './ui/checkbox'
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'

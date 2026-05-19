@@ -1,0 +1,352 @@
+import React, { useState } from "react";
+
+import {
+  Form,
+  Input,
+  Button,
+  Switch,
+  Slider,
+  Collapse,
+  InputNumber,
+  Tooltip,
+} from "antd";
+
+import {
+  FolderOpenOutlined,
+  EyeOutlined,
+  FolderOutlined,
+  ThunderboltOutlined,
+  ScanOutlined,
+  DeploymentUnitOutlined,
+} from "@ant-design/icons";
+
+import type { SimilarityScanConfig } from "../../types";
+
+import FormPreview from "../FormPreview/FormPreview";
+
+import { ALGORITHM_OPTIONS, THRESHOLD_PRESETS } from "./similarityShared";
+
+interface SimilarityScanSetupProps {
+  onStart: (config: SimilarityScanConfig) => void;
+}
+
+const ALGO_ICONS = {
+  hash: ThunderboltOutlined,
+
+  phash: ScanOutlined,
+
+  both: DeploymentUnitOutlined,
+} as const;
+
+const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
+  onStart,
+}) => {
+  const [form] = Form.useForm();
+
+  const [scanPath, setScanPath] = useState("");
+
+  const [previewVisible, setPreviewVisible] = useState(false);
+
+  const threshold = Form.useWatch("similarityThreshold", form) ?? 90;
+
+  const algorithm = Form.useWatch("algorithm", form) ?? "both";
+
+  const handleSelectPath = async () => {
+    if (!window.electronAPI) return;
+
+    const path = await window.electronAPI.openDirectory();
+
+    if (path) {
+      setScanPath(path);
+
+      form.setFieldsValue({ scanPath: path });
+    }
+  };
+
+  const handleSubmit = (values: Record<string, unknown>) => {
+    onStart({
+      scanPath: (values.scanPath as string) || scanPath,
+
+      includeSubdirectories: (values.includeSubdirectories as boolean) ?? true,
+
+      minFileSize: values.minFileSize
+        ? Number(values.minFileSize) * 1024
+        : undefined,
+
+      maxFileSize: values.maxFileSize
+        ? Number(values.maxFileSize) * 1024 * 1024
+        : undefined,
+
+      excludedFolders: values.excludedFolders
+        ? String(values.excludedFolders)
+            .split("\n")
+            .filter((f) => f.trim())
+        : [],
+
+      excludedExtensions: values.excludedExtensions
+        ? String(values.excludedExtensions)
+            .split(",")
+            .map((e) => e.trim().replace(".", ""))
+        : [],
+
+      similarityThreshold: Number(values.similarityThreshold) || 90,
+
+      algorithm:
+        (values.algorithm as SimilarityScanConfig["algorithm"]) || "both",
+    });
+  };
+
+  return (
+    <Form
+      form={form}
+      layout="vertical"
+      onFinish={handleSubmit}
+      initialValues={{
+        includeSubdirectories: true,
+        similarityThreshold: 90,
+        algorithm: "both",
+      }}
+      className="sim-setup"
+    >
+      <Form.Item
+        name="scanPath"
+        rules={[{ required: true, message: "请选择目录" }]}
+        hidden
+      >
+        <Input />
+      </Form.Item>
+
+      <div className="sim-setup-grid">
+        <section className="sim-panel sim-panel--directory">
+          <div className="sim-panel__head">
+            <div className="sim-panel__title-row">
+              <h2 className="sim-panel__title">照片目录</h2>
+
+              <Form.Item
+                className="sim-panel__subdirs"
+                label="包含子文件夹"
+                name="includeSubdirectories"
+                valuePropName="checked"
+              >
+                <Switch checkedChildren="是" unCheckedChildren="否" />
+              </Form.Item>
+            </div>
+
+            <p className="sim-panel__sub">选择要扫描的本地文件夹</p>
+          </div>
+
+          <div
+            className={`sim-path ${scanPath ? "is-filled" : ""}`}
+            role={scanPath ? undefined : "button"}
+            tabIndex={scanPath ? undefined : 0}
+            onClick={!scanPath ? handleSelectPath : undefined}
+            onKeyDown={(e) => {
+              if (!scanPath && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault();
+
+                handleSelectPath();
+              }
+            }}
+          >
+            {!scanPath ? (
+              <>
+                <span className="sim-path__ring">
+                  <FolderOutlined />
+                </span>
+
+                <p className="sim-path__title">点击选择文件夹</p>
+
+                <p className="sim-path__hint">
+                  支持子目录扫描，下方可展开过滤与排除规则
+                </p>
+              </>
+            ) : (
+              <>
+                <code className="sim-path__code">{scanPath}</code>
+
+                <Button
+                  type="default"
+                  icon={<FolderOpenOutlined />}
+                  onClick={handleSelectPath}
+                >
+                  更换目录
+                </Button>
+              </>
+            )}
+          </div>
+
+          <div className="sim-filters">
+            <Collapse
+              className="sim-advanced sim-filters__collapse"
+              bordered={false}
+              defaultActiveKey={[]}
+              items={[
+                {
+                  key: "filters",
+
+                  label: "扫描过滤",
+
+                  children: (
+                    <div className="sim-filters__body">
+                      <p className="sim-filters__intro">
+                        缩小扫描范围，跳过无关文件与目录
+                      </p>
+
+                      <div className="sim-filters__section">
+                        <h3 className="sim-filters__section-title">文件大小</h3>
+
+                        <div className="sim-filters__grid">
+                          <Form.Item
+                            label={
+                              <Tooltip title="小于此大小的图片将跳过，留空表示不限">
+                                <span>最小 (KB)</span>
+                              </Tooltip>
+                            }
+                            name="minFileSize"
+                          >
+                            <InputNumber min={0} placeholder="不限" />
+                          </Form.Item>
+
+                          <Form.Item
+                            label={
+                              <Tooltip title="大于此大小的图片将跳过，留空表示不限">
+                                <span>最大 (MB)</span>
+                              </Tooltip>
+                            }
+                            name="maxFileSize"
+                          >
+                            <InputNumber min={0} placeholder="不限" />
+                          </Form.Item>
+                        </div>
+                      </div>
+
+                      <div className="sim-filters__section">
+                        <h3 className="sim-filters__section-title">排除规则</h3>
+
+                        <Form.Item
+                          className="sim-filters__exclude"
+                          label={
+                            <Tooltip title="每行一个完整路径，匹配到的子目录不会参与扫描">
+                              <span>排除目录</span>
+                            </Tooltip>
+                          }
+                          name="excludedFolders"
+                        >
+                          <Input.TextArea
+                            rows={2}
+                            placeholder={"D:\\Backup\nD:\\Photos\\Cache"}
+                          />
+                        </Form.Item>
+
+                        <Form.Item
+                          className="sim-filters__exclude"
+                          label={
+                            <Tooltip title="逗号分隔，不含点号，如 raw, tif">
+                              <span>排除扩展名</span>
+                            </Tooltip>
+                          }
+                          name="excludedExtensions"
+                        >
+                          <Input placeholder="gif, bmp, raw" />
+                        </Form.Item>
+                      </div>
+                    </div>
+                  ),
+                },
+              ]}
+            />
+          </div>
+        </section>
+
+        <section className="sim-panel">
+          <div className="sim-panel__head">
+            <h2 className="sim-panel__title">检测策略</h2>
+
+            <p className="sim-panel__sub">相似度与算法决定检出严格程度</p>
+          </div>
+
+          <div className="sim-presets" role="group" aria-label="相似度预设">
+            {THRESHOLD_PRESETS.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                className={`sim-preset ${threshold === preset.value ? "is-active" : ""}`}
+                onClick={() =>
+                  form.setFieldsValue({ similarityThreshold: preset.value })
+                }
+              >
+                <span className="sim-preset__label">{preset.label}</span>
+
+                <span className="sim-preset__value">{preset.value}%</span>
+
+                <span className="sim-preset__hint">{preset.hint}</span>
+              </button>
+            ))}
+          </div>
+
+          <Form.Item name="similarityThreshold" noStyle>
+            <div className="sim-slider-label">
+              <span>精细调节</span>
+
+              <strong>{threshold}%</strong>
+            </div>
+
+            <Slider min={75} max={100} />
+          </Form.Item>
+
+          <Form.Item name="algorithm" hidden>
+            <Input />
+          </Form.Item>
+
+          <div
+            className="sim-algo-grid"
+            role="radiogroup"
+            aria-label="检测算法"
+          >
+            {ALGORITHM_OPTIONS.map((opt) => {
+              const Icon = ALGO_ICONS[opt.iconKey];
+
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={algorithm === opt.value}
+                  className={`sim-algo ${algorithm === opt.value ? "is-active" : ""}`}
+                  onClick={() => form.setFieldsValue({ algorithm: opt.value })}
+                >
+                  <span className="sim-algo__icon">
+                    <Icon />
+                  </span>
+
+                  <span className="sim-algo__name">{opt.name}</span>
+
+                  <span className="sim-algo__desc">{opt.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      </div>
+
+      <div className="sim-setup-bar">
+        <Button icon={<EyeOutlined />} onClick={() => setPreviewVisible(true)}>
+          预览配置
+        </Button>
+
+        <Button type="primary" htmlType="submit" disabled={!scanPath}>
+          开始扫描
+        </Button>
+      </div>
+
+      <FormPreview
+        visible={previewVisible}
+        onClose={() => setPreviewVisible(false)}
+        formInstance={form}
+        title="相似照片检测配置预览"
+      />
+    </Form>
+  );
+};
+
+export default SimilarityScanSetup;

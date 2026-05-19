@@ -1332,19 +1332,6 @@
   overflow: auto;
 }
 
-.tools-entry-page {
-  padding: 20px 24px;
-  height: 100%;
-  overflow: auto;
-}
-
-.tools-entry-tile-desc {
-  display: block;
-  margin-top: 8px;
-  font-size: 12px;
-  text-align: center;
-}
-
 [data-app-theme='dark'] .user-center-auth-panel,
 [data-app-theme='dark'] .user-center-auth-segment__btn.is-active,
 [data-app-theme='dark'] .header-user-popover-overlay .ant-popover-inner,

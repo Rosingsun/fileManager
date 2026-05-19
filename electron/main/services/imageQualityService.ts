@@ -20,6 +20,59 @@ function mergeThresholds(partial?: Partial<ImageQualityThresholds>): ImageQualit
   return { ...DEFAULT_IMAGE_QUALITY_THRESHOLDS, ...partial }
 }
 
+function emptyImageQualityScores(): ImageQualityScores {
+  return {
+    meanLuma: 0,
+    lumaStd: 0,
+    highlightClipRatio: 0,
+    shadowClipRatio: 0,
+    gridEntropy: 0,
+    centroidOffsetNorm: 0,
+    centerCellEnergyRatio: 0,
+    minThirdsDistance: 0,
+    sharpnessLapMean: 0,
+    noiseLevel: 0,
+    colorCastScore: 0
+  }
+}
+
+function computeSharpnessAndNoise(luma: Uint8Array, w: number, h: number): {
+  sharpnessLapMean: number
+  noiseLevel: number
+} {
+  let lapSum = 0
+  let lapCount = 0
+  let noiseSum = 0
+  let noiseCount = 0
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x
+      const c = luma[i]
+      const lap = Math.abs(4 * c - luma[i - 1] - luma[i + 1] - luma[i - w] - luma[i + w])
+      lapSum += lap
+      lapCount++
+      let sum9 = 0
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          sum9 += luma[(y + dy) * w + (x + dx)]
+        }
+      }
+      noiseSum += Math.abs(c - sum9 / 9)
+      noiseCount++
+    }
+  }
+  return {
+    sharpnessLapMean: lapCount > 0 ? lapSum / lapCount : 0,
+    noiseLevel: noiseCount > 0 ? noiseSum / noiseCount : 0
+  }
+}
+
+function computeColorCastScore(rMean: number, gMean: number, bMean: number): number {
+  const avg = (rMean + gMean + bMean) / 3
+  if (avg < 1) return 0
+  return Math.max(Math.abs(rMean - avg), Math.abs(gMean - avg), Math.abs(bMean - avg)) / avg
+}
+
 function collectPathsConfig(config: ImageQualityScanConfig): SimilarityScanConfig {
   return {
     scanPath: config.scanPath,
@@ -37,7 +90,8 @@ function analyzeLumaAndGrid(
   luma: Uint8Array,
   w: number,
   h: number,
-  thresholds: ImageQualityThresholds
+  thresholds: ImageQualityThresholds,
+  colorMeans: { r: number; g: number; b: number } | null
 ): {
   scores: ImageQualityScores
   flags: ImageQualityFlag[]
@@ -112,6 +166,11 @@ function analyzeLumaAndGrid(
   }
   const centroidOffsetNorm = Math.hypot(nx - 0.5, ny - 0.5)
 
+  const { sharpnessLapMean, noiseLevel } = computeSharpnessAndNoise(luma, w, h)
+  const colorCastScore = colorMeans
+    ? computeColorCastScore(colorMeans.r, colorMeans.g, colorMeans.b)
+    : 0
+
   const scores: ImageQualityScores = {
     meanLuma,
     lumaStd,
@@ -120,7 +179,10 @@ function analyzeLumaAndGrid(
     gridEntropy,
     centroidOffsetNorm,
     centerCellEnergyRatio,
-    minThirdsDistance
+    minThirdsDistance,
+    sharpnessLapMean,
+    noiseLevel,
+    colorCastScore
   }
 
   const flags: ImageQualityFlag[] = []
@@ -152,6 +214,21 @@ function analyzeLumaAndGrid(
     if (nx <= ne || nx >= 1 - ne || ny <= ne || ny >= 1 - ne) {
       flags.push('subjectNearEdge')
       compositionHints.push('主体可能贴近画面边缘（启发式）')
+    }
+  }
+
+  if (w >= 16 && h >= 16) {
+    if (sharpnessLapMean < thresholds.minSharpnessLapMean) {
+      flags.push('blurry')
+      compositionHints.push(`可能模糊（清晰度 ${sharpnessLapMean.toFixed(1)}）`)
+    }
+    if (noiseLevel > thresholds.maxNoiseLevel) {
+      flags.push('noisy')
+      compositionHints.push(`噪点偏多（估计 ${noiseLevel.toFixed(1)}）`)
+    }
+    if (colorMeans && colorCastScore > thresholds.maxColorCastScore) {
+      flags.push('colorCast')
+      compositionHints.push(`可能色偏（偏离 ${(colorCastScore * 100).toFixed(1)}%）`)
     }
   }
 
@@ -199,30 +276,35 @@ async function analyzeImageFile(
         height: metaH,
         flags: [],
         compositionHints: [],
-        scores: {
-          meanLuma: 0,
-          lumaStd: 0,
-          highlightClipRatio: 0,
-          shadowClipRatio: 0,
-          gridEntropy: 0,
-          centroidOffsetNorm: 0,
-          centerCellEnergyRatio: 0,
-          minThirdsDistance: 0
-        }
+        scores: emptyImageQualityScores()
       }
     }
 
     const luma = new Uint8Array(n)
+    let rSum = 0
+    let gSum = 0
+    let bSum = 0
     for (let i = 0; i < n; i++) {
       const b = i * ch
-      let r = data[b]
-      let g = ch >= 2 ? data[b + 1] : r
-      let bch = ch >= 3 ? data[b + 2] : r
+      const r = data[b]
+      const g = ch >= 2 ? data[b + 1] : r
+      const bch = ch >= 3 ? data[b + 2] : r
+      rSum += r
+      gSum += g
+      bSum += bch
       const y = Math.round((299 * r + 587 * g + 114 * bch) / 1000)
       luma[i] = y > 255 ? 255 : y < 0 ? 0 : y
     }
 
-    const { scores, flags, compositionHints } = analyzeLumaAndGrid(luma, w, h, thresholds)
+    const colorMeans =
+      ch >= 3 ? { r: rSum / n, g: gSum / n, b: bSum / n } : null
+    const { scores, flags, compositionHints } = analyzeLumaAndGrid(
+      luma,
+      w,
+      h,
+      thresholds,
+      colorMeans
+    )
 
     return {
       filePath,
@@ -243,16 +325,7 @@ async function analyzeImageFile(
       height: metaH,
       flags: [],
       compositionHints: [],
-      scores: {
-        meanLuma: 0,
-        lumaStd: 0,
-        highlightClipRatio: 0,
-        shadowClipRatio: 0,
-        gridEntropy: 0,
-        centroidOffsetNorm: 0,
-        centerCellEnergyRatio: 0,
-        minThirdsDistance: 0
-      }
+      scores: emptyImageQualityScores()
     }
   }
 }
@@ -342,16 +415,7 @@ export async function scanImageQuality(
           height: 0,
           flags: [],
           compositionHints: [],
-          scores: {
-            meanLuma: 0,
-            lumaStd: 0,
-            highlightClipRatio: 0,
-            shadowClipRatio: 0,
-            gridEntropy: 0,
-            centroidOffsetNorm: 0,
-            centerCellEnergyRatio: 0,
-            minThirdsDistance: 0
-          }
+          scores: emptyImageQualityScores()
         } satisfies ImageQualityItemResult
       }
       const r = await analyzeImageFile(filePath, analysisLongEdge, thresholds)

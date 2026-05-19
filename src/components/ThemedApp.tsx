@@ -2,6 +2,7 @@ import React, { useEffect } from 'react'
 import { App as AntdApp, ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import AppRoot from '../App'
+import { TooltipProvider } from './ui/tooltip'
 import { getAntAppTheme } from '../utils'
 import { subscribeSystemTheme, useThemeStore } from '../stores'
 
@@ -22,7 +23,9 @@ const ThemedApp: React.FC = () => {
   return (
     <ConfigProvider locale={zhCN} theme={getAntAppTheme(resolvedTheme)}>
       <AntdApp>
-        <AppRoot />
+        <TooltipProvider>
+          <AppRoot />
+        </TooltipProvider>
       </AntdApp>
     </ConfigProvider>
   )

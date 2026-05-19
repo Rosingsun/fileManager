@@ -1,8 +1,16 @@
 import React, { useState, useMemo } from 'react'
-import { Modal, Button, Space, List, Card, Input, Select, InputNumber, Radio, Checkbox, message, Progress, Typography, Empty } from 'antd'
-import { FolderOpenOutlined, ArrowRightOutlined, FolderOutlined, CloseOutlined } from '@ant-design/icons'
+import { Button, Space, Input, Select, InputNumber, Radio, Checkbox, message, Progress, Typography, Empty } from 'antd'
+import { FolderOpenOutlined, ArrowRightOutlined, FolderOutlined } from '@ant-design/icons'
 import type { BatchRenameOptions, RenameResult } from '../../../types'
 import { logSignedInUserAction } from '../../../utils'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+  ToolConfirmModal,
+} from '../ToolModal'
 
 const { Text } = Typography
 
@@ -205,29 +213,29 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
   }
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
+      onClose={onClose}
       title="批量重命名"
       width={1000}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
       footer={
-        <Space>
+        <>
           <Button onClick={onClose}>取消</Button>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             onClick={handleExecute}
             disabled={files.length === 0 || isProcessing}
             loading={isProcessing}
           >
             {isProcessing ? '处理中...' : '执行重命名'}
           </Button>
-        </Space>
+        </>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择文件">
+      <ToolModalLayout
+        sidebar={
+          <>
+          <ToolModalPanel title="选择文件">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectFiles}
@@ -237,11 +245,12 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
               选择图片文件
             </Button>
             <Text type="secondary">已选择: {files.length} 个文件</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="重命名规则">
-            <Radio.Group 
-              value={mode} 
+          <ToolModalPanel title="重命名规则">
+            <Radio.Group
+              className="app-tool-modal__radio-stack"
+              value={mode}
               onChange={e => setMode(e.target.value)}
               style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
             >
@@ -251,13 +260,13 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
               <Radio value="prefix">添加前缀</Radio>
               <Radio value="suffix">添加后缀</Radio>
             </Radio.Group>
-          </Card>
+          </ToolModalPanel>
 
           {mode === 'sequence' && (
-            <Card size="small">
-              <Space direction="vertical" style={{ width: '100%' }}>
+            <ToolModalPanel>
+              <Space direction="vertical" className="app-tool-modal__field-stack">
                 <div>
-                  <Text>起始序号</Text>
+                  <span className="app-tool-modal__field-label">起始序号</span>
                   <InputNumber 
                     value={sequenceStart} 
                     onChange={v => setSequenceStart(v || 1)} 
@@ -266,7 +275,7 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                   />
                 </div>
                 <div>
-                  <Text>序号位数</Text>
+                  <span className="app-tool-modal__field-label">序号位数</span>
                   <InputNumber 
                     value={sequencePadding} 
                     onChange={v => setSequencePadding(v || 1)} 
@@ -276,12 +285,12 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                   />
                 </div>
               </Space>
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'date' && (
-            <Card size="small">
-              <Text>日期格式</Text>
+            <ToolModalPanel>
+              <span className="app-tool-modal__field-label">日期格式</span>
               <Select 
                 value={dateFormat} 
                 onChange={setDateFormat}
@@ -291,12 +300,12 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                 <Select.Option value="YYYYMMDD">YYYYMMDD</Select.Option>
                 <Select.Option value="MM-DD-YYYY">MM-DD-YYYY</Select.Option>
               </Select>
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'replace' && (
-            <Card size="small">
-              <Space direction="vertical" style={{ width: '100%' }}>
+            <ToolModalPanel>
+              <Space direction="vertical" className="app-tool-modal__field-stack">
                 <Input 
                   placeholder="查找内容" 
                   value={findText} 
@@ -314,32 +323,33 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                   区分大小写
                 </Checkbox>
               </Space>
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'prefix' && (
-            <Card size="small">
+            <ToolModalPanel>
               <Input 
                 placeholder="前缀内容" 
                 value={prefix} 
                 onChange={e => setPrefix(e.target.value)} 
               />
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'suffix' && (
-            <Card size="small">
+            <ToolModalPanel>
               <Input 
                 placeholder="后缀内容" 
                 value={suffix} 
                 onChange={e => setSuffix(e.target.value)} 
               />
-            </Card>
+            </ToolModalPanel>
           )}
 
-          <Card size="small" title="冲突处理">
-            <Radio.Group 
-              value={conflictAction} 
+          <ToolModalPanel title="冲突处理">
+            <Radio.Group
+              className="app-tool-modal__radio-stack"
+              value={conflictAction}
               onChange={e => setConflictAction(e.target.value)}
               style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
             >
@@ -347,116 +357,56 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
               <Radio value="overwrite">覆盖</Radio>
               <Radio value="rename">重命名</Radio>
             </Radio.Group>
-          </Card>
-        </div>
-
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Text strong>预览效果 ({files.length} 个文件)</Text>
-              <Button 
-                type="link" 
-                icon={<FolderOutlined />} 
-                onClick={handleSelectOutputPath}
-                style={{ padding: 0 }}
-              >
+          </ToolModalPanel>
+          </>
+        }
+        main={
+          <ToolModalMainSection
+            title={`预览效果 (${files.length} 个文件)`}
+            extra={
+              <Button type="link" icon={<FolderOutlined />} onClick={handleSelectOutputPath} style={{ padding: 0 }}>
                 {displayOutputPath ? displayOutputPath.split(/[/\\]/).pop() : '选择输出目录'}
               </Button>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                overflow: 'hidden',
-                border: '1px solid #d9d9d9',
-                borderRadius: 6,
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0
-              }}
-            >
-              {files.length === 0 ? (
-                <div
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minHeight: 0
-                  }}
-                >
-                  <Empty description="请先选择文件" />
-                </div>
-              ) : (
-                <div style={{ flex: 1, minHeight: 0, overflow: 'auto', width: '100%' }}>
-                  <List
-                    size="small"
-                    style={{ width: '100%' }}
-                    dataSource={previewResults}
-                    renderItem={(item, index) => (
-                      <List.Item style={{ width: '100%', maxWidth: '100%', display: 'block' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
-                          <Text type="secondary" style={{ flexShrink: 0 }}>{index + 1}.</Text>
-                          <Text ellipsis style={{ flex: 1, minWidth: 0 }}>
-                            {item.originalName}
-                          </Text>
-                          <ArrowRightOutlined style={{ flexShrink: 0, color: 'rgba(0,0,0,0.45)' }} />
-                          <Text ellipsis style={{ flex: 1, minWidth: 0, color: '#52c41a' }}>
-                            {item.newName}
-                          </Text>
-                        </div>
-                      </List.Item>
-                    )}
-                  />
-                </div>
-              )}
-            </div>
-          {isProcessing && (
-            <Progress 
-              percent={Math.round((progress.current / progress.total) * 100)} 
-              status="active" 
-              style={{ marginTop: 8 }}
-            />
-          )}
-        </div>
-      </div>
+            }
+            footer={
+              isProcessing ? (
+                <Progress
+                  percent={Math.round((progress.current / progress.total) * 100)}
+                  status="active"
+                  style={{ marginTop: 8 }}
+                />
+              ) : null
+            }
+          >
+            <ToolModalPreview empty={<Empty description="请先选择文件" />}>
+              {files.length > 0
+                ? previewResults.map((item, index) => (
+                    <div key={item.original} className="app-tool-modal__preview-item">
+                      <span className="app-tool-modal__preview-index">{index + 1}.</span>
+                      <Text ellipsis style={{ flex: 1, minWidth: 0 }}>
+                        {item.originalName}
+                      </Text>
+                      <ArrowRightOutlined className="app-tool-modal__preview-arrow" />
+                      <Text ellipsis className="app-tool-modal__preview-new" style={{ flex: 1, minWidth: 0 }}>
+                        {item.newName}
+                      </Text>
+                    </div>
+                  ))
+                : null}
+            </ToolModalPreview>
+          </ToolModalMainSection>
+        }
+      />
 
-      <Modal
-        open={confirmModalVisible}
-        onCancel={handleConfirmClose}
-        footer={null}
-        closable={false}
-        centered
-        width={360}
-      >
-        <div style={{ position: 'relative', padding: '8px 0' }}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <Text style={{ fontSize: 16 }}>请选择重命名方式：</Text>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Button 
-              type="primary" 
-              block 
-              onClick={() => doRename(false)}
-              style={{ height: 32 }}
-            >
-              直接修改
-            </Button>
-            <Button 
-              block 
-              onClick={() => doRename(true)}
-              style={{ height: 32 }}
-            >
-              重新生成
-            </Button>
-          </div>
-        </div>
-        <Button
-          type="text"
-          icon={<CloseOutlined />}
-          onClick={handleConfirmClose}
-          style={{ position: 'absolute', top: 0, right: 0 }}
-        />
-      </Modal>
-    </Modal>
+      <ToolConfirmModal open={confirmModalVisible} onClose={handleConfirmClose} prompt="请选择重命名方式：">
+        <Button type="primary" block onClick={() => doRename(false)}>
+          直接修改
+        </Button>
+        <Button block onClick={() => doRename(true)}>
+          重新生成
+        </Button>
+      </ToolConfirmModal>
+    </ToolModal>
   )
 }
 

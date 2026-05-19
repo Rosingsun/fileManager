@@ -1,6 +1,13 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, Input, InputNumber, Select, message, Typography, Empty, Radio } from 'antd'
+import { Button, Space, Card, Input, InputNumber, Select, message, Typography, Empty, Radio } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, EyeOutlined } from '@ant-design/icons'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+} from '../ToolModal'
 import type { WatermarkOptions } from '../../../types'
 import { logSignedInUserAction } from '../../../utils'
 import ImageViewer from '../../ImageViewer/ImageViewer'
@@ -212,29 +219,28 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
   ]
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
+      onClose={onClose}
       title="添加水印"
-      width={900}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
       footer={
-        <Space>
+        <>
           <Button onClick={onClose}>取消</Button>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             onClick={handleExecute}
             disabled={images.length < 1 || !outputPath || isProcessing}
             loading={isProcessing}
           >
             {isProcessing ? '处理中...' : '添加水印'}
           </Button>
-        </Space>
+        </>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择图片">
+      <ToolModalLayout
+        sidebar={
+          <>
+          <ToolModalPanel title="选择图片">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectImages}
@@ -244,9 +250,9 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
               添加图片
             </Button>
             <Text type="secondary">已选择: {images.length} 张图片</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="水印类型">
+          <ToolModalPanel title="水印类型">
             <Radio.Group 
               value={watermarkType} 
               onChange={e => setWatermarkType(e.target.value)}
@@ -255,10 +261,10 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
               <Radio value="text">文字水印</Radio>
               <Radio value="image">图片水印</Radio>
             </Radio.Group>
-          </Card>
+          </ToolModalPanel>
 
           {watermarkType === 'text' ? (
-            <Card size="small" title="文字设置">
+            <ToolModalPanel title="文字设置">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Input 
                   placeholder="水印文字"
@@ -285,9 +291,9 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
                   />
                 </div>
               </Space>
-            </Card>
+            </ToolModalPanel>
           ) : (
-            <Card size="small" title="图片设置">
+            <ToolModalPanel title="图片设置">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Button 
                   icon={<FolderOpenOutlined />} 
@@ -308,10 +314,10 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
                   />
                 </div>
               </Space>
-            </Card>
+            </ToolModalPanel>
           )}
 
-          <Card size="small" title="位置设置">
+          <ToolModalPanel title="位置设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Select 
                 value={position} 
@@ -348,75 +354,49 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
                 <Text style={{ marginLeft: 8 }}>平铺水印</Text>
               </div>
             </Space>
-          </Card>
-        </div>
-
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text strong>图片列表 ({images.length} 张)</Text>
-            <Button 
-              type="link" 
-              icon={<FolderOutlined />} 
-              onClick={handleSelectOutputPath}
-              style={{ padding: 0 }}
-            >
-              {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
-            </Button>
-          </div>
-          <div
-            style={{
-              flex: 1,
-              overflow: 'auto',
-              border: '1px solid #d9d9d9',
-              borderRadius: 6,
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0
-            }}
+          </ToolModalPanel>
+          </>
+        }
+        main={
+          <ToolModalMainSection
+            title={`图片列表 (${images.length} 张)`}
+            extra={
+              <Button type="link" icon={<FolderOutlined />} onClick={handleSelectOutputPath} style={{ padding: 0 }}>
+                {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
+              </Button>
+            }
           >
-            {images.length === 0 ? (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 0
-                }}
-              >
-                <Empty description="请先添加图片" />
-              </div>
-            ) : (
-              <div style={{ padding: 8, width: '100%', boxSizing: 'border-box', flex: 1, minHeight: 0 }}>
-                {images.map((img, index) => (
-                  <Card
-                    size="small"
-                    key={index}
-                    style={{ marginBottom: 8, width: '100%' }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-                        <LocalFileImagePreview
-                          filePath={img.path}
-                          alt={img.name}
-                          maxEdge={200}
-                          style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
-                        />
-                        <Text ellipsis style={{ flex: 1, minWidth: 0 }}>{index + 1}. {img.name}</Text>
-                      </div>
-                      <Space size="small" style={{ flexShrink: 0 }}>
-                        <Button size="small" icon={<EyeOutlined />} onClick={() => handlePreview(index)} loading={isGeneratingPreview && previewIndex === index} />
-                        <Button size="small" icon={<DeleteOutlined />} onClick={() => handleRemoveImage(index)} danger />
-                      </Space>
+            <ToolModalPreview empty={<Empty description="请先添加图片" />} padded>
+              {images.map((img, index) => (
+                <Card key={index} size="small" className="app-tool-modal__list-card">
+                  <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                      <LocalFileImagePreview
+                        filePath={img.path}
+                        alt={img.name}
+                        maxEdge={200}
+                        style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                      />
+                      <Text ellipsis style={{ flex: 1, minWidth: 0 }}>
+                        {index + 1}. {img.name}
+                      </Text>
                     </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
+                    <Space size="small" style={{ flexShrink: 0 }}>
+                      <Button
+                        size="small"
+                        icon={<EyeOutlined />}
+                        onClick={() => handlePreview(index)}
+                        loading={isGeneratingPreview && previewIndex === index}
+                      />
+                      <Button size="small" icon={<DeleteOutlined />} onClick={() => handleRemoveImage(index)} danger />
+                    </Space>
+                  </div>
+                </Card>
+              ))}
+            </ToolModalPreview>
+          </ToolModalMainSection>
+        }
+      />
       {previewImage && (
         <ImageViewer
           images={[{ id: 'preview', url: previewImage, filename: '预览', width: 0, height: 0, size: 0, format: 'jpeg', createdAt: '', modifiedAt: '' }]}
@@ -424,7 +404,7 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
           onClose={handleClosePreview}
         />
       )}
-    </Modal>
+    </ToolModal>
   )
 }
 

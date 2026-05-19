@@ -1,6 +1,13 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, Select, InputNumber, message, Typography, Empty } from 'antd'
+import { Button, Space, Card, Select, InputNumber, message, Typography, Empty } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+} from '../ToolModal'
 import type { FormatConversionOptions } from '../../../types'
 import { logSignedInUserAction } from '../../../utils'
 import { useToolOutputPathStore } from '../../../stores'
@@ -136,12 +143,10 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
   }
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
-      title="图片类型转换"
-      width={900}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
+      onClose={onClose}
+      title="图片类型转换"
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -156,9 +161,9 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
         </Space>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择图片">
+      <div className="app-tool-modal__layout" style={{ display: 'flex', gap: 14, height: 'min(62vh, 560px)', minHeight: 320 }}>
+        <div className="app-tool-modal__sidebar">
+          <ToolModalPanel title="选择图片">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectImages}
@@ -168,9 +173,9 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
               添加图片
             </Button>
             <Text type="secondary">已选择: {images.length} 张图片</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="输出格式">
+          <ToolModalPanel title="输出格式">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
                 <Text>目标格式</Text>
@@ -205,7 +210,7 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
                 </div>
               )}
             </Space>
-          </Card>
+          </ToolModalPanel>
         </div>
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -277,7 +282,7 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
           </div>
         </div>
       </div>
-    </Modal>
+    </ToolModal>
   )
 }
 

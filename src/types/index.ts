@@ -172,6 +172,12 @@ export interface ImageQualityThresholds {
   compositionCentroidOffThirdsMin: number
   /** 归一化重心距边缘小于此值则提示「主体贴近边缘」 */
   compositionNearEdge: number
+  /** 拉普拉斯均值低于此值则提示可能模糊（0–255 尺度） */
+  minSharpnessLapMean: number
+  /** 局部噪点估计高于此值则提示噪点偏多（0–255 尺度） */
+  maxNoiseLevel: number
+  /** 通道偏离灰度均值的比例高于此值则提示色偏（0–1） */
+  maxColorCastScore: number
 }
 
 export const DEFAULT_IMAGE_QUALITY_THRESHOLDS: ImageQualityThresholds = {
@@ -182,7 +188,10 @@ export const DEFAULT_IMAGE_QUALITY_THRESHOLDS: ImageQualityThresholds = {
   underexposedMeanLuma: 48,
   compositionCenterEnergyRatio: 0.52,
   compositionCentroidOffThirdsMin: 0.22,
-  compositionNearEdge: 0.09
+  compositionNearEdge: 0.09,
+  minSharpnessLapMean: 9,
+  maxNoiseLevel: 16,
+  maxColorCastScore: 0.14
 }
 
 export interface ImageQualityScanConfig {
@@ -206,6 +215,9 @@ export type ImageQualityFlag =
   | 'subjectVeryCentered'
   | 'subjectOffThirds'
   | 'subjectNearEdge'
+  | 'blurry'
+  | 'noisy'
+  | 'colorCast'
 
 export interface ImageQualityScores {
   meanLuma: number
@@ -216,6 +228,9 @@ export interface ImageQualityScores {
   centroidOffsetNorm: number
   centerCellEnergyRatio: number
   minThirdsDistance: number
+  sharpnessLapMean: number
+  noiseLevel: number
+  colorCastScore: number
 }
 
 export interface ImageQualityItemResult {

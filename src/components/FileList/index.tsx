@@ -14,7 +14,6 @@ import {
   getFileExtension,
   imageLoader,
   isPreviewableImage,
-  isLikelyLivePhoto,
   isRawImage,
   logSignedInUserAction,
   shouldHideAsLiveCompanion
@@ -626,7 +625,6 @@ const FileList: React.FC = () => {
               onRegisterRef={registerImageRef}
               onPageChange={handlePageChange}
               isPreviewable={isPreviewable}
-              siblingFileNames={siblingNames}
             />
           )}
         </div>
@@ -692,7 +690,6 @@ const FileList: React.FC = () => {
         <ImageViewer
           images={previewImages.map((src, index) => {
             const f = previewableFiles[index]
-            const meta = f ? previewMediaMeta.get(f.path) : undefined
             return {
               id: `${index}-${src}`,
               url: src,
@@ -702,9 +699,6 @@ const FileList: React.FC = () => {
               height: 0,
               size: f?.size ?? 0,
               format: getFileExtension(f?.name || 'jpg'),
-              mediaKind: meta?.kind,
-              liveVideoPath: meta?.liveVideoPath,
-              rawUsesEmbeddedPreview: meta?.rawUsesEmbeddedPreview,
               createdAt: f ? new Date(f.createdTime).toISOString() : '',
               modifiedAt: f ? new Date(f.modifiedTime).toISOString() : ''
             }

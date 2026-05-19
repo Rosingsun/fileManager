@@ -1,6 +1,13 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, InputNumber, Select, Input, message, Typography, Empty, Row, Col } from 'antd'
+import { Button, Space, Card, InputNumber, Select, Input, message, Typography, Empty, Row, Col } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined } from '@ant-design/icons'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+} from '../ToolModal'
 import type { ThumbnailOptions, ThumbnailResult } from '../../../types'
 import { useToolOutputPathStore } from '../../../stores'
 import { logSignedInUserAction } from '../../../utils'
@@ -108,12 +115,10 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
   ]
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
-      title="缩略图生成"
-      width={900}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
+      onClose={onClose}
+      title="缩略图生成"
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -128,9 +133,9 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
         </Space>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择图片">
+      <div className="app-tool-modal__layout" style={{ display: 'flex', gap: 14, height: 'min(62vh, 560px)', minHeight: 320 }}>
+        <div className="app-tool-modal__sidebar">
+          <ToolModalPanel title="选择图片">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectFiles}
@@ -140,9 +145,9 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
               添加图片
             </Button>
             <Text type="secondary">已选择: {files.length} 张图片</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="尺寸设置">
+          <ToolModalPanel title="尺寸设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Row gutter={8}>
                 <Col span={12}>
@@ -188,9 +193,9 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
                 </Select>
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="输出格式">
+          <ToolModalPanel title="输出格式">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Select 
                 value={format} 
@@ -212,10 +217,10 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
                 />
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="app-tool-modal__main">
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text strong>图片列表 ({files.length} 张)</Text>
             <Button 
@@ -283,7 +288,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
           </div>
         </div>
       </div>
-    </Modal>
+    </ToolModal>
   )
 }
 

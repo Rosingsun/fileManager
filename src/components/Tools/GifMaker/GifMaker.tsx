@@ -1,6 +1,13 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, InputNumber, Select, message, Typography, Empty, Slider } from 'antd'
+import { Button, Space, Card, InputNumber, Select, message, Typography, Empty, Slider } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined, FolderOutlined } from '@ant-design/icons'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+} from '../ToolModal'
 import type { GifFrame, GifOptions } from '../../../types'
 import { logSignedInUserAction } from '../../../utils'
 import { useToolOutputPathStore } from '../../../stores'
@@ -124,29 +131,28 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
   }
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
+      onClose={onClose}
       title="GIF制作"
-      width={900}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
+
       footer={
-        <Space>
+        <>
           <Button onClick={onClose}>取消</Button>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             onClick={handleExecute}
             disabled={frames.length < 2 || !outputPath || isProcessing}
             loading={isProcessing}
           >
             {isProcessing ? '处理中...' : '创建GIF'}
           </Button>
-        </Space>
+        </>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择图片">
+      <div className="app-tool-modal__layout" style={{ display: 'flex', gap: 14, height: 'min(62vh, 560px)', minHeight: 320 }}>
+        <div className="app-tool-modal__sidebar">
+          <ToolModalPanel title="选择图片">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectFrames}
@@ -156,9 +162,9 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
               添加帧
             </Button>
             <Text type="secondary">已选择: {frames.length} 帧</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="尺寸设置">
+          <ToolModalPanel title="尺寸设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
@@ -185,9 +191,9 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
                 </div>
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="动画设置">
+          <ToolModalPanel title="动画设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
                 <Text>帧延迟: {delay}ms</Text>
@@ -225,10 +231,10 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
                 />
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="app-tool-modal__main">
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <Text strong>帧列表 ({frames.length} 帧)</Text>
@@ -324,7 +330,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
           </div>
         </div>
       </div>
-    </Modal>
+    </ToolModal>
   )
 }
 

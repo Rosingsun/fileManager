@@ -1,6 +1,13 @@
 import React, { useState, useMemo } from 'react'
-import { Modal, Button, Space, Card, Select, InputNumber, Radio, message, Typography, Row, Col, Empty } from 'antd'
+import { Button, Space, Card, Select, InputNumber, Radio, message, Typography, Row, Col, Empty } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+} from '../ToolModal'
 import type { StitchOptions } from '../../../types'
 import { useToolOutputPathStore } from '../../../stores'
 import { logSignedInUserAction } from '../../../utils'
@@ -166,12 +173,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
   }, [images, mode, rows, cols])
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
-      title="图片拼接"
-      width={900}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
+      onClose={onClose}
+      title="图片拼接"
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -186,9 +191,9 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
         </Space>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择图片">
+      <div className="app-tool-modal__layout" style={{ display: 'flex', gap: 14, height: 'min(62vh, 560px)', minHeight: 320 }}>
+        <div className="app-tool-modal__sidebar">
+          <ToolModalPanel title="选择图片">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectImages}
@@ -198,9 +203,9 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
               添加图片
             </Button>
             <Text type="secondary">已选择: {images.length} 张图片</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="拼接模式">
+          <ToolModalPanel title="拼接模式">
             <Radio.Group 
               value={mode} 
               onChange={e => setMode(e.target.value)}
@@ -210,10 +215,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
               <Radio value="vertical">纵向拼接</Radio>
               <Radio value="grid">网格拼接</Radio>
             </Radio.Group>
-          </Card>
+          </ToolModalPanel>
 
           {mode === 'grid' && (
-            <Card size="small">
+            <ToolModalPanel>
               <Row gutter={8}>
                 <Col span={12}>
                   <Text>行数</Text>
@@ -236,10 +241,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
                   />
                 </Col>
               </Row>
-            </Card>
+            </ToolModalPanel>
           )}
 
-          <Card size="small" title="外观设置">
+          <ToolModalPanel title="外观设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
                 <Text>间距</Text>
@@ -273,9 +278,9 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
                 </Select>
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="输出设置">
+          <ToolModalPanel title="输出设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Select 
                 value={outputFormat} 
@@ -297,10 +302,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
                 />
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="app-tool-modal__main">
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text strong>图片列表 ({images.length} 张)</Text>
             <Button 
@@ -394,7 +399,7 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
           )}
         </div>
       </div>
-    </Modal>
+    </ToolModal>
   )
 }
 
