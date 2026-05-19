@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { App, Button, List, Radio, Space, Switch, Typography } from 'antd'
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
-import { useFileStore } from '../../stores'
-import { useImageEditorStore } from '../../stores'
-import { PageSection } from '../UnifiedUI'
+import { useFileStore, useImageEditorStore, useThemeStore } from '../../stores'
+import type { ThemePreference } from '../../stores'
+import { PageSection, SettingsRow } from '../UnifiedUI'
 import { type UserCenterPanelProps } from './userCenterShared'
 
 const { Text } = Typography
@@ -38,6 +38,8 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
   const loadHistoryFromStorage = useFileStore((s) => s.loadHistoryFromStorage)
   const presets = useImageEditorStore((s) => s.presets)
   const groups = useImageEditorStore((s) => s.groups)
+  const themePreference = useThemeStore((s) => s.preference)
+  const setThemePreference = useThemeStore((s) => s.setPreference)
 
   const [viewMode, setViewMode] = useState<FileListViewMode>(readFileListViewMode)
   const [autoUpload, setAutoUpload] = useState(readCosAutoUpload)
@@ -74,13 +76,21 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
       <PageSection title="使用偏好" subtitle="影响文件整理与云图库的默认行为">
         <div className="user-center-settings-list">
-          <div className="user-center-settings-row">
-            <div className="user-center-settings-row__main">
-              <Text strong>文件列表默认视图</Text>
-              <Text type="secondary" className="user-center-settings-row__hint">
-                在「文件整理」中打开目录时的展示方式
-              </Text>
-            </div>
+          <SettingsRow title="外观主题" hint="浅色、深色或跟随系统；立即应用于全应用">
+            <Radio.Group
+              value={themePreference}
+              onChange={(e) => setThemePreference(e.target.value as ThemePreference)}
+              optionType="button"
+              buttonStyle="solid"
+              size="small"
+              options={[
+                { label: '浅色', value: 'light' },
+                { label: '深色', value: 'dark' },
+                { label: '跟随系统', value: 'system' },
+              ]}
+            />
+          </SettingsRow>
+          <SettingsRow title="文件列表默认视图" hint="在「文件整理」中打开目录时的展示方式">
             <Radio.Group
               value={viewMode}
               onChange={(e) => onViewModeChange(e.target.value as FileListViewMode)}
@@ -93,16 +103,10 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
                 { label: '网格', value: 'grid' },
               ]}
             />
-          </div>
-          <div className="user-center-settings-row">
-            <div className="user-center-settings-row__main">
-              <Text strong>云图库选图后自动上传</Text>
-              <Text type="secondary" className="user-center-settings-row__hint">
-                与云图库页「选图后自动上传」开关同步
-              </Text>
-            </div>
+          </SettingsRow>
+          <SettingsRow title="云图库选图后自动上传" hint="与云图库页「选图后自动上传」开关同步">
             <Switch checked={autoUpload} onChange={onAutoUploadChange} />
-          </div>
+          </SettingsRow>
         </div>
       </PageSection>
 

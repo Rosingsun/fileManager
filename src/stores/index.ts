@@ -8,3 +8,10 @@ export {
 export { useToolOutputPathStore } from './toolOutputPathStore'
 export { useAuthStore } from './useAuthStore'
 export type { AuthUser } from './useAuthStore'
+export {
+  useThemeStore,
+  readStoredPreference,
+  resolveThemeFromPreference,
+  subscribeSystemTheme,
+} from './useThemeStore'
+export type { ThemePreference, ResolvedTheme } from './useThemeStore'

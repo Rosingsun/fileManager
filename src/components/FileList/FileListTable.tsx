@@ -12,7 +12,7 @@ import {
   SoundOutlined,
   FileZipOutlined
 } from '@ant-design/icons'
-import { formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../../utils'
+import { FILE_TYPE_ICON_COLORS, formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../../utils'
 import { ImageThumbnail } from './ImageThumbnail'
 import { CATEGORY_COLORS, CATEGORY_LABELS, MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
 import type { FileInfo } from '../../types'
@@ -71,23 +71,23 @@ export const FileListTable: React.FC<FileListTableProps> = ({
 }) => {
   const getIcon = (file: FileInfo) => {
     if (file.isDirectory) {
-      return <FolderOutlined style={{ color: '#1890ff' }} />
+      return <FolderOutlined style={{ color: FILE_TYPE_ICON_COLORS.folder }} />
     }
 
     const ext = getFileExtension(file.name)
     const iconType = getFileTypeIcon(ext, false)
 
     const iconMap: Record<string, React.ReactNode> = {
-      'image': <PictureOutlined style={{ color: '#52c41a' }} />,
-      'file-pdf': <FilePdfOutlined style={{ color: '#ff4d4f' }} />,
-      'file-word': <FileWordOutlined style={{ color: '#1890ff' }} />,
-      'file-excel': <FileExcelOutlined style={{ color: '#52c41a' }} />,
-      'video': <VideoCameraOutlined style={{ color: '#faad14' }} />,
-      'audio': <SoundOutlined style={{ color: '#722ed1' }} />,
-      'file-zip': <FileZipOutlined style={{ color: '#fa8c16' }} />
+      image: <PictureOutlined style={{ color: 'var(--app-success)' }} />,
+      'file-pdf': <FilePdfOutlined style={{ color: FILE_TYPE_ICON_COLORS.pdf }} />,
+      'file-word': <FileWordOutlined style={{ color: FILE_TYPE_ICON_COLORS.word }} />,
+      'file-excel': <FileExcelOutlined style={{ color: FILE_TYPE_ICON_COLORS.excel }} />,
+      video: <VideoCameraOutlined style={{ color: FILE_TYPE_ICON_COLORS.video }} />,
+      audio: <SoundOutlined style={{ color: FILE_TYPE_ICON_COLORS.audio }} />,
+      'file-zip': <FileZipOutlined style={{ color: FILE_TYPE_ICON_COLORS.archive }} />,
     }
 
-    return iconMap[iconType] || <FileOutlined />
+    return iconMap[iconType] || <FileOutlined style={{ color: FILE_TYPE_ICON_COLORS.default }} />
   }
 
   const columns: ColumnsType<FileInfo> = useMemo(() => [
@@ -174,7 +174,7 @@ export const FileListTable: React.FC<FileListTableProps> = ({
       render: (_: unknown, record: FileInfo) => (
         <Space>
           <span
-            style={{ color: '#1890ff', cursor: 'pointer' }}
+            className="app-text-link"
             onClick={() => onPreview(record)}
             title={isPreviewable(record) ? '预览文件' : '此文件类型不支持预览'}
           >
@@ -182,7 +182,7 @@ export const FileListTable: React.FC<FileListTableProps> = ({
           </span>
           {isPreviewable(record) && onEdit && (
             <span
-              style={{ color: '#1890ff', cursor: 'pointer' }}
+              className="app-text-link"
               onClick={() => onEdit(record)}
               title="编辑"
             >
@@ -190,7 +190,7 @@ export const FileListTable: React.FC<FileListTableProps> = ({
             </span>
           )}
           <span
-            style={{ color: '#1890ff', cursor: 'pointer' }}
+            className="app-text-link"
             onClick={() => onRename(record)}
             title="重命名"
           >

@@ -100,7 +100,7 @@
   border: 1px solid #91d5ff;
   border-radius: 6px;
   font-size: 12px;
-  color: #1890ff;
+  color: var(--app-primary);
 }
 
 .form-preview-modal .interaction-tips ul {

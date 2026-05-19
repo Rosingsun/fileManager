@@ -2,7 +2,7 @@
  * 图片查看器相关类型定义
  */
 
-import type { ImageClassificationResult } from '../../types'
+import type { ImageClassificationResult, MediaAssetKind } from '../../types'
 
 export interface Image {
   id: string
@@ -15,6 +15,9 @@ export interface Image {
   height: number
   size: number // 字节
   format: string
+  mediaKind?: MediaAssetKind
+  liveVideoPath?: string
+  rawUsesEmbeddedPreview?: boolean
   createdAt: string
   modifiedAt: string
   description?: string

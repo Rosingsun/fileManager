@@ -36,6 +36,7 @@ declare global {
         conflictAction: import('./index').FileConflictAction
       ) => Promise<import('./index').BatchFileOpResult[]>
       getImageBase64: (filePath: string) => Promise<string>
+      probeMediaAsset: (filePath: string) => Promise<import('./index').MediaAssetInfo>
       getFileStats: (
         filePath: string
       ) => Promise<{ size: number; createdTime: number; modifiedTime: number } | null>

@@ -175,7 +175,7 @@ const FormPreview: React.FC<FormPreviewProps> = ({
             backgroundColor: '#e6f7ff', 
             borderRadius: '4px',
             fontSize: '12px',
-            color: '#1890ff'
+            color: 'var(--app-primary)'
           }}>
             <p style={{ margin: 0 }}>💡 交互测试提示：</p>
             <ul style={{ margin: '5px 0 0 20px', padding: 0 }}>

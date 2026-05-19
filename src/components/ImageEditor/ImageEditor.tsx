@@ -156,24 +156,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
         overflow: 'hidden'
       }}
     >
-      <div style={{
-        display: 'flex',
-        gap: 16,
-        height: 520,
-        overflow: 'hidden'
-      }}>
-        {/* 左侧图片预览区 */}
-        <div style={{
-          flex: 1,
-          textAlign: 'center',
-          background: 'linear-gradient(135deg, #f5f5f7 0%, #ffffff 100%)',
-          borderRadius: 12,
-          padding: 20,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative'
-        }}>
+      <div className="image-editor-layout">
+        <div className="image-editor-canvas-wrap image-editor-root">
           {loadingImage ? (
             <div style={{
               display: 'flex',
@@ -181,24 +165,13 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
               alignItems: 'center',
               gap: 16
             }}>
-              <Spin size="large" style={{ color: '#007AFF' }} />
-              <div style={{
-                fontSize: 14,
-                color: '#6e6e73',
-                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
-              }}>
+              <Spin size="large" style={{ color: 'var(--app-primary)' }} />
+              <div className="image-editor-loading">
                 加载图片中...
               </div>
             </div>
           ) : imageUrl ? (
-            <div style={{
-              position: 'relative',
-              display: 'inline-block',
-              borderRadius: 12,
-              overflow: 'hidden',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
-              backgroundColor: '#ffffff'
-            }}>
+            <div className="image-editor-preview-frame">
               <img
                 ref={imgRef}
                 src={imageUrl}
@@ -238,51 +211,21 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
               )}
             </div>
           ) : (
-            <div style={{
-              color: '#86868b',
-              fontSize: 14,
-              fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif'
-            }}>
+            <div className="image-editor-empty">
               无法加载图片
             </div>
           )}
         </div>
 
         {/* 右侧控制面板 - 可滚动 */}
-        <div style={{
-          width: 340,
-          background: 'rgba(255, 255, 255, 0.9)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: 12,
-          border: '1px solid rgba(0, 0, 0, 0.08)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden'
-        }}>
+        <div className="image-editor-sidebar">
           {/* 预设面板 */}
-          <div style={{
-            padding: 16,
-            borderBottom: '1px solid rgba(0, 0, 0, 0.08)'
-          }}>
+          <div className="image-editor-sidebar__presets">
             <PresetsPanel onApply={handleApplyPreset} currentSettings={settings} />
           </div>
           
           {/* 编辑控件 - 可滚动 */}
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: 0,
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#c7c7cc transparent',
-            '&::-webkit-scrollbar': {
-              width: 6,
-              backgroundColor: 'transparent'
-            },
-            '&::-webkit-scrollbar-thumb': {
-              backgroundColor: '#c7c7cc',
-              borderRadius: 3
-            }
-          }}>
+          <div className="image-editor-sidebar__controls">
             <EditorControls
               settings={settings}
               onChange={handleSettingsChange}

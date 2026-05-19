@@ -1,0 +1,82 @@
+.image-editor-root {
+  background: var(--app-editor-panel-bg);
+  color: var(--app-text-primary);
+}
+
+.image-editor-toolbar {
+  background: var(--app-glass-bg);
+  border-bottom: 1px solid var(--app-border);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.image-editor-layout {
+  display: flex;
+  gap: 16px;
+  height: 520px;
+  overflow: hidden;
+}
+
+.image-editor-canvas-wrap {
+  flex: 1;
+  text-align: center;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  background: var(--app-editor-canvas-bg);
+}
+
+.image-editor-preview-frame {
+  position: relative;
+  display: inline-block;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--app-shadow-md);
+  background: var(--app-surface);
+}
+
+.image-editor-loading,
+.image-editor-empty {
+  font-size: 14px;
+  color: var(--app-text-secondary);
+}
+
+.image-editor-sidebar {
+  width: 340px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--app-editor-control-bg);
+  border: 1px solid var(--app-border);
+  backdrop-filter: blur(20px);
+}
+
+.image-editor-sidebar__presets {
+  padding: 16px;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.image-editor-sidebar__controls {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.editor-preset-name.is-selected {
+  color: var(--app-primary);
+  font-weight: 600;
+}
+
+.editor-controls-slider.ant-slider .ant-slider-handle::before {
+  border-color: var(--app-primary);
+  background: var(--app-surface);
+}
+
+.editor-controls-slider.ant-slider:hover .ant-slider-handle::before,
+.editor-controls-slider.ant-slider .ant-slider-handle:focus-visible::before {
+  border-color: var(--app-primary);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--app-primary) 35%, transparent);
+}

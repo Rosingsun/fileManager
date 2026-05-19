@@ -1,20 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { App, Button, Card, Spin, Typography } from 'antd'
+import { App, Button, Spin, Typography } from 'antd'
+import { GlassCard } from './UnifiedUI'
 import { CloudOutlined, ReloadOutlined } from '@ant-design/icons'
 import { AuthApiError, cosImageStats, formatAuthApiError, formatFileSize } from '../utils'
 
 export interface CosLibrarySummaryCardProps {
   onOpen: () => void
   refreshNonce?: number
-}
-
-const cardStyle: React.CSSProperties = {
-  background: 'rgba(255, 255, 255, 0.72)',
-  backdropFilter: 'blur(20px) saturate(180%)',
-  WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-  borderRadius: 12,
-  flexShrink: 0,
-  marginBottom: 12,
 }
 
 const CosLibrarySummaryCard: React.FC<CosLibrarySummaryCardProps> = ({ onOpen, refreshNonce = 0 }) => {
@@ -48,21 +40,22 @@ const CosLibrarySummaryCard: React.FC<CosLibrarySummaryCardProps> = ({ onOpen, r
 
   if (cosDisabled) {
     return (
-      <Card size="small" style={cardStyle} title="云图库">
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          未配置对象存储，统计不可用
+      <GlassCard size="small" className="cos-library-summary-card cos-library-summary-card--compact" title="云图库">
+        <Typography.Text type="secondary" className="cos-library-summary-card__hint">
+          未配置对象存储
         </Typography.Text>
-      </Card>
+      </GlassCard>
     )
   }
 
   return (
-    <Card
+    <GlassCard
       size="small"
-      style={{ ...cardStyle, cursor: loading ? 'default' : 'pointer' }}
+      className="cos-library-summary-card cos-library-summary-card--compact"
+      style={{ cursor: loading ? 'default' : 'pointer' }}
       title={
-        <span>
-          <CloudOutlined style={{ marginRight: 6 }} />
+        <span className="cos-library-summary-card__title">
+          <CloudOutlined />
           云图库
         </span>
       }
@@ -71,6 +64,7 @@ const CosLibrarySummaryCard: React.FC<CosLibrarySummaryCardProps> = ({ onOpen, r
           type="text"
           size="small"
           icon={<ReloadOutlined />}
+          aria-label="刷新统计"
           onClick={(e) => {
             e.stopPropagation()
             void fetchStats()
@@ -83,18 +77,22 @@ const CosLibrarySummaryCard: React.FC<CosLibrarySummaryCardProps> = ({ onOpen, r
       }}
     >
       {loading && !stats ? (
-        <Spin size="small" />
+        <div className="cos-library-summary-card__loading">
+          <Spin size="small" />
+        </div>
       ) : (
-        <>
-          <Typography.Text strong>{stats?.imageCount ?? 0}</Typography.Text>
-          <Typography.Text type="secondary"> 张图片 · </Typography.Text>
+        <div className="cos-library-summary-card__stats" title="点击进入云图库">
+          <span>
+            <Typography.Text strong>{stats?.imageCount ?? 0}</Typography.Text>
+            <Typography.Text type="secondary"> 张</Typography.Text>
+          </span>
+          <Typography.Text type="secondary" className="cos-library-summary-card__sep">
+            ·
+          </Typography.Text>
           <Typography.Text strong>{formatFileSize(stats?.totalBytes ?? 0)}</Typography.Text>
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 0, marginTop: 8, fontSize: 12 }}>
-            点击进入云图库
-          </Typography.Paragraph>
-        </>
+        </div>
       )}
-    </Card>
+    </GlassCard>
   )
 }
 

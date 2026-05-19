@@ -1,3 +1,14 @@
+/** 媒体资源类型（RAW / Apple Live / 普通图） */
+export type MediaAssetKind = 'standard' | 'raw' | 'live'
+
+export interface MediaAssetInfo {
+  kind: MediaAssetKind
+  stillPath: string
+  liveVideoPath?: string
+  rawUsesEmbeddedPreview?: boolean
+  contentIdentifier?: string
+}
+
 // 文件信息类型
 export interface FileInfo {
   name: string
@@ -79,6 +90,23 @@ export interface HistoryItem {
   path: string
   name: string // 显示名称
   timestamp: number // 访问时间戳
+}
+
+/** 文件整理操作历史（执行整理 / 提取 / 预览） */
+export type OrganizeHistoryAction = 'organize' | 'extract' | 'preview'
+
+export interface OrganizeHistoryItem {
+  id: string
+  timestamp: number
+  action: OrganizeHistoryAction
+  sourcePath: string
+  /** 可读规则摘要，如「按扩展名」「按修改日期·按月」 */
+  ruleLabel: string
+  includeSubdirectories?: boolean
+  conflictAction?: OrganizeOptions['conflictAction']
+  successCount?: number
+  failCount?: number
+  totalCount?: number
 }
 
 // 相似照片检测相关类型

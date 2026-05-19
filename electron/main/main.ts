@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, Menu } from 'electron'
-import { basename, dirname, join, parse } from 'path'
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, Menu, protocol } from 'electron'
+import { basename, dirname, join, normalize, parse } from 'path'
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync as nodeFileExistsSync, unlinkSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
@@ -14,6 +14,8 @@ import { classifyImage as runClassifyImage, clearImagenetSessionCache } from './
 import { clearClipModelCache } from './utils/clipClassifier'
 import { clearCognivisionMobilenetCache } from './services/cognivisionTfClassifier'
 import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount'
+import { IMAGE_EXTENSIONS } from './utils/fileUtils'
+import { probeMediaAsset, shutdownMediaAssetCache } from './services/mediaAssetService'
 
 function authRefreshTokenPath(): string {
   return join(app.getPath('userData'), 'auth-refresh.enc')
@@ -169,6 +171,39 @@ function getPreloadPath(): string {
   throw new Error(errorMsg)
 }
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'media-local',
+    privileges: {
+      standard: true,
+      secure: true,
+      stream: true,
+      supportFetchAPI: true,
+      corsEnabled: true
+    }
+  }
+])
+
+function registerMediaLocalProtocol(): void {
+  protocol.registerFileProtocol('media-local', (request, callback) => {
+    try {
+      let raw = request.url.replace(/^media-local:\/\//i, '')
+      raw = decodeURIComponent(raw)
+      if (process.platform === 'win32' && /^\/[a-zA-Z]:/.test(raw)) {
+        raw = raw.slice(1)
+      }
+      const filePath = normalize(raw)
+      if (!nodeFileExistsSync(filePath)) {
+        callback({ error: -2 })
+        return
+      }
+      callback({ path: filePath })
+    } catch {
+      callback({ error: -2 })
+    }
+  })
+}
+
 // 设置缓存目录，避免权限问题
 // 必须在 app.whenReady() 之前调用
 if (process.platform === 'win32') {
@@ -307,6 +342,7 @@ function setupDevToolsMenu(): void {
 }
 
 app.whenReady().then(() => {
+  registerMediaLocalProtocol()
   setupDevToolsMenu()
   createWindow()
 
@@ -325,6 +361,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   void shutdownExiftool()
+  void shutdownMediaAssetCache()
 })
 
 // IPC 处理器：打开文件
@@ -1043,15 +1080,12 @@ ipcHandle(
 )
 
 ipcHandle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
-  try {
-    const buffer = await fs.readFile(filePath)
-    const mimeType = getMimeType(filePath)
-    const base64 = buffer.toString('base64')
-    return `data:${mimeType};base64,${base64}`
-  } catch (error) {
-    console.error('[Main] 获取图片base64失败:', error)
-    return ''
-  }
+  const { getImageBase64 } = await import('./utils/imageUtils')
+  return getImageBase64(filePath)
+})
+
+ipcHandle('file:probeMediaAsset', async (_event, filePath: string) => {
+  return probeMediaAsset(filePath)
 })
 
 ipcHandle(
@@ -1077,139 +1111,16 @@ ipcHandle(
 
 // IPC 处理器：获取图片尺寸信息
 ipcHandle('file:getImageDimensions', async (_event, filePath: string): Promise<{ width: number; height: number } | null> => {
-  try {
-    const metadata = await sharp(filePath).metadata()
-    if (metadata.width && metadata.height) {
-      return {
-        width: metadata.width,
-        height: metadata.height
-      }
-    }
-    return null
-  } catch (error) {
-    console.error('[Main] 获取图片尺寸失败:', error)
-    return null
-  }
+  const { getImageDimensions } = await import('./utils/imageUtils')
+  return getImageDimensions(filePath)
 })
 
-// IPC 处理器：获取图片缩略图base64用于预览（使用sharp，动态质量压缩）
 ipcHandle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 60): Promise<string> => {
-  try {
-    // 获取文件大小，确保只处理50MB及以下的图片（包括50MB）
-    const stats = await stat(filePath)
-    const MAX_THUMBNAIL_SIZE = 50 * 1024 * 1024 // 50MB
-    
-    // 只有超过50MB的图片才跳过，小于等于50MB的都应该处理
-    if (stats.size > MAX_THUMBNAIL_SIZE) {
-      console.warn(`[Main] 跳过大于50MB的图片缩略图生成: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`)
-      return ''
-    }
-    
-    const mimeType = getMimeType(filePath)
-    const isPng = mimeType === 'image/png'||mimeType === 'image/jpeg'||mimeType === 'image/jpg'
-    const isWebp = mimeType === 'image/webp'
-    const isGif = mimeType === 'image/gif'
-    const isBmp = mimeType === 'image/bmp'
-    const isSvg = mimeType === 'image/svg+xml'
-    
-    // 根据传入的quality参数动态调整质量，默认60（中等质量）
-    // 提供更好的视觉效果，特别是在相似度检测页面
-    const effectiveQuality = Math.max(Math.min(quality || 60, 100), 1)
-    const sharpInstance = sharp(filePath)
-      .resize(size, size, {
-        fit: 'cover',
-        position: 'center'
-      })
-    
-    let buffer: Buffer
-    
-    // 针对不同图片格式进行优化处理，使用动态质量
-    if (isPng) {
-      // PNG格式转换为JPEG以减小体积（PNG不支持质量参数，转换为JPEG）
-      buffer = await sharpInstance.jpeg({
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else if (isWebp) {
-      // WebP格式使用动态质量
-      buffer = await sharpInstance.webp({
-        quality: effectiveQuality,
-        lossless: effectiveQuality === 100
-      }).toBuffer()
-    } else if (isGif) {
-      // 对于GIF，使用Sharp生成静态缩略图（保留第一帧），使用动态质量
-      buffer = await sharpInstance.jpeg({ 
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else if (isBmp) {
-      // BMP格式转换为JPEG以减小体积，使用动态质量
-      buffer = await sharpInstance.jpeg({ 
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else if (isSvg) {
-      // SVG格式转换为JPEG以减小体积，使用动态质量
-      buffer = await sharpInstance.jpeg({ 
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else {
-      // 默认使用JPEG，适用于JPEG等格式，使用动态质量
-      buffer = await sharpInstance.jpeg({
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    }
-    
-    const base64 = buffer.toString('base64')
-    // 统一输出为JPEG格式以减小体积
-    return `data:image/jpeg;base64,${base64}`
-  } catch (error) {
-    console.error('[Main] 生成图片缩略图失败:', error)
-    // 优化回退方法：尝试使用更低质量或更小尺寸
-    try {
-      // 检查文件大小，确保只处理50MB及以下的图片
-      const stats = await stat(filePath)
-      const MAX_THUMBNAIL_SIZE = 50 * 1024 * 1024 // 50MB
-      
-      // 只有超过50MB的图片才跳过，小于等于50MB的都应该尝试处理
-      if (stats.size > MAX_THUMBNAIL_SIZE) {
-        console.warn(`[Main] 回退方法：跳过大于50MB的图片: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`)
-        return ''
-      }
-      
-      // 尝试使用最低质量和更小尺寸重新生成
-      const sharpInstance = sharp(filePath)
-        .resize(50, 50, { // 使用更小的尺寸
-          fit: 'cover',
-          position: 'center'
-        })
-        .jpeg({ 
-          quality: 1, // 使用最低质量
-          progressive: false,
-          chromaSubsampling: '4:2:0'
-        })
-      
-      const buffer = await sharpInstance.toBuffer()
-      const base64 = buffer.toString('base64')
-      return `data:image/jpeg;base64,${base64}`
-    } catch (fallbackError) {
-      console.error('[Main] 回退方法也失败:', fallbackError)
-      return ''
-    }
-  }
+  const { getImageThumbnail } = await import('./utils/imageUtils')
+  return getImageThumbnail(filePath, size, quality)
 })
 
 // ==================== 相似照片检测功能 ====================
-
-// 支持的图片格式
-const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif']
 
 // 计算文件MD5哈希
 function calculateFileHash(fileBuffer: Buffer): string {

@@ -8,7 +8,6 @@ import SimilarityDetection from './components/SimilarityDetection/SimilarityDete
 import ImageClassification from './components/ImageClassification/ImageClassification'
 import ToolsEntry from './components/Tools/ToolsEntry'
 import { QuickFilter, UserCenter, UserAuthPanel, CosLibrarySummaryCard, CosImageLibraryTab } from './components'
-import './styles/App.css'
 import { useAuthStore, useFileStore } from './stores'
 import { isAuthApiConfigured } from './utils'
 import type { UserCenterAppNavigate } from './components/UserCenter/userCenterShared'
@@ -77,6 +76,13 @@ const App: React.FC = () => {
       void window.electronAPI?.setCurrentUserId?.(null)
     }
   }, [user?.id])
+
+  const loadHistoryFromStorage = useFileStore((s) => s.loadHistoryFromStorage)
+  const loadOrganizeHistoryFromStorage = useFileStore((s) => s.loadOrganizeHistoryFromStorage)
+  useEffect(() => {
+    loadHistoryFromStorage()
+    loadOrganizeHistoryFromStorage()
+  }, [loadHistoryFromStorage, loadOrganizeHistoryFromStorage])
 
   useEffect(() => {
     if (!isAuthenticated || !hasAuthBase) return
@@ -186,7 +192,7 @@ const App: React.FC = () => {
                 onOpen={() => setOrganizeCenterMode('cloud')}
                 refreshNonce={cosStatsNonce}
               />
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <div className="app-sidebar-recent">
                 <FileTree />
               </div>
             </div>

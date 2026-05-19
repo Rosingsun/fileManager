@@ -1,9 +1,11 @@
 import sharp from 'sharp'
 import { getMimeType } from './fileUtils'
+import { resolveStillPathForDisplay } from '../services/mediaAssetService'
 
 export async function getImageDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
   try {
-    const metadata = await sharp(filePath).metadata()
+    const { displayPath } = await resolveStillPathForDisplay(filePath)
+    const metadata = await sharp(displayPath).metadata()
     if (metadata.width && metadata.height) {
       return { width: metadata.width, height: metadata.height }
     }
@@ -28,8 +30,13 @@ export async function getImageThumbnail(
       console.warn(`[Main] 跳过大于50MB的图片缩略图生成: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`)
       return ''
     }
+
+    const { displayPath } = await resolveStillPathForDisplay(filePath)
+    if (displayPath !== filePath && !fs.existsSync(displayPath)) {
+      return ''
+    }
     
-    const mimeType = getMimeType(filePath)
+    const mimeType = getMimeType(displayPath)
     const isPng = mimeType === 'image/png' || mimeType === 'image/jpeg' || mimeType === 'image/jpg'
     const isWebp = mimeType === 'image/webp'
     const isGif = mimeType === 'image/gif'
@@ -37,7 +44,7 @@ export async function getImageThumbnail(
     const isSvg = mimeType === 'image/svg+xml'
     
     const effectiveQuality = Math.max(Math.min(quality || 60, 100), 1)
-    const sharpInstance = sharp(filePath)
+    const sharpInstance = sharp(displayPath)
       .resize(size, size, { fit: 'cover', position: 'center' })
     
     let buffer: Buffer
@@ -77,8 +84,9 @@ export async function getImageThumbnail(
 
 export async function getImageBase64(filePath: string): Promise<string> {
   try {
-    const buffer = await import('fs').then(fs => fs.promises.readFile(filePath))
-    const mimeType = getMimeType(filePath)
+    const { displayPath } = await resolveStillPathForDisplay(filePath)
+    const buffer = await import('fs').then(fs => fs.promises.readFile(displayPath))
+    const mimeType = getMimeType(displayPath)
     const base64 = buffer.toString('base64')
     return `data:${mimeType};base64,${base64}`
   } catch (error) {

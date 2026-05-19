@@ -116,6 +116,10 @@ try {
       return ipcRenderer.invoke('file:getImageBase64', filePath)
     },
 
+    probeMediaAsset: (filePath: string): Promise<import('../../src/types').MediaAssetInfo> => {
+      return ipcRenderer.invoke('file:probeMediaAsset', filePath)
+    },
+
     /** 本地文件大小与创建/修改时间（毫秒时间戳），用于预览侧栏信息补全 */
     getFileStats: (
       filePath: string

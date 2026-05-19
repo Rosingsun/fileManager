@@ -1,8 +1,20 @@
 import { create } from 'zustand'
-import type { FileInfo, OrganizeConfig, TreeNode, PreviewResultItem, HistoryItem, SizeRange, FileCategory, ImageClassificationResult } from '../types'
+import type {
+  FileInfo,
+  OrganizeConfig,
+  TreeNode,
+  PreviewResultItem,
+  HistoryItem,
+  OrganizeHistoryItem,
+  SizeRange,
+  FileCategory,
+  ImageClassificationResult
+} from '../types'
 
 const HISTORY_STORAGE_KEY = 'filedeal_history'
+const ORGANIZE_HISTORY_STORAGE_KEY = 'filedeal_organize_history'
 const SIZE_RANGES_STORAGE_KEY = 'filedeal_size_ranges'
+const MAX_ORGANIZE_HISTORY = 50
 
 export interface FileFilterState {
   selectedCategory: FileCategory | 'all'
@@ -81,6 +93,12 @@ interface FileStore {
   clearHistory: () => void
   loadHistoryFromStorage: () => void
 
+  organizeHistoryList: OrganizeHistoryItem[]
+  addOrganizeHistory: (item: Omit<OrganizeHistoryItem, 'id' | 'timestamp'>) => void
+  removeOrganizeHistory: (id: string) => void
+  clearOrganizeHistory: () => void
+  loadOrganizeHistoryFromStorage: () => void
+
   // 文件大小分类范围
   sizeRanges: SizeRange[]
   addSizeRange: (range: Omit<SizeRange, 'id'>) => boolean
@@ -154,6 +172,31 @@ export const useFileStore = create<FileStore>((set, get) => ({
   },
   loadHistoryFromStorage: () => {
     set({ historyList: safeStorage.get(HISTORY_STORAGE_KEY, []) })
+  },
+
+  organizeHistoryList: safeStorage.get<OrganizeHistoryItem[]>(ORGANIZE_HISTORY_STORAGE_KEY, []),
+  addOrganizeHistory: (item) => {
+    const entry: OrganizeHistoryItem = {
+      ...item,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      timestamp: Date.now()
+    }
+    const prev = get().organizeHistoryList
+    const newList = [entry, ...prev].slice(0, MAX_ORGANIZE_HISTORY)
+    set({ organizeHistoryList: newList })
+    safeStorage.set(ORGANIZE_HISTORY_STORAGE_KEY, newList)
+  },
+  removeOrganizeHistory: (id: string) => {
+    const newList = get().organizeHistoryList.filter((x) => x.id !== id)
+    set({ organizeHistoryList: newList })
+    safeStorage.set(ORGANIZE_HISTORY_STORAGE_KEY, newList)
+  },
+  clearOrganizeHistory: () => {
+    set({ organizeHistoryList: [] })
+    safeStorage.set(ORGANIZE_HISTORY_STORAGE_KEY, [])
+  },
+  loadOrganizeHistoryFromStorage: () => {
+    set({ organizeHistoryList: safeStorage.get(ORGANIZE_HISTORY_STORAGE_KEY, []) })
   },
 
   sizeRanges: safeStorage.get(SIZE_RANGES_STORAGE_KEY, DEFAULT_SIZE_RANGES),

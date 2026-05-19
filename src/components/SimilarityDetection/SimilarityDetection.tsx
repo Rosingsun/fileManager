@@ -4,7 +4,7 @@ import { CameraOutlined, RadarChartOutlined, StopOutlined } from '@ant-design/ic
 import type { SimilarityScanConfig, SimilarityScanResult, SimilarityScanProgress } from '../../types'
 import ScanConfig from './ScanConfig'
 import ScanResults from './ScanResults'
-import { PageSection } from '../UnifiedUI'
+import { PageHeader, PageSection } from '../UnifiedUI'
 import { logSignedInUserAction } from '../../utils'
 import './SimilarityDetection.css'
 
@@ -86,18 +86,12 @@ const SimilarityDetection: React.FC = () => {
       <Card
         className="app-surface-card similarity-shell"
         title={
-          <div className="similarity-shell__header">
-            <div className="similarity-shell__title">
-              <span className="similarity-shell__icon">
-                <RadarChartOutlined />
-              </span>
-              <div>
-                <div className="similarity-shell__heading">相似照片检测</div>
-                <div className="similarity-shell__subheading">按统一工作面板流程扫描、比对和清理重复或相近照片</div>
-              </div>
-            </div>
-            <Tag color="processing" bordered={false}>智能比对</Tag>
-          </div>
+          <PageHeader
+            icon={<RadarChartOutlined />}
+            title="相似照片检测"
+            subtitle="按统一工作面板流程扫描、比对和清理重复或相近照片"
+            extra={<Tag color="processing" bordered={false}>智能比对</Tag>}
+          />
         }
         variant="borderless"
       >

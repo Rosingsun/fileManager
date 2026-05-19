@@ -9,7 +9,17 @@ import {
 import { useFileStore } from '../../stores'
 import { useImageClassificationStore } from '../../stores'
 import { useFileSystem } from '../../hooks'
-import { filterFiles, getFileExtension, imageLoader, logSignedInUserAction } from '../../utils'
+import {
+  filterFiles,
+  getFileExtension,
+  imageLoader,
+  isPreviewableImage,
+  isLikelyLivePhoto,
+  isRawImage,
+  logSignedInUserAction,
+  shouldHideAsLiveCompanion
+} from '../../utils'
+import type { MediaAssetInfo } from '../../types'
 import { useFilePreview } from './useFilePreview'
 import { FileListHeader } from './FileListHeader'
 import { FileListTable } from './FileListTable'
@@ -69,6 +79,7 @@ const FileList: React.FC = () => {
   const [previewIndex, setPreviewIndex] = useState(0)
   const [previewImages, setPreviewImages] = useState<string[]>([])
   const [previewableFiles, setPreviewableFiles] = useState<FileInfo[]>([])
+  const [previewMediaMeta, setPreviewMediaMeta] = useState<Map<string, MediaAssetInfo>>(new Map())
 
   // 编辑器
   const [editorVisible, setEditorVisible] = useState(false)
@@ -134,12 +145,18 @@ const FileList: React.FC = () => {
     setSelectedQuality('all')
   }, [currentPath])
 
+  const siblingNames = useMemo(
+    () => fileList.filter(f => !f.isDirectory).map(f => f.name),
+    [fileList]
+  )
+
   const isPreviewable = useCallback((file: FileInfo): boolean => {
     if (file.isDirectory) return false
     const ext = getFileExtension(file.name).toLowerCase()
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp']
-    return imageExtensions.includes(ext)
-  }, [])
+    if (!isPreviewableImage(ext)) return false
+    if (shouldHideAsLiveCompanion(file.name, siblingNames)) return false
+    return true
+  }, [siblingNames])
 
   const getImageFiles = useCallback(() => {
     return fileList.filter(f => !f.isDirectory && isPreviewable(f))
@@ -161,6 +178,21 @@ const FileList: React.FC = () => {
     const index = imageFiles.findIndex(f => f.path === file.path)
     if (index >= 0) {
       setPreviewableFiles(imageFiles)
+
+      const metaMap = new Map<string, MediaAssetInfo>()
+      if (window.electronAPI?.probeMediaAsset) {
+        await Promise.all(
+          imageFiles.map(async (f) => {
+            try {
+              const info = await window.electronAPI!.probeMediaAsset(f.path)
+              metaMap.set(f.path, info)
+            } catch {
+              metaMap.set(f.path, { kind: 'standard', stillPath: f.path })
+            }
+          })
+        )
+      }
+      setPreviewMediaMeta(metaMap)
 
       const imageUrls: string[] = imageFiles.map((f) => {
         const previewData = previews.get(f.path)
@@ -594,6 +626,7 @@ const FileList: React.FC = () => {
               onRegisterRef={registerImageRef}
               onPageChange={handlePageChange}
               isPreviewable={isPreviewable}
+              siblingFileNames={siblingNames}
             />
           )}
         </div>
@@ -659,6 +692,7 @@ const FileList: React.FC = () => {
         <ImageViewer
           images={previewImages.map((src, index) => {
             const f = previewableFiles[index]
+            const meta = f ? previewMediaMeta.get(f.path) : undefined
             return {
               id: `${index}-${src}`,
               url: src,
@@ -668,6 +702,9 @@ const FileList: React.FC = () => {
               height: 0,
               size: f?.size ?? 0,
               format: getFileExtension(f?.name || 'jpg'),
+              mediaKind: meta?.kind,
+              liveVideoPath: meta?.liveVideoPath,
+              rawUsesEmbeddedPreview: meta?.rawUsesEmbeddedPreview,
               createdAt: f ? new Date(f.createdTime).toISOString() : '',
               modifiedAt: f ? new Date(f.modifiedTime).toISOString() : ''
             }

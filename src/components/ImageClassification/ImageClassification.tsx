@@ -121,7 +121,7 @@ const ManualDownloadModal: React.FC<{
                 <Space direction="vertical" size="small" style={{ marginTop: 8 }}>
                   {downloadUrls.map((url, index) => (
                     <div key={index} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <DownloadOutlined style={{ color: '#1890ff' }} />
+                      <DownloadOutlined style={{ color: 'var(--app-primary)' }} />
                       <a onClick={() => handleOpenLink(url)} style={{ fontSize: 13 }}>
                         {getLinkName(url, index)}
                       </a>
@@ -161,7 +161,7 @@ const ManualDownloadModal: React.FC<{
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           style={{
-            border: `2px dashed ${isDragging ? '#1890ff' : '#d9d9d9'}`,
+            border: `2px dashed ${isDragging ? 'var(--app-primary)' : 'var(--app-border)'}`,
             borderRadius: 8,
             padding: '40px 20px',
             textAlign: 'center',
@@ -171,7 +171,7 @@ const ManualDownloadModal: React.FC<{
           }}
           onClick={handleSelectFile}
         >
-          <InboxOutlined style={{ fontSize: 48, color: isDragging ? '#1890ff' : '#999' }} />
+          <InboxOutlined style={{ fontSize: 48, color: isDragging ? 'var(--app-primary)' : 'var(--app-text-tertiary)' }} />
           <p style={{ marginTop: 16, marginBottom: 8, fontSize: 16 }}>
             {isDragging ? '释放文件以保存' : '点击或拖拽模型文件到此区域'}
           </p>

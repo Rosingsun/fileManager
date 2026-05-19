@@ -19,7 +19,7 @@ import {
   operationLogActionLabel,
   type OperationLogEntry,
 } from '../../utils'
-import { PageSection, StatCard } from '../UnifiedUI'
+import { PageSection, StatCard, ToolTile } from '../UnifiedUI'
 import { type UserCenterPanelProps } from './userCenterShared'
 
 const { Text } = Typography
@@ -96,10 +96,10 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
         <Row gutter={[12, 12]}>
           {SHORTCUTS.map((s) => (
             <Col xs={12} sm={8} md={8} key={s.key}>
-              <button
-                type="button"
-                className="user-center-shortcut-tile"
-                style={{ ['--shortcut-accent' as string]: s.accent }}
+              <ToolTile
+                label={s.label}
+                icon={s.icon}
+                accent={s.accent}
                 onClick={() =>
                   onNavigateApp({
                     type: 'tab',
@@ -107,10 +107,7 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
                     organizeMode: s.cloud ? 'cloud' : 'local',
                   })
                 }
-              >
-                <span className="user-center-shortcut-tile__icon">{s.icon}</span>
-                <span className="user-center-shortcut-tile__label">{s.label}</span>
-              </button>
+              />
             </Col>
           ))}
         </Row>

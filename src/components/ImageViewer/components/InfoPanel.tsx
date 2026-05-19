@@ -7,6 +7,8 @@ import FileInfoSection from './FileInfoSection'
 import ExifInfoSection from './ExifInfoSection'
 import ColorPalette from './ColorPalette'
 import Toolbar from './Toolbar'
+import LivePhotoControls from './LivePhotoControls'
+import type { LivePlaybackMode } from './LivePhotoPlayer'
 import type { Image } from '../types'
 import './InfoPanel.css'
 
@@ -31,6 +33,8 @@ export interface InfoPanelProps {
   onFlipHorizontal: () => void
   onFlipVertical: () => void
   onReset: () => void
+  livePlaybackMode?: LivePlaybackMode
+  onLivePlaybackModeChange?: (mode: LivePlaybackMode) => void
 }
 
 const InfoPanel: React.FC<InfoPanelProps> = ({
@@ -50,7 +54,9 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
   onRotate,
   onFlipHorizontal,
   onFlipVertical,
-  onReset
+  onReset,
+  livePlaybackMode = 'once',
+  onLivePlaybackModeChange
 }) => {
   if (!image) {
     return (
@@ -76,6 +82,12 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
             backgroundColor={backgroundColor}
             onBackgroundColorChange={onBackgroundColorChange}
           />
+        {image.mediaKind === 'live' && image.liveVideoPath && onLivePlaybackModeChange && (
+          <LivePhotoControls
+            playbackMode={livePlaybackMode}
+            onPlaybackModeChange={onLivePlaybackModeChange}
+          />
+        )}
         <Toolbar
           currentIndex={currentIndex}
           totalCount={totalCount}

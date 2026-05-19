@@ -1,14 +1,3 @@
-import type { CSSProperties } from 'react'
-
-export const userCenterCardStyle: CSSProperties = {
-  background: 'var(--app-surface-elevated)',
-  backdropFilter: 'blur(20px) saturate(180%)',
-  WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-  borderRadius: 'var(--app-radius-lg)',
-  border: '1px solid var(--app-border)',
-  boxShadow: 'var(--app-shadow-xs)',
-}
-
 export type UserCenterTabKey =
   | 'overview'
   | 'stats'

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Card,
   Form,
   Input,
   Button,
@@ -50,9 +49,9 @@ import UserCenterOverviewTab from './UserCenter/UserCenterOverviewTab'
 import UserCenterUsageStatsTab from './UserCenter/UserCenterUsageStatsTab'
 import UserCenterPreferencesTab from './UserCenter/UserCenterPreferencesTab'
 import UserCenterSidebar, { type UserCenterSidebarNavEntry } from './UserCenter/UserCenterSidebar'
+import { GlassCard, PageSection } from './UnifiedUI'
 import {
   desensitizeEmail,
-  userCenterCardStyle,
   type UserCenterAppNavigate,
   type UserCenterTabKey,
 } from './UserCenter/userCenterShared'
@@ -225,8 +224,6 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
     })
   }, [])
 
-  const cardStyle = userCenterCardStyle
-
   const checkServiceHealth = async () => {
     if (!isAuthApiConfigured()) return
     setHealthChecking(true)
@@ -371,7 +368,7 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
             {activeUserTab === 'stats' && <UserCenterUsageStatsTab userId={user.id} />}
             {activeUserTab === 'preferences' && <UserCenterPreferencesTab onNavigateApp={onNavigateApp} />}
             {activeUserTab === 'profile' && (
-              <Card title="资料与展示" style={cardStyle} className="user-center-panel-card">
+              <GlassCard title="资料与展示" className="user-center-panel-card">
                 <Space align="start" size="large" wrap className="user-center-profile-header user-center-profile-header--panel">
                         <button
                           type="button"
@@ -432,14 +429,13 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                           </div>
                         </Form.Item>
                       </Form>
-              </Card>
+              </GlassCard>
             )}
             {activeUserTab === 'security' && (
-              <Card
-                      title="修改登录密码"
-                      style={cardStyle}
-                      extra={<Tag color="blue">修改后所有设备需重新登录</Tag>}
-                    >
+              <GlassCard
+                title="修改登录密码"
+                extra={<Tag color="blue">修改后所有设备需重新登录</Tag>}
+              >
                       <Alert
                         type="info"
                         showIcon
@@ -490,14 +486,14 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                           </div>
                         </Form.Item>
                       </Form>
-              </Card>
+              </GlassCard>
             )}
             {activeUserTab === 'oplog' && (
               <OperationLogTab userId={user.id} onOpenUsageStats={() => onUserTabChange('stats')} />
             )}
             {activeUserTab === 'invites' && (
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                      <Card title="生成邀请码" style={cardStyle}>
+                      <PageSection title="生成邀请码">
                         <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
                           同一时间仅保留一条可用邀请码；再次生成会使上一条立即失效。邀请码自创建起 3 天内有效。
                         </Typography.Paragraph>
@@ -541,8 +537,8 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                             生成新邀请码
                           </Button>
                         </div>
-                      </Card>
-                      <Card title="我发出的邀请码" style={cardStyle}>
+                      </PageSection>
+                      <PageSection title="我发出的邀请码">
                         <Table<MyInviteCodeRow>
                           size="small"
                           rowKey="id"
@@ -594,8 +590,8 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                             ] as ColumnsType<MyInviteCodeRow>
                           }
                         />
-                      </Card>
-                      <Card title="邀请成功记录" style={cardStyle}>
+                      </PageSection>
+                      <PageSection title="邀请成功记录">
                         <Table<MyInviteRecordRow>
                           size="small"
                           rowKey="id"
@@ -621,12 +617,12 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                             ] as ColumnsType<MyInviteRecordRow>
                           }
                         />
-                      </Card>
+                      </PageSection>
               </Space>
             )}
             {activeUserTab === 'about' && (
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                      <Card title="认证服务" style={cardStyle} extra={<ApiOutlined />}>
+                      <GlassCard title="认证服务" extra={<ApiOutlined />}>
                         <Space direction="vertical" style={{ width: '100%' }}>
                           <Typography.Text type="secondary">API 地址</Typography.Text>
                           <Typography.Paragraph code copyable style={{ marginBottom: 8 }}>
@@ -646,8 +642,8 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                             ) : null}
                           </Space>
                         </Space>
-                      </Card>
-                      <Card title="关于本应用" style={cardStyle} loading={!about}>
+                      </GlassCard>
+                      <GlassCard title="关于本应用" loading={!about}>
                         {about && (
                           <Typography.Paragraph style={{ marginBottom: 0 }}>
                             版本：{about.version}
@@ -655,7 +651,7 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                             平台：{about.platform}
                           </Typography.Paragraph>
                         )}
-                      </Card>
+                      </GlassCard>
               </Space>
             )}
           </main>

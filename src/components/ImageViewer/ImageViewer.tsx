@@ -5,6 +5,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import ImageCanvas from './components/ImageCanvas'
 import InfoPanel from './components/InfoPanel'
+import LivePhotoPlayer from './components/LivePhotoPlayer'
+import type { LivePlaybackMode } from './components/LivePhotoPlayer'
 import { useImageLoader } from './hooks/useImageLoader'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import type { ImageViewerProps, ViewMode } from './types'
@@ -33,6 +35,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     createdAt: string
     modifiedAt: string
   } | null>(null)
+  const [livePlaybackMode, setLivePlaybackMode] = useState<LivePlaybackMode>('once')
 
   const currentImage = useMemo(() => {
     return images[currentIndex] || null
@@ -164,12 +167,12 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   // 当图片切换或 URL 变化时，重置状态
   useEffect(() => {
     if (currentImage && displayImageUrl) {
-      // 图片 URL 存在，重置视图状态
       setScale(100)
       setRotation(0)
       setFlipHorizontal(false)
       setFlipVertical(false)
       setViewMode('fit')
+      setLivePlaybackMode('once')
     }
   }, [currentImage?.id, displayImageUrl])
 
@@ -283,9 +286,20 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             isError={isError}
             onRetry={retry}
           />
+          {currentImage?.mediaKind === 'raw' && (
+            <span className="image-viewer-badge image-viewer-badge--raw">RAW · 嵌入预览</span>
+          )}
+          {currentImage?.mediaKind === 'live' && currentImage.liveVideoPath && (
+            <LivePhotoPlayer
+              key={currentImage.liveVideoPath}
+              liveVideoPath={currentImage.liveVideoPath}
+              playbackMode={livePlaybackMode}
+              disabled={isLoading || isLoadingBlob || isError}
+            />
+          )}
         </div>
 
-{/* 右侧：信息面板 */}
+        {/* 右侧：信息面板 */}
         <div className="image-viewer-info-wrapper">
           <InfoPanel
             image={infoPanelImage}
@@ -305,6 +319,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             onFlipHorizontal={handleFlipHorizontal}
             onFlipVertical={handleFlipVertical}
             onReset={handleReset}
+            livePlaybackMode={livePlaybackMode}
+            onLivePlaybackModeChange={setLivePlaybackMode}
           />
         </div>
       </div>

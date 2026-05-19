@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Card, Table, Button, Space, Typography, App, Input, Select, Alert } from 'antd'
+import { Table, Button, Space, Typography, App, Input, Select, Alert } from 'antd'
+import { GlassCard } from './UnifiedUI'
 import type { ColumnsType } from 'antd/es/table'
 import { ClearOutlined, ReloadOutlined, BarChartOutlined } from '@ant-design/icons'
 import {
@@ -13,13 +14,6 @@ import {
   type OperationLogEntry,
   type OperationLogCategory,
 } from '../utils'
-
-const cardStyle: React.CSSProperties = {
-  background: 'rgba(255, 255, 255, 0.72)',
-  backdropFilter: 'blur(20px) saturate(180%)',
-  WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-  borderRadius: 12,
-}
 
 const CATEGORY_FILTER_OPTIONS: { label: string; value: OperationLogCategory | 'all' }[] = [
   { label: '全部分类', value: 'all' },
@@ -118,9 +112,8 @@ const OperationLogTab: React.FC<OperationLogTabProps> = ({ userId, onOpenUsageSt
   ]
 
   return (
-    <Card
+    <GlassCard
       title="本机操作日志"
-      style={cardStyle}
       extra={
         <Typography.Text type="secondary" style={{ fontSize: 13 }}>
           仅保存在本设备，用于回顾登录与主要操作
@@ -179,7 +172,7 @@ const OperationLogTab: React.FC<OperationLogTabProps> = ({ userId, onOpenUsageSt
         dataSource={filteredRows}
         columns={columns}
       />
-    </Card>
+    </GlassCard>
   )
 }
 

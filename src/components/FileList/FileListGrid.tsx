@@ -14,7 +14,13 @@ import {
 } from '@ant-design/icons'
 import { ImageThumbnail } from './ImageThumbnail'
 import { MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
-import { getFileExtension, getFileTypeIcon } from '../../utils'
+import {
+  FILE_TYPE_ICON_COLORS,
+  getFileExtension,
+  getFileTypeIcon,
+  isLikelyLivePhoto,
+  isRawImage
+} from '../../utils'
 import type { FileInfo } from '../../types'
 import type { PreviewData } from './types'
 
@@ -38,6 +44,7 @@ interface FileListGridProps {
   onRegisterRef: (filePath: string, el: HTMLDivElement | null) => void
   onPageChange: (page: number, pageSize: number) => void
   isPreviewable: (file: FileInfo) => boolean
+  siblingFileNames?: string[]
 }
 
 export const FileListGrid: React.FC<FileListGridProps> = ({
@@ -59,7 +66,8 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
   onSelectionChange,
   onRegisterRef,
   onPageChange,
-  isPreviewable
+  isPreviewable,
+  siblingFileNames = []
 }) => {
   const contentRef = useRef<HTMLDivElement | null>(null)
 
@@ -70,24 +78,26 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
     })
   }, [current, pageSize])
 
+  const iconSize = { fontSize: 48 } as const
+
   const getFileIcon = (file: FileInfo) => {
     if (file.isDirectory) {
-      return <FolderOutlined style={{ fontSize: 48, color: '#1890ff' }} />
+      return <FolderOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.folder }} />
     }
 
     const ext = getFileExtension(file.name)
     const iconType = getFileTypeIcon(ext, false)
 
     const iconMap: Record<string, React.ReactNode> = {
-      'file-pdf': <FilePdfOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />,
-      'file-word': <FileWordOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
-      'file-excel': <FileExcelOutlined style={{ fontSize: 48, color: '#52c41a' }} />,
-      'video': <VideoCameraOutlined style={{ fontSize: 48, color: '#faad14' }} />,
-      'audio': <SoundOutlined style={{ fontSize: 48, color: '#722ed1' }} />,
-      'file-zip': <FileZipOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
+      'file-pdf': <FilePdfOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.pdf }} />,
+      'file-word': <FileWordOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.word }} />,
+      'file-excel': <FileExcelOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.excel }} />,
+      video: <VideoCameraOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.video }} />,
+      audio: <SoundOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.audio }} />,
+      'file-zip': <FileZipOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.archive }} />,
     }
 
-    return iconMap[iconType] || <FileOutlined style={{ fontSize: 48, color: '#8c8c8c' }} />
+    return iconMap[iconType] || <FileOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.default }} />
   }
 
   if (dataSource.length === 0) {
@@ -144,6 +154,8 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
                     previewData={previewData}
                     isLoading={isLoading}
                     progress={fileProgress}
+                    showLiveBadge={isLikelyLivePhoto(file.name, siblingFileNames)}
+                    showRawBadge={isRawImage(getFileExtension(file.name))}
                     onClick={() => onPreview(file)}
                     onRef={(el) => onRegisterRef(file.path, el)}
                   />

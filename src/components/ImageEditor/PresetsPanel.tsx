@@ -422,7 +422,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
           {editingId === item.id ? (
             <Input value={editingName} onChange={e => setEditingName(e.target.value)} size="small" style={{ width: '100%' }} onPressEnter={handleSaveEdit} autoFocus onClick={e => e.stopPropagation()} />
           ) : (
-            <span style={{ fontSize: 12, fontWeight: isSelected ? 600 : 400, color: isSelected ? '#1890ff' : 'inherit' }}>{item.name}</span>
+            <span style={{ fontSize: 12, fontWeight: isSelected ? 600 : 400, color: isSelected ? 'var(--app-primary)' : 'inherit' }}>{item.name}</span>
           )}
         </div>
         <div style={presetActionsRow}>
@@ -486,7 +486,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
           minWidth: 0,
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: isSelected ? 600 : 400, color: isSelected ? '#1890ff' : 'inherit' }}>{preset.name}</span>
+        <span style={{ fontSize: 12, fontWeight: isSelected ? 600 : 400, color: isSelected ? 'var(--app-primary)' : 'inherit' }}>{preset.name}</span>
       </div>
     )
   }
