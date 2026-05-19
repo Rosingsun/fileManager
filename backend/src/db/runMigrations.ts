@@ -28,6 +28,13 @@ export async function runMigrations(pool: Pool): Promise<void> {
       )
       if (Array.isArray(rows) && rows.length > 0) continue
 
+      if (filename === '008_users_is_admin.sql') {
+        await ensureUsersIsAdminColumn(conn)
+      }
+      if (filename === '009_app_parameters_remark.sql') {
+        await ensureAppParametersRemarkColumn(conn)
+      }
+
       const sql = await readFile(join(migrationsDir, filename), 'utf8')
       await conn.beginTransaction()
       try {
@@ -46,9 +53,52 @@ export async function runMigrations(pool: Pool): Promise<void> {
       }
     }
 
+    await ensureUsersIsAdminColumn(conn)
+    await ensureAppParametersRemarkColumn(conn)
     await ensureUsersInvitedByColumn(conn)
   } finally {
     conn.release()
+  }
+}
+
+/** 列可能已手工添加但 008 未记入 schema_migrations，避免重复 ADD 导致启动失败 */
+async function ensureUsersIsAdminColumn(conn: PoolConnection): Promise<void> {
+  const [tables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'`
+  )
+  if (!Number(tables[0]?.c)) return
+
+  const [cols] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'is_admin'`
+  )
+  if (!Number(cols[0]?.c)) {
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0
+       COMMENT '是否系统管理员：1 可调用 /admin/* 维护 app_parameters'`
+    )
+    console.info('[migrate] added users.is_admin')
+  }
+}
+
+async function ensureAppParametersRemarkColumn(conn: PoolConnection): Promise<void> {
+  const [tables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'app_parameters'`
+  )
+  if (!Number(tables[0]?.c)) return
+
+  const [cols] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'app_parameters' AND COLUMN_NAME = 'remark'`
+  )
+  if (!Number(cols[0]?.c)) {
+    await conn.query(
+      `ALTER TABLE app_parameters ADD COLUMN remark VARCHAR(512) NULL
+       COMMENT '参数说明，便于运维与开发查阅维护'`
+    )
+    console.info('[migrate] added app_parameters.remark')
   }
 }
 

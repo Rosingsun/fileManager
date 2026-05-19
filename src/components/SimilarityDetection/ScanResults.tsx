@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react'
 import { Card, Button, Typography, Progress, Checkbox, Modal, message, Empty } from 'antd'
 import { DeleteOutlined, ReloadOutlined, CheckCircleOutlined, PictureOutlined, ScanOutlined, SaveOutlined, ClockCircleOutlined } from '@ant-design/icons'
 import type { SimilarityScanResult, SimilarityScanConfig } from '../../types'
-import { formatFileSize, formatDateTime } from '../../utils/fileUtils'
+import { formatFileSize, formatDateTime, logSignedInUserAction } from '../../utils'
 import ImagePreview, { type ImageSource } from '../ImagePreview/ImagePreview'
 import { imageLoader } from '../../utils/imageLoader'
 import { PageSection, SelectionActionBar, StatCard } from '../UnifiedUI'
@@ -171,6 +171,7 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, config, onReset }) =>
     })
     setGroupSelections(newSelections)
     message.success('已标记所有推荐保留的照片')
+    logSignedInUserAction('similarity_mark_keep', `已标记 ${result.groups.length} 组推荐保留项`)
   }
 
   const handleDeleteSelected = async () => {
@@ -227,6 +228,10 @@ const ScanResults: React.FC<ScanResultsProps> = ({ result, config, onReset }) =>
         } else {
           message.warning(`删除完成：成功 ${successCount} 张，失败 ${failCount} 张`)
         }
+        logSignedInUserAction(
+          'similarity_batch_delete',
+          `相似图删除（成功 ${successCount}，失败 ${failCount}）`
+        )
 
         // 重新扫描或重置
         onReset()

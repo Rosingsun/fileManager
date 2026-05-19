@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { authFetchJson, configureAuthClient, getAuthApiBaseUrl } from '../utils'
+import { authFetchJson, configureAuthClient, isAuthApiConfigured, appendOperationLog } from '../utils'
 
 const SESSION_REFRESH_KEY = 'filedeal_auth_refresh'
 
@@ -62,7 +62,9 @@ export interface AuthUser {
   email: string
   displayName: string
   avatarUrl: string | null
+  createdAt?: number
   invitedByUserId?: string | null
+  isAdmin?: boolean
 }
 
 interface AuthTokensResponse {
@@ -93,10 +95,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isHydrating: false,
 
   hydrateFromRefresh: async () => {
-    if (!getAuthApiBaseUrl()) return
+    if (!isAuthApiConfigured()) return
     set({ isHydrating: true })
     try {
-      await get().tryRefresh()
+      const ok = await get().tryRefresh()
+      if (ok) {
+        const u = get().user
+        if (u) void appendOperationLog(u.id, 'session_restored', '从本地恢复登录会话')
+      }
     } finally {
       set({ isHydrating: false })
     }
@@ -131,6 +137,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('无法保存登录状态')
     }
     set({ accessToken: data.accessToken, user: data.user })
+    void appendOperationLog(data.user.id, 'login', '登录成功')
   },
 
   register: async (email: string, password: string, displayName?: string, inviteCode?: string) => {
@@ -150,6 +157,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('无法保存登录状态')
     }
     set({ accessToken: data.accessToken, user: data.user })
+    void appendOperationLog(data.user.id, 'register', '注册并登录成功')
   },
 
   bootstrapFirstUser: async (secret: string, email: string, password: string, displayName?: string) => {
@@ -169,12 +177,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       throw new Error('无法保存登录状态')
     }
     set({ accessToken: data.accessToken, user: data.user })
+    void appendOperationLog(data.user.id, 'bootstrap_first_user', '通过引导创建首个账号并登录')
   },
 
   logout: async () => {
+    const uid = get().user?.id
     const rt = await loadStoredRefresh()
     try {
-      if (rt && getAuthApiBaseUrl()) {
+      if (rt && isAuthApiConfigured()) {
         await authFetchJson(
           '/auth/logout',
           { method: 'POST', body: JSON.stringify({ refreshToken: rt }) },
@@ -185,6 +195,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       /* 仍清理本地 */
     }
     await clearStoredRefresh()
+    if (uid) void appendOperationLog(uid, 'logout', '主动退出登录')
     set({ accessToken: null, user: null })
   },
 
@@ -202,6 +213,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   changePassword: async (currentPassword: string, newPassword: string) => {
+    const uid = get().user?.id
     await authFetchJson<{ ok: true }>(
       '/users/me/password',
       {
@@ -210,6 +222,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     )
     await clearStoredRefresh()
+    if (uid) void appendOperationLog(uid, 'password_changed', '登录密码已修改，会话已失效')
     set({ accessToken: null, user: null })
   },
 }))

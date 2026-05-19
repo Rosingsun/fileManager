@@ -4,7 +4,7 @@ import EditorControls from './EditorControls'
 import PresetsPanel from './PresetsPanel'
 import FormatCompressDialog from './FormatCompressDialog'
 import { useImageEditor } from './useImageEditor'
-import { imageLoader } from '../../utils'
+import { imageLoader, logSignedInUserAction } from '../../utils'
 import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../types'
 
 interface BatchEditModalProps {
@@ -43,6 +43,7 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
         message.error(`部分图片处理失败：${failed.map(f => `${f.filePath}(${f.error || 'error'})`).join(',')}`)
       } else {
         message.success(`已生成 ${res.length} 张新图片，原文件均未修改`)
+        logSignedInUserAction('image_editor_batch_apply', `批量编辑应用（${res.length} 张）`)
         res.forEach(r => {
           if (r.newPath) imageLoader.clearCache(r.newPath)
           imageLoader.clearCache(r.filePath)
@@ -61,7 +62,10 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
       api.convertFormat(filePaths, opts).then(results => {
         const failed = results.filter(r => !r.success)
         if (failed.length) message.error('部分转换失败')
-        else message.success('格式转换完成')
+        else {
+          message.success('格式转换完成')
+          logSignedInUserAction('image_format_convert_editor', '批量格式转换', String(filePaths.length))
+        }
         setFormatDialog(false)
         onClose()
       })
@@ -74,7 +78,10 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
       api.compressImage(filePaths, opts).then(results => {
         const failed = results.filter(r => !r.success)
         if (failed.length) message.error('部分压缩失败')
-        else message.success('压缩完成')
+        else {
+          message.success('压缩完成')
+          logSignedInUserAction('image_compress', '批量图片压缩', String(filePaths.length))
+        }
         setFormatDialog(false)
         onClose()
       })

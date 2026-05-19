@@ -11,6 +11,7 @@ export interface UserRow extends RowDataPacket {
   avatar_url: string | null
   created_at: number
   invited_by_user_id: string | null
+  is_admin?: number
 }
 
 export async function findUserByEmail(db: DbExecutor, email: string): Promise<UserRow | null> {
@@ -23,6 +24,15 @@ export async function findUserById(db: DbExecutor, id: string): Promise<UserRow 
   return rows[0] ?? null
 }
 
+interface IdRow extends RowDataPacket {
+  id: string
+}
+
+export async function lockUserByIdForUpdate(db: DbExecutor, userId: string): Promise<boolean> {
+  const [rows] = await db.execute<IdRow[]>('SELECT id FROM users WHERE id = ? LIMIT 1 FOR UPDATE', [userId])
+  return (rows?.length ?? 0) > 0
+}
+
 export async function insertUser(
   db: DbExecutor,
   row: {
@@ -33,11 +43,12 @@ export async function insertUser(
     avatar_url: null
     created_at: number
     invited_by_user_id: string | null
+    is_admin?: number
   }
 ): Promise<void> {
   await db.execute(
-    `INSERT INTO users (id, email, password_hash, display_name, avatar_url, created_at, invited_by_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO users (id, email, password_hash, display_name, avatar_url, created_at, invited_by_user_id, is_admin)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       row.id,
       row.email,
@@ -46,8 +57,21 @@ export async function insertUser(
       row.avatar_url,
       row.created_at,
       row.invited_by_user_id,
+      row.is_admin ?? 0,
     ]
   )
+}
+
+interface AdminFlagRow extends RowDataPacket {
+  is_admin: number
+}
+
+export async function isUserAdmin(db: DbExecutor, userId: string): Promise<boolean> {
+  const [rows] = await db.execute<AdminFlagRow[]>(
+    'SELECT is_admin FROM users WHERE id = ? LIMIT 1',
+    [userId]
+  )
+  return Boolean(rows[0]?.is_admin)
 }
 
 interface CountRow extends RowDataPacket {

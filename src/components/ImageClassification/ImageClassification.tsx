@@ -20,7 +20,7 @@ import { useFileStore, useImageClassificationStore } from '../../stores'
 import ImageViewer from '../ImageViewer/ImageViewer'
 import type { Image } from '../ImageViewer/types'
 import { CategoryTag, PageSection, StatCard } from '../UnifiedUI'
-import { getCategoryTagColor } from '../../utils'
+import { getCategoryTagColor, logSignedInUserAction } from '../../utils'
 import CategoryImageSelector from './CategoryImageSelector'
 
 const STORAGE_KEY = 'image_classification_results'
@@ -75,6 +75,7 @@ const ManualDownloadModal: React.FC<{
       const modelPath = await (window.electronAPI as any)?.saveModelFile?.(sourcePath)
       if (modelPath) {
         message.success('模型文件已保存！')
+        logSignedInUserAction('classification_model_saved', '分类模型文件已保存', modelPath)
         onSuccess()
       } else {
         message.error('保存失败')
@@ -226,6 +227,7 @@ const ImageClassification: React.FC = () => {
         const normalizedPath = path.replace(/\\/g, '/')
         setClassificationPath(normalizedPath)
         message.success('已选择分类目录')
+        logSignedInUserAction('classification_dir_selected', '图片分类：选择目录', normalizedPath)
       }
     } catch (error) {
       message.error('选择目录失败')
@@ -340,6 +342,7 @@ const ImageClassification: React.FC = () => {
               setModelExists(true)
               setModelExistsMap(prev => ({ ...prev, [selectedModel]: true }))
               message.success('模型下载成功！')
+              logSignedInUserAction('classification_model_download', '分类模型下载成功', selectedModel)
             } else if (result.cancelled) {
               setDownloadStatus('idle')
               message.info('下载已取消')
@@ -384,6 +387,7 @@ const ImageClassification: React.FC = () => {
         const normalizedPath = path.replace(/\\/g, '/')
         setClassificationPath(normalizedPath)
         message.success('已选择分类目录')
+        logSignedInUserAction('classification_dir_selected', '图片分类：选择目录', normalizedPath)
       } else {
         return
       }
@@ -473,6 +477,11 @@ const ImageClassification: React.FC = () => {
       }
 
       message.success(`分类完成：成功 ${result.successCount} 张，失败 ${result.errorCount} 张`)
+      logSignedInUserAction(
+        'image_classify_batch',
+        `图片分类批量完成（成功 ${result.successCount}，失败 ${result.errorCount}）`,
+        classificationPath ?? ''
+      )
       setIsClassifying(false)
     } catch (error) {
       console.error('[分类] 分类失败:', error)
@@ -491,6 +500,7 @@ const ImageClassification: React.FC = () => {
       console.warn('清除分类结果失败:', e)
     }
     message.info('已清除分类结果')
+    logSignedInUserAction('image_classify_clear', '已清除图片分类结果缓存')
   }
 
    const handleViewImage = async (filePath: string) => {

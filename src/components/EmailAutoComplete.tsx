@@ -36,7 +36,10 @@ function buildEmailOptions(raw: string): NonNullable<AutoCompleteProps['options'
   })
 }
 
-export type EmailAutoCompleteProps = Omit<AutoCompleteProps, 'options' | 'filterOption'>
+export type EmailAutoCompleteProps = Omit<AutoCompleteProps, 'options' | 'filterOption'> & {
+  /** 传给内部 Input 的 autoComplete（如 email） */
+  autoComplete?: string
+}
 
 const EmailAutoComplete: React.FC<EmailAutoCompleteProps> = ({
   value,

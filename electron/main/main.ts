@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, Menu } from 'electron'
 import { basename, dirname, join, parse } from 'path'
-import { mkdirSync, readFileSync, writeFileSync, existsSync as nodeFileExistsSync, unlinkSync } from 'fs'
+import { mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync as nodeFileExistsSync, unlinkSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
 import sharp from 'sharp'
@@ -17,6 +17,76 @@ import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount
 
 function authRefreshTokenPath(): string {
   return join(app.getPath('userData'), 'auth-refresh.enc')
+}
+
+let mainProcessCurrentUserId: string | null = null
+
+function operationLogsRoot(): string {
+  return join(app.getPath('userData'), 'operation-logs')
+}
+
+function operationLogFile(userId: string): string {
+  return join(operationLogsRoot(), `${userId}.jsonl`)
+}
+
+function appendOperationLogLine(
+  userId: string,
+  entry: { id: string; ts: number; action: string; summary?: string; detail?: string }
+): void {
+  try {
+    mkdirSync(operationLogsRoot(), { recursive: true })
+    appendFileSync(operationLogFile(userId), `${JSON.stringify(entry)}\n`, 'utf8')
+  } catch (e) {
+    console.error('[oplog] append failed', e)
+  }
+}
+
+function readOperationLogEntries(userId: string, limit: number): Array<{
+  id: string
+  ts: number
+  action: string
+  summary?: string
+  detail?: string
+}> {
+  const p = operationLogFile(userId)
+  if (!nodeFileExistsSync(p)) return []
+  try {
+    const raw = readFileSync(p, 'utf8')
+    const lines = raw.split(/\r?\n/).filter(Boolean)
+    const parsed: Array<{ id: string; ts: number; action: string; summary?: string; detail?: string }> = []
+    for (const line of lines) {
+      try {
+        const o = JSON.parse(line) as Record<string, unknown>
+        if (typeof o.id === 'string' && typeof o.ts === 'number' && typeof o.action === 'string') {
+          parsed.push({
+            id: o.id,
+            ts: o.ts,
+            action: o.action,
+            summary: typeof o.summary === 'string' ? o.summary : undefined,
+            detail: typeof o.detail === 'string' ? o.detail : undefined,
+          })
+        }
+      } catch {
+        /* skip bad line */
+      }
+    }
+    parsed.sort((a, b) => b.ts - a.ts)
+    return parsed.slice(0, Math.max(1, Math.min(limit, 500)))
+  } catch (e) {
+    console.error('[oplog] read failed', e)
+    return []
+  }
+}
+
+function clearOperationLogFile(userId: string): void {
+  const p = operationLogFile(userId)
+  if (nodeFileExistsSync(p)) {
+    try {
+      unlinkSync(p)
+    } catch (e) {
+      console.error('[oplog] clear failed', e)
+    }
+  }
 }
 
 const { readdir, stat, mkdir, move, existsSync } = fs
@@ -185,6 +255,18 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '../../dist/index.html'))
   }
 
+  mainWindow.on('close', () => {
+    const uid = mainProcessCurrentUserId
+    if (uid) {
+      appendOperationLogLine(uid, {
+        id: crypto.randomUUID(),
+        ts: Date.now(),
+        action: 'app_closed',
+        summary: '关闭应用',
+      })
+    }
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = undefined
     if (fileWatcher) {
@@ -194,7 +276,38 @@ function createWindow() {
   })
 }
 
+/** 未打包时提供菜单/F12，便于在关掉自动打开的 DevTools 后仍能查看 Network */
+function setupDevToolsMenu(): void {
+  if (app.isPackaged) return
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: '开发',
+        submenu: [
+          {
+            label: '切换开发者工具',
+            accelerator: 'F12',
+            click: () => {
+              const w = BrowserWindow.getFocusedWindow()
+              if (w) w.webContents.toggleDevTools()
+            },
+          },
+          { type: 'separator' },
+          {
+            label: '重新加载界面',
+            accelerator: 'Ctrl+R',
+            click: () => {
+              BrowserWindow.getFocusedWindow()?.reload()
+            },
+          },
+        ],
+      },
+    ])
+  )
+}
+
 app.whenReady().then(() => {
+  setupDevToolsMenu()
   createWindow()
 
   app.on('activate', () => {
@@ -612,6 +725,44 @@ ipcHandle('auth:clearRefreshToken', async (): Promise<void> => {
       /* ignore */
     }
   }
+})
+
+ipcHandle('app:setCurrentUserId', async (_event, userId: unknown): Promise<void> => {
+  mainProcessCurrentUserId = typeof userId === 'string' && userId.length > 0 ? userId : null
+})
+
+ipcHandle(
+  'oplog:append',
+  async (
+    _event,
+    payload: { userId?: string; action?: string; summary?: string; detail?: string }
+  ): Promise<void> => {
+    const userId = typeof payload?.userId === 'string' ? payload.userId.trim() : ''
+    const action = typeof payload?.action === 'string' ? payload.action.trim() : ''
+    if (!userId || !action) return
+    appendOperationLogLine(userId, {
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      action,
+      summary: typeof payload.summary === 'string' ? payload.summary : undefined,
+      detail: typeof payload.detail === 'string' ? payload.detail : undefined,
+    })
+  }
+)
+
+ipcHandle('oplog:list', async (_event, userId: unknown, limit = 200): Promise<
+  Array<{ id: string; ts: number; action: string; summary?: string; detail?: string }>
+> => {
+  const uid = typeof userId === 'string' ? userId.trim() : ''
+  if (!uid) return []
+  const n = typeof limit === 'number' && Number.isFinite(limit) ? Math.floor(limit) : 200
+  return readOperationLogEntries(uid, n)
+})
+
+ipcHandle('oplog:clear', async (_event, userId: unknown): Promise<void> => {
+  const uid = typeof userId === 'string' ? userId.trim() : ''
+  if (!uid) return
+  clearOperationLogFile(uid)
 })
 
 // IPC 处理器：窗口控制

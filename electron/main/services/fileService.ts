@@ -204,6 +204,9 @@ export async function extractFiles(
     filesToExtract = filesToExtract.filter(f => {
       try {
         const stats = fs.statSync(f.path)
+        return stats.size <= maxSize
+      } catch {
+        return false
       }
     })
   }

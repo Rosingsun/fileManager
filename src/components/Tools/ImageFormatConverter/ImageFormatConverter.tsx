@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Modal, Button, Space, Card, Select, InputNumber, message, Typography, Empty } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import type { FormatConversionOptions } from '../../../types'
+import { logSignedInUserAction } from '../../../utils'
 import { useToolOutputPathStore } from '../../../stores'
 import LocalFileImagePreview from '../LocalFileImagePreview'
 
@@ -92,6 +93,7 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
           pdfOptions
         )
         message.success(`PDF 已生成: ${pdfPath}`)
+        logSignedInUserAction('pdf_from_images', '图片转 PDF', pdfPath)
         onClose()
       } else {
         const options: FormatConversionOptions = {
@@ -110,6 +112,11 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
         const errors = result.filter(r => !r.success)
         if (successCount > 0) {
           message.success(`成功转换 ${successCount} 张图片！${errorCount > 0 ? `失败 ${errorCount} 张` : ''}`)
+          logSignedInUserAction(
+            'format_convert',
+            `图片格式转换（${targetFormat}，成功 ${successCount}，失败 ${errorCount}）`,
+            outputPath
+          )
           // 显示详细错误信息
           errors.forEach(err => {
             console.error(`转换失败: ${err.filePath} - ${err.error}`)

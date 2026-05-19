@@ -5,6 +5,15 @@ import { inviteService } from './invite.service.js'
 
 export const inviteRouter = Router()
 
+inviteRouter.get(
+  '/quota',
+  asyncHandler(async (req, res) => {
+    const userId = req.userId!
+    const data = await inviteService.getQuota(userId)
+    sendOk(res, data)
+  })
+)
+
 inviteRouter.post(
   '/',
   asyncHandler(async (req, res) => {

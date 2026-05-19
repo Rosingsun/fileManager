@@ -3,6 +3,29 @@ import { getPool } from '../../db/pool.js'
 import { AppError } from '../../utils/AppError.js'
 import * as repo from '../auth/auth.repository.js'
 import { toPublicUser, type PublicUser } from '../auth/auth.service.js'
+import { assertUserAvatarObjectKey, isCosConfigured } from '../cos/cos.service.js'
+
+const AVATAR_COS_REF_PREFIX = 'cos:'
+const AVATAR_HTTP_RE = /^https?:\/\//i
+
+function normalizeAvatarUrlInput(userId: string, raw: string): string {
+  const u = raw.trim()
+  if (u.startsWith(AVATAR_COS_REF_PREFIX)) {
+    if (!isCosConfigured()) {
+      throw new AppError(503, 'COS_NOT_CONFIGURED', '未配置腾讯云 COS，无法使用云存储头像')
+    }
+    const key = u.slice(AVATAR_COS_REF_PREFIX.length).trim()
+    if (!key || key.length > 480) {
+      throw new AppError(400, 'BAD_AVATAR_REF', '头像引用不合法')
+    }
+    const normalized = assertUserAvatarObjectKey(userId, key)
+    return `${AVATAR_COS_REF_PREFIX}${normalized}`
+  }
+  if (!AVATAR_HTTP_RE.test(u)) {
+    throw new AppError(400, 'BAD_AVATAR_URL', '头像须为 http(s) 链接或 cos: 对象引用')
+  }
+  return u
+}
 
 export const usersService = {
   async getMe(userId: string): Promise<PublicUser> {
@@ -39,7 +62,7 @@ export const usersService = {
         if (u.length > 512) {
           throw new AppError(400, 'AVATAR_URL_TOO_LONG', '头像 URL 最长 512 字符')
         }
-        nextAvatar = u
+        nextAvatar = normalizeAvatarUrlInput(userId, u)
       }
     }
 

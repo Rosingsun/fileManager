@@ -8,6 +8,9 @@ import { errorHandler } from './middleware/errorHandler.js'
 import { authRouter } from './modules/auth/auth.routes.js'
 import { usersRouter } from './modules/users/users.routes.js'
 import { inviteRouter } from './modules/invite/invite.routes.js'
+import { cosRouter } from './modules/cos/cos.routes.js'
+import { adminRouter } from './modules/admin/admin.routes.js'
+import { requireAdmin } from './middleware/requireAdmin.js'
 import { sendOk } from './utils/response.js'
 
 export function createApp(): express.Application {
@@ -32,6 +35,8 @@ export function createApp(): express.Application {
   app.use('/auth', authRouter)
   app.use('/users', requireAccess, usersRouter)
   app.use('/invites', requireAccess, inviteRouter)
+  app.use('/cos', requireAccess, cosRouter)
+  app.use('/admin', requireAccess, requireAdmin, adminRouter)
 
   app.use(errorHandler)
   return app

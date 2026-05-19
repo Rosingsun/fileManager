@@ -23,7 +23,7 @@ import {
 } from '@ant-design/icons'
 import { useFileStore } from '../stores'
 import { useFileSystem } from '../hooks'
-import { generatePreview, getExtensionsByCategory } from '../utils'
+import { generatePreview, getExtensionsByCategory, logSignedInUserAction } from '../utils'
 import type { OrganizeRule, OrganizeConfig, PreviewResultItem, SizeRange } from '../types'
 
 const { Option } = Select
@@ -159,6 +159,11 @@ const ControlPanel: React.FC = () => {
       } else {
         message.success(`成功整理 ${successCount} 个文件`)
       }
+      logSignedInUserAction(
+        'file_organize',
+        `文件整理完成（成功 ${successCount}，失败 ${failCount}）`,
+        currentPath
+      )
 
       // 重新加载目录
       await loadDirectory(currentPath)
@@ -264,6 +269,11 @@ const ControlPanel: React.FC = () => {
       const results = await generatePreview(filesToPreview, config, sizeRanges)
       setPreviewResults(results)
       setPreviewVisible(true)
+      logSignedInUserAction(
+        'file_organize_preview',
+        `生成整理预览（${results.length} 条）`,
+        currentPath
+      )
     } catch (error: any) {
       message.error(`预览失败: ${error.message}`)
     }
@@ -605,6 +615,7 @@ const ControlPanel: React.FC = () => {
           <Button key="reset" onClick={() => {
             resetSizeRanges()
             message.success('已重置为默认范围')
+            logSignedInUserAction('size_range_reset', '大小分类范围已重置为默认')
           }}>
             重置为默认
           </Button>,
@@ -657,6 +668,7 @@ const ControlPanel: React.FC = () => {
                           message.error('至少需要保留1个分类范围')
                         } else {
                           message.success('删除成功')
+                          logSignedInUserAction('size_range_delete', `删除大小分类范围：${range.name}`)
                         }
                       }}
                     >
@@ -727,6 +739,7 @@ const ControlPanel: React.FC = () => {
                     })
                     if (success) {
                       message.success('更新成功')
+                      logSignedInUserAction('size_range_update', `更新大小分类范围：${rangeName.trim()}`)
                       setEditingRange(null)
                       setRangeName('')
                       setRangeMinSize('')
@@ -742,6 +755,7 @@ const ControlPanel: React.FC = () => {
                     })
                     if (success) {
                       message.success('添加成功')
+                      logSignedInUserAction('size_range_add', `添加大小分类范围：${rangeName.trim()}`)
                       setRangeName('')
                       setRangeMinSize('')
                       setRangeMaxSize('')

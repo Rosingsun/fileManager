@@ -3,6 +3,7 @@ import { Modal, Button, Space, Card, Select, InputNumber, Radio, message, Typogr
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import type { StitchOptions } from '../../../types'
 import { useToolOutputPathStore } from '../../../stores'
+import { logSignedInUserAction } from '../../../utils'
 import LocalFileImagePreview from '../LocalFileImagePreview'
 
 const { Text } = Typography
@@ -107,6 +108,11 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
 
       if (result) {
         message.success('拼接成功！')
+        logSignedInUserAction(
+          'image_stitch',
+          `图片拼接成功（${mode}，${images.length} 张）`,
+          result
+        )
         onClose()
       }
     } catch (error) {

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Modal, Button, Space, Card, Slider, Select, message, Typography, Empty, Switch, Radio } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, ThunderboltOutlined, FolderOutlined } from '@ant-design/icons'
 import type { EnhanceOptions } from '../../../types'
+import { logSignedInUserAction } from '../../../utils'
 import { useToolOutputPathStore } from '../../../stores'
 import LocalFileImagePreview from '../LocalFileImagePreview'
 
@@ -98,6 +99,7 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
       )
 
       message.success('图片增强完成！')
+      logSignedInUserAction('image_enhance', '图片增强完成', files[0].path)
       onClose()
     } catch (error) {
       message.error('增强失败: ' + (error as Error).message)

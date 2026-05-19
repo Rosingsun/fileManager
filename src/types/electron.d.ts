@@ -64,6 +64,18 @@ declare global {
       saveRefreshToken: (token: string) => Promise<{ ok: boolean; error?: string }>
       loadRefreshToken: () => Promise<string | null>
       clearRefreshToken: () => Promise<void>
+      setCurrentUserId: (userId: string | null) => Promise<void>
+      appendOperationLog: (payload: {
+        userId: string
+        action: string
+        summary?: string
+        detail?: string
+      }) => Promise<void>
+      listOperationLogs: (
+        userId: string,
+        limit?: number
+      ) => Promise<Array<{ id: string; ts: number; action: string; summary?: string; detail?: string }>>
+      clearOperationLogs: (userId: string) => Promise<void>
       selectAndSaveModelFile: () => Promise<string | null>
       saveModelFile: (sourcePath: string) => Promise<string | null>
       

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { Modal, Button, Space, List, Card, Input, Select, InputNumber, Radio, Checkbox, message, Progress, Typography, Empty } from 'antd'
 import { FolderOpenOutlined, ArrowRightOutlined, FolderOutlined, CloseOutlined } from '@ant-design/icons'
 import type { BatchRenameOptions, RenameResult } from '../../../types'
+import { logSignedInUserAction } from '../../../utils'
 
 const { Text } = Typography
 
@@ -188,7 +189,12 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
       
       const successCount = results.filter(r => r.success).length
       message.success(`重命名完成：成功 ${successCount} 个，失败 ${results.length - successCount} 个`)
-      
+      logSignedInUserAction(
+        'batch_rename_tool',
+        `批量重命名工具（成功 ${successCount}，失败 ${results.length - successCount}）`,
+        `模式: ${mode}`
+      )
+
       onClose()
     } catch (error) {
       message.error('执行失败: ' + (error as Error).message)

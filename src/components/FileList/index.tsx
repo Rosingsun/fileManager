@@ -9,7 +9,7 @@ import {
 import { useFileStore } from '../../stores'
 import { useImageClassificationStore } from '../../stores'
 import { useFileSystem } from '../../hooks'
-import { filterFiles, getFileExtension, imageLoader } from '../../utils'
+import { filterFiles, getFileExtension, imageLoader, logSignedInUserAction } from '../../utils'
 import { useFilePreview } from './useFilePreview'
 import { FileListHeader } from './FileListHeader'
 import { FileListTable } from './FileListTable'
@@ -248,6 +248,7 @@ const FileList: React.FC = () => {
       const success = await window.electronAPI?.renameFile(renamingFile.path, newFileName.trim())
       if (success) {
         message.success('重命名成功')
+        logSignedInUserAction('file_rename', `重命名为「${newFileName.trim()}」`, renamingFile.path)
         if (currentPath) {
           loadDirectory(currentPath)
         }
@@ -274,6 +275,7 @@ const FileList: React.FC = () => {
       const success = await window.electronAPI?.deleteFile(deletingFile.path)
       if (success) {
         message.success('删除成功')
+        logSignedInUserAction('file_delete', '删除文件', deletingFile.path)
         if (currentPath) {
           loadDirectory(currentPath)
         }
@@ -296,6 +298,10 @@ const FileList: React.FC = () => {
         if (success) successCount++
       }
       message.success(`批量删除完成：成功 ${successCount} 个，失败 ${files.length - successCount} 个`)
+      logSignedInUserAction(
+        'file_batch_delete',
+        `批量删除（成功 ${successCount}，失败 ${files.length - successCount}）`
+      )
       setSelectedRowKeys([])
       setSelectedRows([])
       if (currentPath) {
@@ -342,6 +348,10 @@ const FileList: React.FC = () => {
       if (success) successCount++
     }
     message.success(`批量重命名完成：成功 ${successCount} 个，失败 ${selectedRows.length - successCount} 个`)
+    logSignedInUserAction(
+      'file_batch_rename',
+      `批量重命名（成功 ${successCount}，失败 ${selectedRows.length - successCount}）`
+    )
     setBatchRenameModalVisible(false)
     setBatchRenamePrefix('')
     setBatchRenameSuffix('')
@@ -372,6 +382,10 @@ const FileList: React.FC = () => {
       if (success) successCount++
     }
     message.success(`批量移动完成：成功 ${successCount} 个，失败 ${selectedRows.length - successCount} 个`)
+    logSignedInUserAction(
+      'file_batch_move',
+      `批量移动至「${moveTargetPath.trim()}」（成功 ${successCount}，失败 ${selectedRows.length - successCount}）`
+    )
     setMoveModalVisible(false)
     setMoveTargetPath('')
     setSelectedRowKeys([])
@@ -455,6 +469,10 @@ const FileList: React.FC = () => {
       }
       useImageClassificationStore.getState().setResults(Array.from(prev.values()))
       message.success(`分析完成：成功 ${result.successCount} 张，失败 ${result.errorCount} 张`)
+      logSignedInUserAction(
+        'image_classify_file_list',
+        `文件列表内图片分类分析（成功 ${result.successCount}，失败 ${result.errorCount}）`
+      )
     } catch (e) {
       message.error('分析失败：' + (e instanceof Error ? e.message : String(e)))
     } finally {

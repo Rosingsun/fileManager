@@ -26,6 +26,12 @@ function loadDotEnv(): Record<string, string> {
 
 const raw = loadDotEnv()
 
+/** mysql2 走 TCP；`localhost` 在部分环境下会先连 IPv6（::1）导致长时间挂起，统一为 IPv4 回环 */
+function normalizeMysqlHost(host: string): string {
+  const h = host.trim()
+  return h.toLowerCase() === 'localhost' ? '127.0.0.1' : h
+}
+
 function resolveLogRoot(): string {
   const v = (raw.LOG_DIR || 'logs').trim()
   if (!v) {
@@ -45,7 +51,7 @@ export const env = {
   /** 运行日志根目录；其下为 年/月/YYYY-MM-DD.log */
   LOG_ROOT: resolveLogRoot(),
 
-  MYSQL_HOST: raw.MYSQL_HOST || '127.0.0.1',
+  MYSQL_HOST: normalizeMysqlHost(raw.MYSQL_HOST || '127.0.0.1'),
   MYSQL_PORT: Number(raw.MYSQL_PORT || 3306),
   MYSQL_USER: raw.MYSQL_USER || 'root',
   MYSQL_PASSWORD: raw.MYSQL_PASSWORD ?? '',
@@ -54,7 +60,7 @@ export const env = {
   /** 为 true 时允许不传邀请码注册（仅建议开发环境） */
   ALLOW_OPEN_REGISTRATION: raw.ALLOW_OPEN_REGISTRATION === 'true',
   /** 长度≥16 时启用 POST /auth/bootstrap-first-user，仅在库中无任何用户时可创建首个账号 */
-  BOOTSTRAP_INVITE_SECRET: (raw.BOOTSTRAP_INVITE_SECRET || 'rosingsunisadmin').trim(),
+  BOOTSTRAP_INVITE_SECRET: (raw.BOOTSTRAP_INVITE_SECRET || 'rOSINGSUNaNDxULINJIE').trim(),
 }
 
 if (env.JWT_SECRET.length < 16) {

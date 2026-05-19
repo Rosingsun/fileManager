@@ -3,6 +3,7 @@ import { Modal, Button, Space, Card, InputNumber, Select, Input, message, Typogr
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined } from '@ant-design/icons'
 import type { ThumbnailOptions, ThumbnailResult } from '../../../types'
 import { useToolOutputPathStore } from '../../../stores'
+import { logSignedInUserAction } from '../../../utils'
 import LocalFileImagePreview from '../LocalFileImagePreview'
 
 const { Text } = Typography
@@ -83,6 +84,13 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
 
       const successCount = results.filter(r => r.success).length
       message.success(`生成完成：成功 ${successCount} 个，失败 ${results.length - successCount} 个`)
+      if (successCount > 0) {
+        logSignedInUserAction(
+          'thumbnail_generate',
+          `缩略图生成完成（成功 ${successCount}/${results.length}）`,
+          outputPath || '同目录'
+        )
+      }
       onClose()
     } catch (error) {
       message.error('生成失败: ' + (error as Error).message)

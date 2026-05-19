@@ -3,9 +3,11 @@ import { getPool, closePool } from './db/pool.js'
 import { runMigrations } from './db/runMigrations.js'
 import { createApp } from './app.js'
 import { writeAppLog } from './logger/appLogger.js'
+import { loadCosConfig } from './modules/parameters/cosConfig.service.js'
 
 const pool = getPool()
 await runMigrations(pool)
+await loadCosConfig(pool)
 
 const app = createApp()
 const server = app.listen(env.PORT, '0.0.0.0', () => {

@@ -31,7 +31,7 @@
 
 ## 邀请码注册（增量）
 
-- **注册**：默认必须提供有效 `inviteCode`（规范化后 SHA-256 匹配 `invite_codes`）。`invite_codes.created_at` 为发码时间，`invite_redemptions.redeemed_at` 为受邀者注册成功时间；`users.invited_by_user_id` 记录邀请人。
+- **注册**：默认必须提供有效 `inviteCode`（规范化后 SHA-256 匹配 `invite_codes`）。每个邀请码自 `invite_codes.created_at` 起 **3 天**内有效（`expires_at`），过期或次数用尽则无法注册。`invite_redemptions.redeemed_at` 为受邀者注册成功时间；`users.invited_by_user_id` 记录邀请人。
 - **开放注册**：后端 `ALLOW_OPEN_REGISTRATION=true` 时可不传邀请码（仅建议开发环境）。
 - **冷启动**：无用户时可调用 `POST /auth/bootstrap-first-user`（需配置 `BOOTSTRAP_INVITE_SECRET`），或手工执行迁移种子 SQL。
 - **前端**：注册表单填写邀请码；已登录用户「我的邀请」可生成码、查看发出的码与邀请成功列表。

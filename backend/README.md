@@ -43,4 +43,6 @@ node dist/server.js
 
 Access Token 约 15 分钟过期；Refresh Token 约 7 天，存库为 SHA-256 哈希，支持轮换与吊销。
 
+腾讯云 COS 配置在 MySQL `app_parameters`（非 `.env`）；管理员可 `GET/POST /admin/parameters/cos`。详见根目录 `DEVELOPMENT.md`。
+
 **响应格式**：统一为 `{ ok: true, data }` / `{ ok: false, error: { code, message } }`（详见架构文档）。

@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Modal, Button, Space, Card, Input, InputNumber, Select, message, Typography, Empty, Radio } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, EyeOutlined } from '@ant-design/icons'
 import type { WatermarkOptions } from '../../../types'
+import { logSignedInUserAction } from '../../../utils'
 import ImageViewer from '../../ImageViewer/ImageViewer'
 import LocalFileImagePreview from '../LocalFileImagePreview'
 import { useToolOutputPathStore } from '../../../stores'
@@ -134,6 +135,10 @@ const Watermark: React.FC<WatermarkProps> = ({ visible, onClose }) => {
       } else {
         message.success(`添加水印完成：成功 ${successCount} 个`)
       }
+      logSignedInUserAction(
+        'watermark_tool',
+        `添加水印（成功 ${successCount}，失败 ${failCount}）`
+      )
       onClose()
     } catch (error) {
       message.error('添加水印失败: ' + (error as Error).message)

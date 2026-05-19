@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 
 const ACCESS_EXPIRES = '15m'
-const REFRESH_DAYS = 7
+const REFRESH_DAYS = 30
 
 export function hashRefreshToken(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex')

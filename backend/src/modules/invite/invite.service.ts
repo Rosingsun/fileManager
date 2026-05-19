@@ -1,41 +1,91 @@
 import { randomUUID } from 'node:crypto'
 import { getPool } from '../../db/pool.js'
 import { generateInvitePlain, hashInviteCode, normalizeInviteCode } from '../../utils/inviteCode.js'
+import { AppError } from '../../utils/AppError.js'
+import * as authRepo from '../auth/auth.repository.js'
+import * as paramsRepo from '../parameters/parameters.repository.js'
 import * as repo from './invite.repository.js'
 
+const INVITE_CODE_VALID_DAYS = 3
+const INVITE_CODE_TTL_MS = INVITE_CODE_VALID_DAYS * 24 * 60 * 60 * 1000
+
+function utcDayStartMs(now: number): number {
+  const d = new Date(now)
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+}
+
 export const inviteService = {
+  async getQuota(inviterUserId: string): Promise<{
+    maxInvitees: number
+    redeemedCount: number
+    maxGenerationsPerDay: number
+    generationsToday: number
+  }> {
+    const pool = getPool()
+    const now = Date.now()
+    const dayStart = utcDayStartMs(now)
+    const [maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday] = await Promise.all([
+      paramsRepo.getInviteMaxRedemptionsPerInviter(pool),
+      repo.countRedemptionsByInviter(pool, inviterUserId),
+      paramsRepo.getInviteMaxGenerationsPerDay(pool),
+      repo.countInviteCodesCreatedSince(pool, inviterUserId, dayStart),
+    ])
+    return { maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday }
+  },
+
   async createInvite(inviterUserId: string, body: unknown): Promise<{
     id: string
     code: string
     createdAt: number
-    expiresAt: number | null
+    expiresAt: number
     maxUses: number
   }> {
-    const b = body as { maxUses?: number; expiresInDays?: number | null; note?: string | null }
+    void body
     const plain = generateInvitePlain()
     const hash = hashInviteCode(normalizeInviteCode(plain))
     const id = randomUUID()
     const now = Date.now()
-    let maxUses = 1
-    if (typeof b?.maxUses === 'number' && Number.isFinite(b.maxUses)) {
-      maxUses = Math.min(1000, Math.max(1, Math.floor(b.maxUses)))
-    }
-    let expiresAt: number | null = null
-    if (typeof b?.expiresInDays === 'number' && b.expiresInDays > 0) {
-      expiresAt = now + Math.min(3650, b.expiresInDays) * 24 * 60 * 60 * 1000
-    }
-    const note =
-      typeof b?.note === 'string' && b.note.trim() ? b.note.trim().slice(0, 255) : null
+    const maxUses = 1
+    const expiresAt = now + INVITE_CODE_TTL_MS
+    const note: string | null = null
 
-    await repo.insertInviteCode(getPool(), {
-      id,
-      code_hash: hash,
-      inviter_user_id: inviterUserId,
-      note,
-      created_at: now,
-      expires_at: expiresAt,
-      max_uses: maxUses,
-    })
+    const pool = getPool()
+    const conn = await pool.getConnection()
+    try {
+      await conn.beginTransaction()
+      const locked = await authRepo.lockUserByIdForUpdate(conn, inviterUserId)
+      if (!locked) {
+        throw new AppError(404, 'USER_NOT_FOUND', '用户不存在')
+      }
+      const maxInvitees = await paramsRepo.getInviteMaxRedemptionsPerInviter(conn)
+      const redeemedCount = await repo.countRedemptionsByInviter(conn, inviterUserId)
+      if (redeemedCount >= maxInvitees) {
+        throw new AppError(403, 'INVITE_QUOTA_EXCEEDED', '已达邀请人数上限')
+      }
+      const maxPerDay = await paramsRepo.getInviteMaxGenerationsPerDay(conn)
+      const dayStart = utcDayStartMs(now)
+      const generatedToday = await repo.countInviteCodesCreatedSince(conn, inviterUserId, dayStart)
+      if (generatedToday >= maxPerDay) {
+        throw new AppError(403, 'INVITE_DAILY_GENERATION_LIMIT', '今日生成邀请码次数已达上限')
+      }
+      await repo.revokeActiveInvitesByInviter(conn, inviterUserId, now)
+      await repo.insertInviteCode(conn, {
+        id,
+        code_hash: hash,
+        invite_plain: plain,
+        inviter_user_id: inviterUserId,
+        note,
+        created_at: now,
+        expires_at: expiresAt,
+        max_uses: maxUses,
+      })
+      await conn.commit()
+    } catch (e) {
+      await conn.rollback()
+      throw e
+    } finally {
+      conn.release()
+    }
 
     return { id, code: plain, createdAt: now, expiresAt, maxUses }
   },
@@ -45,6 +95,7 @@ export const inviteService = {
     const now = Date.now()
     return rows.map((r) => ({
       id: r.id,
+      code: r.invite_plain,
       createdAt: r.created_at,
       expiresAt: r.expires_at,
       maxUses: r.max_uses,

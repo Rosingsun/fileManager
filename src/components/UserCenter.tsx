@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Card,
   Tabs,
@@ -7,8 +7,6 @@ import {
   Button,
   Space,
   Typography,
-  Avatar,
-  Spin,
   Divider,
   Alert,
   App,
@@ -17,23 +15,54 @@ import {
   Col,
   Table,
   Modal,
-  Collapse,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   UserOutlined,
+  CameraOutlined,
+  LoadingOutlined,
   SafetyOutlined,
   InfoCircleOutlined,
-  CloudOutlined,
+  ApiOutlined,
   LogoutOutlined,
   TeamOutlined,
+  HistoryOutlined,
+  DashboardOutlined,
+  BarChartOutlined,
+  SettingOutlined,
 } from '@ant-design/icons'
 import { useAuthStore } from '../stores'
-import { authFetchJson, formatAuthApiError, getAuthApiBaseUrl, getPasswordResetUrl } from '../utils'
-import EmailAutoComplete from './EmailAutoComplete'
+import {
+  authFetchJson,
+  cosDelete,
+  formatAuthApiError,
+  getAuthApiBaseUrl,
+  isAllowedAvatarFile,
+  isAuthApiConfigured,
+  isCosAvatarRef,
+  logSignedInUserAction,
+  parseCosAvatarKey,
+  uploadAvatarToCos,
+  AVATAR_SELECT_MAX_BYTES,
+  AuthApiError,
+  cosImageStats,
+} from '../utils'
+import UserAvatar from './UserAvatar'
+import OperationLogTab from './OperationLogTab'
+import UserCenterOverviewTab from './UserCenter/UserCenterOverviewTab'
+import UserCenterUsageStatsTab from './UserCenter/UserCenterUsageStatsTab'
+import UserCenterPreferencesTab from './UserCenter/UserCenterPreferencesTab'
+import { desensitizeEmail, userCenterCardStyle, type UserCenterAppNavigate } from './UserCenter/userCenterShared'
+
+export interface UserCenterProps {
+  focusTab?: string | null
+  onFocusTabConsumed?: () => void
+  onNavigateApp: (target: UserCenterAppNavigate) => void
+}
 
 interface MyInviteCodeRow {
   id: string
+  code: string | null
   createdAt: number
   expiresAt: number | null
   maxUses: number
@@ -52,34 +81,25 @@ interface MyInviteRecordRow {
   redeemedAt: number
 }
 
-function desensitizeEmail(email: string): string {
-  const [local, domain] = email.split('@')
-  if (!domain) return email
-  if (local.length === 0) return `*@${domain}`
-  const head = local.length <= 2 ? `${local[0]}***` : `${local.slice(0, 2)}***`
-  return `${head}@${domain}`
+interface InviteQuota {
+  maxInvitees: number
+  redeemedCount: number
+  maxGenerationsPerDay: number
+  generationsToday: number
 }
 
-const UserCenter: React.FC = () => {
+const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, onNavigateApp }) => {
   const { message } = App.useApp()
   const baseUrl = getAuthApiBaseUrl()
-  const resetUrl = getPasswordResetUrl()
+  const apiDisplayLabel = baseUrl || '—'
 
   const user = useAuthStore((s) => s.user)
   const accessToken = useAuthStore((s) => s.accessToken)
-  const isHydrating = useAuthStore((s) => s.isHydrating)
-  const hydrateFromRefresh = useAuthStore((s) => s.hydrateFromRefresh)
-  const login = useAuthStore((s) => s.login)
-  const register = useAuthStore((s) => s.register)
   const logout = useAuthStore((s) => s.logout)
   const fetchProfile = useAuthStore((s) => s.fetchProfile)
   const updateProfile = useAuthStore((s) => s.updateProfile)
   const changePassword = useAuthStore((s) => s.changePassword)
-  const bootstrapFirstUser = useAuthStore((s) => s.bootstrapFirstUser)
 
-  const [loginForm] = Form.useForm()
-  const [regForm] = Form.useForm()
-  const [bootForm] = Form.useForm()
   const [profileForm] = Form.useForm()
   const [pwdForm] = Form.useForm()
   const [loading, setLoading] = useState(false)
@@ -88,20 +108,42 @@ const UserCenter: React.FC = () => {
   const [healthChecking, setHealthChecking] = useState(false)
   const [inviteCodes, setInviteCodes] = useState<MyInviteCodeRow[]>([])
   const [inviteRecords, setInviteRecords] = useState<MyInviteRecordRow[]>([])
+  const [inviteQuota, setInviteQuota] = useState<InviteQuota | null>(null)
   const [inviteLoading, setInviteLoading] = useState(false)
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const [activeUserTab, setActiveUserTab] = useState('overview')
+  const [cosConfigured, setCosConfigured] = useState<boolean | null>(null)
 
   const formatTs = (ms: number) => new Date(ms).toLocaleString()
+
+  useEffect(() => {
+    if (focusTab) {
+      setActiveUserTab(focusTab)
+      onFocusTabConsumed?.()
+    }
+  }, [focusTab, onFocusTabConsumed])
+
+  const checkCosStatus = useCallback(async () => {
+    try {
+      await cosImageStats()
+      setCosConfigured(true)
+    } catch (e) {
+      setCosConfigured(e instanceof AuthApiError && e.code === 'COS_NOT_CONFIGURED' ? false : null)
+    }
+  }, [])
 
   const loadInviteLists = useCallback(async () => {
     setInviteLoading(true)
     try {
-      const [codes, records] = await Promise.all([
+      const [codes, records, quota] = await Promise.all([
         authFetchJson<MyInviteCodeRow[]>('/invites/codes', { method: 'GET' }),
         authFetchJson<MyInviteRecordRow[]>('/invites/records', { method: 'GET' }),
+        authFetchJson<InviteQuota>('/invites/quota', { method: 'GET' }),
       ])
       setInviteCodes(codes)
       setInviteRecords(records)
+      setInviteQuota(quota)
     } catch (e) {
       message.error(formatAuthApiError(e))
     } finally {
@@ -112,16 +154,22 @@ const UserCenter: React.FC = () => {
   const onCreateInvite = async () => {
     setInviteLoading(true)
     try {
-      const data = await authFetchJson<{ code: string; id: string; createdAt: number }>(
-        '/invites',
-        { method: 'POST', body: JSON.stringify({}) }
-      )
+      const data = await authFetchJson<{
+        code: string
+        id: string
+        createdAt: number
+        expiresAt: number
+        maxUses?: number
+      }>('/invites', { method: 'POST', body: JSON.stringify({}) })
       Modal.success({
         title: '邀请码已生成',
         width: 480,
         content: (
           <div>
-            <Typography.Paragraph>请复制并分享给受邀者（关闭后无法再次查看明文）：</Typography.Paragraph>
+            <Typography.Paragraph>请复制并分享给受邀者；您也可在下方「我发出的邀请码」列表中再次复制。有效期至：</Typography.Paragraph>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+              {formatTs(data.expiresAt)}
+            </Typography.Paragraph>
             <Typography.Paragraph copyable strong style={{ fontSize: 18 }}>
               {data.code}
             </Typography.Paragraph>
@@ -129,6 +177,7 @@ const UserCenter: React.FC = () => {
         ),
       })
       await loadInviteLists()
+      logSignedInUserAction('invite_code_created', '生成新邀请码')
     } catch (e) {
       message.error(formatAuthApiError(e))
     } finally {
@@ -137,14 +186,9 @@ const UserCenter: React.FC = () => {
   }
 
   useEffect(() => {
-    void hydrateFromRefresh()
-  }, [hydrateFromRefresh])
-
-  useEffect(() => {
     if (user && accessToken) {
       profileForm.setFieldsValue({
         displayName: user.displayName,
-        avatarUrl: user.avatarUrl || '',
       })
     }
   }, [user, accessToken, profileForm])
@@ -157,15 +201,10 @@ const UserCenter: React.FC = () => {
     })
   }, [])
 
-  const cardStyle: React.CSSProperties = {
-    background: 'rgba(255, 255, 255, 0.72)',
-    backdropFilter: 'blur(20px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-    borderRadius: 12,
-  }
+  const cardStyle = userCenterCardStyle
 
   const checkServiceHealth = async () => {
-    if (!baseUrl) return
+    if (!isAuthApiConfigured()) return
     setHealthChecking(true)
     try {
       const res = await fetch(`${baseUrl}/health`)
@@ -178,44 +217,40 @@ const UserCenter: React.FC = () => {
     }
   }
 
-  const onLogin = async () => {
-    const v = await loginForm.validateFields()
-    setLoading(true)
+  const onPickAvatarFile = async (file: File) => {
+    if (!isAllowedAvatarFile(file)) {
+      message.warning('请选择 JPG、PNG、WebP 或 GIF 图片')
+      return
+    }
+    if (file.size > AVATAR_SELECT_MAX_BYTES) {
+      message.warning('图片不能超过 10MB')
+      return
+    }
+    setAvatarUploading(true)
+    const prevKey = user?.avatarUrl && isCosAvatarRef(user.avatarUrl) ? parseCosAvatarKey(user.avatarUrl) : null
     try {
-      await login(v.email, v.password)
-      message.success('登录成功')
+      const cosRef = await uploadAvatarToCos(file)
+      await updateProfile({ avatarUrl: cosRef })
+      if (prevKey) {
+        try {
+          await cosDelete({ key: prevKey })
+        } catch {
+          /* 旧头像清理失败不影响主流程 */
+        }
+      }
+      message.success('头像已更新')
+      logSignedInUserAction('profile_updated', '上传头像')
     } catch (e) {
       message.error(formatAuthApiError(e))
     } finally {
-      setLoading(false)
+      setAvatarUploading(false)
+      if (avatarInputRef.current) avatarInputRef.current.value = ''
     }
   }
 
-  const onRegister = async () => {
-    const v = await regForm.validateFields()
-    setLoading(true)
-    try {
-      await register(v.email, v.password, v.displayName, v.inviteCode)
-      message.success('注册成功')
-    } catch (e) {
-      message.error(formatAuthApiError(e))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const onBootstrapFirstUser = async () => {
-    const v = await bootForm.validateFields()
-    setLoading(true)
-    try {
-      await bootstrapFirstUser(v.secret, v.email, v.password, v.displayName)
-      message.success('首个账号已创建并已登录')
-      bootForm.resetFields()
-    } catch (e) {
-      message.error(formatAuthApiError(e))
-    } finally {
-      setLoading(false)
-    }
+  const onAvatarInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) void onPickAvatarFile(file)
   }
 
   const onSaveProfile = async () => {
@@ -224,9 +259,9 @@ const UserCenter: React.FC = () => {
     try {
       await updateProfile({
         displayName: v.displayName,
-        avatarUrl: v.avatarUrl === '' ? null : v.avatarUrl,
       })
       message.success('已保存')
+      logSignedInUserAction('profile_updated', '更新个人资料')
     } catch (e) {
       message.error(formatAuthApiError(e))
     } finally {
@@ -252,8 +287,6 @@ const UserCenter: React.FC = () => {
     setLoading(true)
     try {
       await logout()
-      loginForm.resetFields()
-      regForm.resetFields()
       pwdForm.resetFields()
       message.success('已退出')
     } finally {
@@ -261,16 +294,8 @@ const UserCenter: React.FC = () => {
     }
   }
 
-  const openExternal = (url: string) => {
-    if (window.electronAPI?.openExternalLink) {
-      void window.electronAPI.openExternalLink(url)
-    } else {
-      window.open(url, '_blank', 'noopener,noreferrer')
-    }
-  }
-
   const apiWarning =
-    !baseUrl ? (
+    !isAuthApiConfigured() ? (
       <Alert
         type="warning"
         showIcon
@@ -281,38 +306,60 @@ const UserCenter: React.FC = () => {
           <>
             当前为生产或未注入环境变量：请在根目录 <Typography.Text code>.env.production</Typography.Text> / 构建流水线中设置{' '}
             <Typography.Text code>VITE_AUTH_API_BASE_URL</Typography.Text>（与后端一致、无尾部斜杠）。开发环境通常使用仓库内{' '}
-            <Typography.Text code>.env.development</Typography.Text>，或未配置时自动使用{' '}
-            <Typography.Text code>http://localhost:3847</Typography.Text>。
+            <Typography.Text code>.env.development</Typography.Text>，默认 <Typography.Text code>http://localhost:3847</Typography.Text>。
           </>
         }
       />
     ) : null
 
-  if (isHydrating && !user && !accessToken) {
-    return (
-      <div className="app-tab-panel user-center-auth-page">
-        {apiWarning}
-        <div className="user-center-auth-layout">
-          <div className="user-center-auth-panel user-center-auth-panel--idle">
-            <Spin tip="正在恢复登录…" />
-          </div>
-        </div>
-      </div>
-    )
+  if (!user || !accessToken) return null
+
+  const panelProps = {
+    userId: user.id,
+    onNavigateApp,
+    onSwitchUserTab: setActiveUserTab,
   }
 
-  if (user && accessToken) {
-    return (
+  return (
       <div className="app-tab-panel user-center-root" style={{ padding: 24, overflow: 'auto' }}>
         {apiWarning}
         <Row gutter={[16, 16]} justify="center">
-          <Col xs={24} lg={18} xl={14}>
+          <Col xs={24} lg={20} xl={16}>
             <Tabs
-              defaultActiveKey="profile"
+              activeKey={activeUserTab}
               onChange={(key) => {
+                setActiveUserTab(key)
                 if (key === 'invites') void loadInviteLists()
+                if (key === 'about') void checkCosStatus()
               }}
               items={[
+                {
+                  key: 'overview',
+                  label: (
+                    <span>
+                      <DashboardOutlined /> 概览
+                    </span>
+                  ),
+                  children: <UserCenterOverviewTab {...panelProps} />,
+                },
+                {
+                  key: 'stats',
+                  label: (
+                    <span>
+                      <BarChartOutlined /> 使用统计
+                    </span>
+                  ),
+                  children: <UserCenterUsageStatsTab userId={user.id} />,
+                },
+                {
+                  key: 'preferences',
+                  label: (
+                    <span>
+                      <SettingOutlined /> 偏好与数据
+                    </span>
+                  ),
+                  children: <UserCenterPreferencesTab onNavigateApp={onNavigateApp} />,
+                },
                 {
                   key: 'profile',
                   label: (
@@ -323,12 +370,37 @@ const UserCenter: React.FC = () => {
                   children: (
                     <Card title="资料与展示" style={cardStyle}>
                       <Space align="center" size="large" wrap className="user-center-profile-header">
-                        <Avatar size={72} src={user.avatarUrl || undefined} icon={<UserOutlined />} />
+                        <button
+                          type="button"
+                          className="user-center-avatar-upload"
+                          disabled={avatarUploading}
+                          aria-label="上传头像"
+                          onClick={() => avatarInputRef.current?.click()}
+                        >
+                          <UserAvatar size={72} avatarUrl={user.avatarUrl} />
+                          <span className="user-center-avatar-upload-mask">
+                            {avatarUploading ? <LoadingOutlined spin /> : <CameraOutlined />}
+                          </span>
+                          <input
+                            ref={avatarInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            className="user-center-avatar-input"
+                            onChange={onAvatarInputChange}
+                          />
+                        </button>
                         <div>
                           <Typography.Title level={5} style={{ marginTop: 0 }}>
                             {user.displayName}
                           </Typography.Title>
                           <Typography.Text type="secondary">{desensitizeEmail(user.email)}</Typography.Text>
+                          {user.createdAt != null ? (
+                            <div style={{ marginTop: 6 }}>
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                注册于 {formatTs(user.createdAt)}
+                              </Typography.Text>
+                            </div>
+                          ) : null}
                           {user.invitedByUserId ? (
                             <div style={{ marginTop: 8 }}>
                               <Typography.Text type="secondary" style={{ fontSize: 13 }}>
@@ -342,9 +414,6 @@ const UserCenter: React.FC = () => {
                       <Form form={profileForm} layout="vertical" onFinish={() => void onSaveProfile()}>
                         <Form.Item name="displayName" label="昵称" rules={[{ max: 64, message: '最长 64 字符' }]}>
                           <Input placeholder="显示名称" />
-                        </Form.Item>
-                        <Form.Item name="avatarUrl" label="头像 URL" rules={[{ max: 512, message: '最长 512 字符' }]}>
-                          <Input placeholder="https://…" allowClear />
                         </Form.Item>
                         <Form.Item style={{ marginBottom: 0 }}>
                           <div className="user-center-actions-row">
@@ -430,6 +499,17 @@ const UserCenter: React.FC = () => {
                   ),
                 },
                 {
+                  key: 'oplog',
+                  label: (
+                    <span>
+                      <HistoryOutlined /> 操作日志
+                    </span>
+                  ),
+                  children: (
+                    <OperationLogTab userId={user.id} onOpenUsageStats={() => setActiveUserTab('stats')} />
+                  ),
+                },
+                {
                   key: 'invites',
                   label: (
                     <span>
@@ -440,10 +520,50 @@ const UserCenter: React.FC = () => {
                     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                       <Card title="生成邀请码" style={cardStyle}>
                         <Typography.Paragraph type="secondary" style={{ marginBottom: 16, textAlign: 'center' }}>
-                          邀请码仅创建时显示一次，请妥善复制分享。受邀者注册时需填写完整邀请码。
+                          同一时间仅保留一条可用邀请码；再次生成会使上一条立即失效。邀请码自创建起 3
+                          {/* 天内有效。每位用户按 UTC
+                          自然日最多生成若干条（默认 2 条，参数表{' '}
+                          <Typography.Text code>invite_max_generations_per_day</Typography.Text>
+                          ）。成功邀请人数上限见参数{' '}
+                          <Typography.Text code>invite_max_redemptions_per_inviter</Typography.Text>。 */}
                         </Typography.Paragraph>
+                        {inviteQuota && inviteQuota.generationsToday >= inviteQuota.maxGenerationsPerDay ? (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="今日生成次数已达上限"
+                            description={`今日已生成 ${inviteQuota.generationsToday} / ${inviteQuota.maxGenerationsPerDay} 次（按 UTC 日切分），请明日再试或联系运维调整参数表。`}
+                          />
+                        ) : null}
+                        {inviteQuota && inviteQuota.redeemedCount >= inviteQuota.maxInvitees ? (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message="已达邀请人数上限"
+                            description={`已成功邀请 ${inviteQuota.redeemedCount} / ${inviteQuota.maxInvitees} 人，无法生成新邀请码。若需提高上限，请由运维调整参数表。`}
+                          />
+                        ) : inviteQuota ? (
+                          <Alert
+                            type="info"
+                            showIcon
+                            style={{ marginBottom: 16 }}
+                            message={`还可邀请 ${Math.max(0, inviteQuota.maxInvitees - inviteQuota.redeemedCount)} 人（已成功 ${inviteQuota.redeemedCount} / ${inviteQuota.maxInvitees}）；今日还可生成 ${Math.max(0, inviteQuota.maxGenerationsPerDay - inviteQuota.generationsToday)} 次邀请码（已生成 ${inviteQuota.generationsToday} / ${inviteQuota.maxGenerationsPerDay}）`}
+                          />
+                        ) : null}
                         <div className="user-center-actions-row">
-                          <Button type="primary" size="large" loading={inviteLoading} onClick={() => void onCreateInvite()}>
+                          <Button
+                            type="primary"
+                            size="large"
+                            loading={inviteLoading}
+                            disabled={
+                              !!inviteQuota &&
+                              (inviteQuota.redeemedCount >= inviteQuota.maxInvitees ||
+                                inviteQuota.generationsToday >= inviteQuota.maxGenerationsPerDay)
+                            }
+                            onClick={() => void onCreateInvite()}
+                          >
                             生成新邀请码
                           </Button>
                         </div>
@@ -461,6 +581,19 @@ const UserCenter: React.FC = () => {
                                 title: '创建时间',
                                 dataIndex: 'createdAt',
                                 render: (t: number) => formatTs(t),
+                              },
+                              {
+                                title: '邀请码',
+                                key: 'code',
+                                width: 220,
+                                render: (_, row) =>
+                                  row.code ? (
+                                    <Typography.Text copyable strong>
+                                      {row.code}
+                                    </Typography.Text>
+                                  ) : (
+                                    <Typography.Text type="secondary">—</Typography.Text>
+                                  ),
                               },
                               {
                                 title: '过期时间',
@@ -527,19 +660,24 @@ const UserCenter: React.FC = () => {
                   ),
                   children: (
                     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                      <Card title="认证服务" style={cardStyle} extra={<CloudOutlined />}>
+                      <Card title="认证服务" style={cardStyle} extra={<ApiOutlined />}>
                         <Space direction="vertical" style={{ width: '100%' }}>
                           <Typography.Text type="secondary">API 地址</Typography.Text>
                           <Typography.Paragraph code copyable style={{ marginBottom: 8 }}>
-                            {baseUrl}
+                            {apiDisplayLabel}
                           </Typography.Paragraph>
                           <Space wrap>
                             <Button onClick={() => void checkServiceHealth()} loading={healthChecking}>
                               检测连接
                             </Button>
-                            {healthOk === true && <Tag color="success">服务可达</Tag>}
-                            {healthOk === false && <Tag color="error">不可达</Tag>}
-                            {healthOk === null && <Tag>未检测</Tag>}
+                            {healthOk === true && <Tag color="success">认证 API 可达</Tag>}
+                            {healthOk === false && <Tag color="error">认证 API 不可达</Tag>}
+                            {healthOk === null && <Tag>认证 API 未检测</Tag>}
+                            {cosConfigured === true && <Tag color="success">COS 已配置</Tag>}
+                            {cosConfigured === false && <Tag color="default">COS 未配置</Tag>}
+                            {cosConfigured === null && activeUserTab === 'about' ? (
+                              <Tag>COS 未检测</Tag>
+                            ) : null}
                           </Space>
                         </Space>
                       </Card>
@@ -561,166 +699,6 @@ const UserCenter: React.FC = () => {
         </Row>
       </div>
     )
-  }
-
-  return (
-    <div className="app-tab-panel user-center-auth-page">
-      {apiWarning}
-      <div className="user-center-auth-layout">
-        <div className="user-center-auth-panel">
-          <header className="user-center-auth-header">
-            <div className="user-center-auth-brand" aria-hidden>
-              <UserOutlined />
-            </div>
-            <div className="user-center-auth-header-text">
-              <h1 className="user-center-auth-title">用户中心</h1>
-              <p className="user-center-auth-lead">登录或注册，以使用账号与邀请等功能</p>
-            </div>
-          </header>
-
-          <div className="user-center-auth-segment" role="tablist" aria-label="登录或注册">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={authMode === 'login'}
-              className={`user-center-auth-segment__btn${authMode === 'login' ? ' is-active' : ''}`}
-              onClick={() => setAuthMode('login')}
-            >
-              登录
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={authMode === 'register'}
-              className={`user-center-auth-segment__btn${authMode === 'register' ? ' is-active' : ''}`}
-              onClick={() => setAuthMode('register')}
-            >
-              注册
-            </button>
-          </div>
-
-          {authMode === 'login' ? (
-            <Form
-              form={loginForm}
-              layout="vertical"
-              className="user-center-auth-form"
-              requiredMark="optional"
-              onFinish={() => void onLogin()}
-            >
-              <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email', message: '请输入有效邮箱' }]}>
-                <EmailAutoComplete
-                  autoComplete="email"
-                  size="large"
-                  placeholder="输入用户名，或完整邮箱；可从下拉选择常用后缀"
-                />
-              </Form.Item>
-              <Form.Item name="password" label="密码" rules={[{ required: true, min: 8, message: '至少 8 位' }]}>
-                <Input.Password autoComplete="current-password" size="large" placeholder="至少 8 位" />
-              </Form.Item>
-              <Form.Item className="user-center-auth-form__actions">
-                <Button type="primary" htmlType="submit" size="large" block loading={loading} className="user-center-auth-submit">
-                  登录
-                </Button>
-                <div className="user-center-auth-secondary">
-                  {resetUrl ? (
-                    <button type="button" className="user-center-auth-link-btn" onClick={() => openExternal(resetUrl)}>
-                      忘记密码？
-                    </button>
-                  ) : (
-                    <span className="user-center-auth-hint">可在 .env 中配置 VITE_PASSWORD_RESET_URL 以显示找回入口</span>
-                  )}
-                </div>
-              </Form.Item>
-            </Form>
-          ) : (
-            <>
-              <Form
-                form={regForm}
-                layout="vertical"
-                className="user-center-auth-form"
-                requiredMark="optional"
-                onFinish={() => void onRegister()}
-              >
-                <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email', message: '请输入有效邮箱' }]}>
-                  <EmailAutoComplete
-                    autoComplete="email"
-                    size="large"
-                    placeholder="输入用户名，或完整邮箱；可从下拉选择常用后缀"
-                  />
-                </Form.Item>
-                <Form.Item name="password" label="密码" rules={[{ required: true, min: 8, message: '至少 8 位' }]}>
-                  <Input.Password autoComplete="new-password" size="large" placeholder="至少 8 位" />
-                </Form.Item>
-                <Form.Item
-                  name="inviteCode"
-                  label="邀请码"
-                  extra={
-                    <span className="user-center-auth-field-hint">
-                      须由已注册用户分享。生产环境通常必填；若服务端开启 ALLOW_OPEN_REGISTRATION 可不填。
-                    </span>
-                  }
-                >
-                  <Input placeholder="XXXX-XXXX-XXXX-XXXX" autoComplete="off" size="large" />
-                </Form.Item>
-                <Form.Item name="displayName" label="昵称" tooltip="选填，可随时在个人资料中修改">
-                  <Input size="large" placeholder="选填" />
-                </Form.Item>
-                <Form.Item className="user-center-auth-form__actions">
-                  <Button type="primary" htmlType="submit" size="large" block loading={loading} className="user-center-auth-submit">
-                    创建账号
-                  </Button>
-                </Form.Item>
-              </Form>
-              {import.meta.env.DEV ? (
-                <Collapse ghost style={{ marginTop: 8 }}>
-                  <Collapse.Panel
-                    header="首个账号（冷启动）"
-                    key="bootstrap"
-                    extra={<Typography.Text type="secondary">库中无任何用户时</Typography.Text>}
-                  >
-                    <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-                      对应后端 <Typography.Text code>POST /auth/bootstrap-first-user</Typography.Text>：请在{' '}
-                      <Typography.Text code>backend/.env</Typography.Text> 中配置{' '}
-                      <Typography.Text code>BOOTSTRAP_INVITE_SECRET</Typography.Text>（≥16 字符），下方密钥与该值完全一致。
-                    </Typography.Paragraph>
-                    <Form
-                      form={bootForm}
-                      layout="vertical"
-                      className="user-center-auth-form"
-                      requiredMark="optional"
-                      onFinish={() => void onBootstrapFirstUser()}
-                    >
-                      <Form.Item
-                        name="secret"
-                        label="引导密钥"
-                        rules={[{ required: true, min: 16, message: '至少 16 字符，与后端 BOOTSTRAP_INVITE_SECRET 一致' }]}
-                      >
-                        <Input.Password autoComplete="off" size="large" placeholder="BOOTSTRAP_INVITE_SECRET" />
-                      </Form.Item>
-                      <Form.Item name="email" label="邮箱" rules={[{ required: true, type: 'email', message: '请输入有效邮箱' }]}>
-                        <EmailAutoComplete autoComplete="email" size="large" placeholder="用户名或完整邮箱，下拉可选后缀" />
-                      </Form.Item>
-                      <Form.Item name="password" label="密码" rules={[{ required: true, min: 8, message: '至少 8 位' }]}>
-                        <Input.Password autoComplete="new-password" size="large" />
-                      </Form.Item>
-                      <Form.Item name="displayName" label="昵称">
-                        <Input size="large" placeholder="选填" />
-                      </Form.Item>
-                      <Form.Item style={{ marginBottom: 0 }}>
-                        <Button type="default" htmlType="submit" size="large" block loading={loading}>
-                          创建首个账号并登录
-                        </Button>
-                      </Form.Item>
-                    </Form>
-                  </Collapse.Panel>
-                </Collapse>
-              ) : null}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  )
 }
 
 export default UserCenter

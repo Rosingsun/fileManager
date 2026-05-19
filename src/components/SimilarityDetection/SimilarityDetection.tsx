@@ -5,6 +5,7 @@ import type { SimilarityScanConfig, SimilarityScanResult, SimilarityScanProgress
 import ScanConfig from './ScanConfig'
 import ScanResults from './ScanResults'
 import { PageSection } from '../UnifiedUI'
+import { logSignedInUserAction } from '../../utils'
 import './SimilarityDetection.css'
 
 const { Paragraph } = Typography
@@ -54,6 +55,11 @@ const SimilarityDetection: React.FC = () => {
     try {
       const scanResult = await window.electronAPI.scanSimilarImages(scanConfig)
       setResult(scanResult)
+      logSignedInUserAction(
+        'similarity_scan',
+        `相似照片扫描完成（${scanResult.groups?.length ?? 0} 组）`,
+        scanConfig.rootPath
+      )
     } catch (err: any) {
       setError(err.message || '扫描失败')
     } finally {

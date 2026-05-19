@@ -1,5 +1,10 @@
-/** 与 Vite 默认 `localhost:5173` 同主机名，避免对 127.0.0.1 触发 Chromium 本地网络预检限制 */
-const DEV_AUTH_API_DEFAULT = 'http://localhost:3847'
+import { xhrPostWithProgress, XhrHttpError } from './xhrUpload'
+
+/**
+ * 开发默认直连认证服务；后端已统一返回 Access-Control-Allow-Private-Network，避免 Chromium 跨端口预检卡死。
+ * 若需经 Vite 同源代理，可在 .env.development 将 VITE_AUTH_API_BASE_URL 置空并在 electron.vite.config 的 renderer.server 配置 proxy。
+ */
+const DEV_AUTH_API_DEFAULT = 'http://127.0.0.1:3847'
 
 export function getAuthApiBaseUrl(): string {
   const raw = import.meta.env.VITE_AUTH_API_BASE_URL
@@ -7,6 +12,11 @@ export function getAuthApiBaseUrl(): string {
   if (trimmed) return trimmed
   if (import.meta.env.DEV) return DEV_AUTH_API_DEFAULT
   return ''
+}
+
+/** 开发默认同源代理，视为已配置；生产须设置非空的 VITE_AUTH_API_BASE_URL */
+export function isAuthApiConfigured(): boolean {
+  return import.meta.env.DEV || Boolean(getAuthApiBaseUrl())
 }
 
 export function getPasswordResetUrl(): string {
@@ -41,7 +51,8 @@ export function configureAuthClient(c: {
 
 export function formatAuthApiError(err: unknown): string {
   if (err instanceof AuthApiError) {
-    return err.message
+    if (err.message.trim()) return err.message
+    return err.code !== 'UNKNOWN' ? `${err.code}（HTTP ${err.httpStatus}）` : `请求失败（HTTP ${err.httpStatus}）`
   }
   if (err instanceof Error) {
     if (err.name === 'AbortError') {
@@ -73,8 +84,8 @@ export async function authFetchJson<T>(
   options: { skipAuth?: boolean } = {}
 ): Promise<T> {
   const base = getAuthApiBaseUrl()
-  if (!base) {
-    throw new Error('未配置认证 API 地址：开发可在根目录 .env.development 设置 VITE_AUTH_API_BASE_URL；生产打包需注入该变量')
+  if (!isAuthApiConfigured()) {
+    throw new Error('未配置认证 API 地址：生产打包需在环境变量中注入 VITE_AUTH_API_BASE_URL（完整 URL、无尾部斜杠）')
   }
 
   const run = (token: string | null) => {
@@ -99,19 +110,27 @@ export async function authFetchJson<T>(
     }
   }
 
+  const text = await res.text()
   let raw: unknown
-  try {
-    raw = await res.json()
-  } catch {
+  if (text) {
+    try {
+      raw = JSON.parse(text) as unknown
+    } catch {
+      raw = null
+    }
+  } else {
     raw = null
   }
 
   if (!raw || typeof raw !== 'object' || !('ok' in raw)) {
-    throw new AuthApiError(
-      'BAD_RESPONSE',
-      res.ok ? '无效的响应' : `请求失败 (${res.status})`,
-      res.status
-    )
+    const status = res.status
+    const fallback =
+      !res.ok && status === 401
+        ? '认证失败（未收到有效 JSON）。若长时间无响应，请确认 MySQL 已启动，且 backend/.env 中 MYSQL_HOST 使用 127.0.0.1（避免 localhost 在部分环境下挂起）'
+        : !res.ok
+          ? `请求失败（HTTP ${status}）`
+          : '无效的响应'
+    throw new AuthApiError('BAD_RESPONSE', res.ok ? '无效的响应' : fallback, status)
   }
 
   if (!(raw as { ok: boolean }).ok) {
@@ -124,4 +143,80 @@ export async function authFetchJson<T>(
   }
 
   return (raw as ApiOk<T>).data
+}
+
+/** 以二进制 body POST（如 application/octet-stream），解析 `{ ok, data }`，支持 401 刷新后重试与上传进度 */
+export async function authPostBinaryJson<T>(
+  pathWithQuery: string,
+  body: Blob,
+  onProgress?: (loaded: number, total: number) => void
+): Promise<T> {
+  const base = getAuthApiBaseUrl()
+  if (!isAuthApiConfigured()) {
+    throw new Error('未配置认证 API 地址：生产打包需在环境变量中注入 VITE_AUTH_API_BASE_URL（完整 URL、无尾部斜杠）')
+  }
+  const path = pathWithQuery.startsWith('/') ? pathWithQuery : `/${pathWithQuery}`
+  const url = `${base}${path}`
+  const noop = () => {}
+  const run = (token: string | null) => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/octet-stream' }
+    if (token) headers.Authorization = `Bearer ${token}`
+    return xhrPostWithProgress(url, body, headers, onProgress ?? noop)
+  }
+
+  const parseText = (text: string, httpStatus: number): T => {
+    let raw: unknown
+    if (text) {
+      try {
+        raw = JSON.parse(text) as unknown
+      } catch {
+        raw = null
+      }
+    } else {
+      raw = null
+    }
+    if (!raw || typeof raw !== 'object' || !('ok' in raw)) {
+      const fallback =
+        !text && httpStatus === 401
+          ? '认证失败（未收到有效 JSON）'
+          : !text
+            ? `请求失败（HTTP ${httpStatus}）`
+            : '无效的响应'
+      throw new AuthApiError('BAD_RESPONSE', fallback, httpStatus)
+    }
+    if (!(raw as { ok: boolean }).ok) {
+      const err = raw as ApiErr
+      throw new AuthApiError(err.error?.code ?? 'UNKNOWN', err.error?.message || '请求失败', httpStatus)
+    }
+    return (raw as ApiOk<T>).data
+  }
+
+  let token = getAccessToken()
+  try {
+    const text = await run(token)
+    return parseText(text, 200)
+  } catch (e) {
+    if (e instanceof XhrHttpError && e.status === 401 && token) {
+      const ok = await refreshAccess()
+      if (ok) {
+        token = getAccessToken()
+        const text2 = await run(token)
+        return parseText(text2, 200)
+      }
+      try {
+        return parseText(e.responseText, e.status)
+      } catch {
+        throw new AuthApiError('UNAUTHORIZED', '未登录或令牌无效', 401)
+      }
+    }
+    if (e instanceof XhrHttpError) {
+      try {
+        return parseText(e.responseText, e.status)
+      } catch (inner) {
+        if (inner instanceof AuthApiError) throw inner
+      }
+      throw new AuthApiError('UNKNOWN', e.message, e.status)
+    }
+    throw e
+  }
 }

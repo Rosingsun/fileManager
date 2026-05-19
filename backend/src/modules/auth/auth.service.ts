@@ -10,6 +10,9 @@ import {
 } from '../../tokens.js'
 import { INVITE_INVALID_MESSAGE, hashInviteCode, normalizeInviteCode } from '../../utils/inviteCode.js'
 import { AppError } from '../../utils/AppError.js'
+import { withTimeout } from '../../utils/withTimeout.js'
+import { writeAppLog } from '../../logger/appLogger.js'
+import { ensureUserCosHome } from '../cos/cos.service.js'
 import * as inviteRepo from '../invite/invite.repository.js'
 import type { InviteCodeRow } from '../invite/invite.repository.js'
 import * as repo from './auth.repository.js'
@@ -20,18 +23,24 @@ export type PublicUser = {
   email: string
   displayName: string
   avatarUrl: string | null
+  createdAt: number
   invitedByUserId?: string | null
+  isAdmin: boolean
 }
 
 export function toPublicUser(
-  row: Pick<UserRow, 'id' | 'email' | 'display_name' | 'avatar_url'> & { invited_by_user_id?: string | null }
+  row: Pick<UserRow, 'id' | 'email' | 'display_name' | 'avatar_url' | 'created_at' | 'is_admin'> & {
+    invited_by_user_id?: string | null
+  }
 ): PublicUser {
   return {
     id: row.id,
     email: row.email,
     displayName: row.display_name,
     avatarUrl: row.avatar_url,
+    createdAt: row.created_at,
     invitedByUserId: row.invited_by_user_id ?? null,
+    isAdmin: Boolean(Number(row.is_admin ?? 0)),
   }
 }
 
@@ -99,9 +108,14 @@ export const authService = {
         avatar_url: null,
         created_at: now,
         invited_by_user_id: null,
+        is_admin: 1,
       })
       const { raw: refreshToken } = await issueRefreshPairAsync(conn, id)
       await conn.commit()
+      void ensureUserCosHome(id).catch((e) => {
+        const detail = e instanceof Error ? e.message : String(e)
+        writeAppLog('WARN', `[cos] ensureUserCosHome after bootstrap userId=${id}`, detail)
+      })
       const accessToken = signAccessToken(id, env.JWT_SECRET)
       return {
         accessToken,
@@ -111,7 +125,9 @@ export const authService = {
           email,
           display_name: displayName,
           avatar_url: null,
+          created_at: now,
           invited_by_user_id: null,
+          is_admin: 1,
         }),
       }
     } catch (e) {
@@ -166,6 +182,7 @@ export const authService = {
         avatar_url: null,
         created_at: now,
         invited_by_user_id: invitedByUserId,
+        is_admin: 0,
       })
 
       if (inviteCodeId && inviterForRedemption) {
@@ -182,6 +199,10 @@ export const authService = {
 
       const { raw: refreshToken } = await issueRefreshPairAsync(conn, id)
       await conn.commit()
+      void ensureUserCosHome(id).catch((e) => {
+        const detail = e instanceof Error ? e.message : String(e)
+        writeAppLog('WARN', `[cos] ensureUserCosHome after register userId=${id}`, detail)
+      })
       const accessToken = signAccessToken(id, env.JWT_SECRET)
       return {
         accessToken,
@@ -191,7 +212,9 @@ export const authService = {
           email,
           display_name: displayName,
           avatar_url: null,
+          created_at: now,
           invited_by_user_id: invitedByUserId,
+          is_admin: 0,
         }),
       }
     } catch (e) {
@@ -208,10 +231,19 @@ export const authService = {
   async login(body: unknown): Promise<{ accessToken: string; refreshToken: string; user: PublicUser }> {
     const { email, password } = parseLoginBody(body)
     const pool = getPool()
-    const row = await repo.findUserByEmail(pool, email)
+    const dbLookupMs = 15_000
+    const row = await withTimeout(repo.findUserByEmail(pool, email), dbLookupMs, () =>
+      new AppError(
+        503,
+        'AUTH_DB_TIMEOUT',
+        '查询用户数据超时，请确认 MySQL 已启动，且 backend/.env 中 MYSQL_HOST（建议 127.0.0.1）、端口、库名与账号正确'
+      )
+    )
+
     if (!row || !(await bcrypt.compare(password, row.password_hash))) {
       throw new AppError(401, 'INVALID_CREDENTIALS', '邮箱或密码错误')
     }
+
     const conn = await pool.getConnection()
     try {
       await conn.beginTransaction()

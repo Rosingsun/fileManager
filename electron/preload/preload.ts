@@ -298,6 +298,32 @@ try {
       return ipcRenderer.invoke('auth:clearRefreshToken')
     },
 
+    setCurrentUserId: (userId: string | null): Promise<void> => {
+      return ipcRenderer.invoke('app:setCurrentUserId', userId)
+    },
+
+    appendOperationLog: (payload: {
+      userId: string
+      action: string
+      summary?: string
+      detail?: string
+    }): Promise<void> => {
+      return ipcRenderer.invoke('oplog:append', payload)
+    },
+
+    listOperationLogs: (
+      userId: string,
+      limit?: number
+    ): Promise<
+      Array<{ id: string; ts: number; action: string; summary?: string; detail?: string }>
+    > => {
+      return ipcRenderer.invoke('oplog:list', userId, limit)
+    },
+
+    clearOperationLogs: (userId: string): Promise<void> => {
+      return ipcRenderer.invoke('oplog:clear', userId)
+    },
+
     // 实用工具
     batchRename: (files: string[], options: any): Promise<any[]> => {
       return ipcRenderer.invoke('tools:batchRename', files, options)

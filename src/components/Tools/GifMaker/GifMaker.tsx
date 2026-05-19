@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Modal, Button, Space, Card, InputNumber, Select, message, Typography, Empty, Slider } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined, FolderOutlined } from '@ant-design/icons'
 import type { GifFrame, GifOptions } from '../../../types'
+import { logSignedInUserAction } from '../../../utils'
 import { useToolOutputPathStore } from '../../../stores'
 import LocalFileImagePreview from '../LocalFileImagePreview'
 
@@ -112,6 +113,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
 
       if (result) {
         message.success('GIF创建成功！')
+        logSignedInUserAction('gif_create', `GIF 制作（${frames.length} 帧）`, result)
         onClose()
       }
     } catch (error) {

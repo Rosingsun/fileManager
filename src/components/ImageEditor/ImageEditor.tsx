@@ -6,7 +6,7 @@ import FormatCompressDialog from './FormatCompressDialog'
 import CropOverlay from './CropOverlay'
 import { useImageEditor } from './useImageEditor'
 import { getFilterCss } from '../../utils/imageEditorUtils'
-import { imageLoader } from '../../utils'
+import { imageLoader, logSignedInUserAction } from '../../utils'
 import type { ImageEditSettings } from '../../types'
 
 const getTransform = (settings: ImageEditSettings): string => {
@@ -114,6 +114,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
             ? `已另存为新文件（原图未修改）：${first.newPath}`
             : '已保存'
         )
+        logSignedInUserAction('image_editor_apply', '图片编辑器应用调整', savedPath)
         imageLoader.clearCache(savedPath)
         if (filePath !== savedPath) {
           imageLoader.clearCache(filePath)
@@ -302,13 +303,21 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
         onConvert={opts => {
           const api = window.electronAPI
           if (api) {
-            api.convertFormat(filePath, opts).then(() => setOpenFormatDialog(false))
+            void api.convertFormat(filePath, opts).then((results) => {
+              const ok = results?.every(r => r.success)
+              if (ok) logSignedInUserAction('image_format_convert_editor', '编辑器内格式转换', filePath)
+              setOpenFormatDialog(false)
+            })
           }
         }}
         onCompress={opts => {
           const api = window.electronAPI
           if (api) {
-            api.compressImage(filePath, opts).then(() => setOpenFormatDialog(false))
+            void api.compressImage(filePath, opts).then((results) => {
+              const ok = results?.every(r => r.success)
+              if (ok) logSignedInUserAction('image_compress', '编辑器内图片压缩', filePath)
+              setOpenFormatDialog(false)
+            })
           }
         }}
       />

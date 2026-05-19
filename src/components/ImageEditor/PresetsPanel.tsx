@@ -16,6 +16,7 @@ import {
   BorderOuterOutlined,
 } from '@ant-design/icons'
 import { useImageEditorStore, isBuiltinPresetCollectionGroup } from '../../stores'
+import { logSignedInUserAction } from '../../utils'
 import type { ImageEditSettings, ImagePreset, PresetGroup } from '../../types'
 
 interface PresetsPanelProps {
@@ -260,6 +261,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
     }
     updatePreset(selectedPresetId, { settings: currentSettings })
     message.success('预设已更新')
+    logSignedInUserAction('editor_preset_update', '编辑预设：更新当前预设参数')
   }
 
   const filteredPresets = useMemo(() => {
@@ -298,6 +300,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
       setSelectedGroup(savePresetGroup)
     }
     message.success('预设已保存')
+    logSignedInUserAction('editor_preset_save', `编辑预设：保存「${savePresetName.trim()}」`)
   }
 
   const handleStartEdit = (id: string, name: string) => {
@@ -313,6 +316,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
     if (editingId) {
       updatePreset(editingId, { name: editingName.trim() })
       message.success('预设已更新')
+      logSignedInUserAction('editor_preset_update', `编辑预设：重命名为「${editingName.trim()}」`)
     }
     setEditingId(null)
     setEditingName('')
@@ -326,6 +330,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
   const handleDeletePreset = (id: string) => {
     deletePreset(id)
     message.success('预设已删除')
+    logSignedInUserAction('editor_preset_delete', '编辑预设：删除预设')
   }
 
   const handleAddGroup = () => {
@@ -341,6 +346,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
     addGroup({ name: addGroupName.trim() })
     setAddGroupModalVisible(false)
     message.success('分组已添加')
+    logSignedInUserAction('editor_group_add', `编辑预设：添加分组「${addGroupName.trim()}」`)
   }
 
   const handleStartEditGroup = (id: string, name: string) => {
@@ -356,6 +362,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
     if (editingGroupId) {
       updateGroup(editingGroupId, { name: editingGroupName.trim() })
       message.success('分组已更新')
+      logSignedInUserAction('editor_group_update', `编辑预设：分组重命名「${editingGroupName.trim()}」`)
     }
     setEditingGroupId(null)
     setEditingGroupName('')
@@ -369,6 +376,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
   const handleDeleteGroup = (id: string) => {
     deleteGroup(id)
     message.success('分组已删除')
+    logSignedInUserAction('editor_group_delete', '编辑预设：删除分组')
   }
 
   const renderPresetItem = (item: ImagePreset) => {

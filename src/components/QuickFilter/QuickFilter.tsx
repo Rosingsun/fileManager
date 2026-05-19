@@ -52,6 +52,7 @@ import {
   getFileExtension,
   getQuickFilterOrganizeFolderName,
   imageLoader,
+  logSignedInUserAction,
   suggestQuickFilterTier,
   waitForElectronApiReady
 } from '../../utils'
@@ -310,6 +311,11 @@ const QuickFilter: React.FC = () => {
       const config = buildConfig(values)
       const scanResult = await window.electronAPI.scanImageQuality(config)
       setResult(scanResult)
+      logSignedInUserAction(
+        'image_quality_scan',
+        `图片质量扫描完成（${scanResult.items?.length ?? 0} 项）`,
+        String(values.scanPath ?? '')
+      )
     } catch (e: unknown) {
       if (e && typeof e === 'object' && 'errorFields' in e) {
         setScanning(false)
@@ -347,6 +353,7 @@ const QuickFilter: React.FC = () => {
     }
     setTierByPath(next)
     message.success('已根据分析结果写入评级（可再手动调整）')
+    logSignedInUserAction('quick_filter_tier_write', '快速筛选：一键写入建议评级')
   }, [result])
 
   const handleSelectAllFiltered = () => {
@@ -393,6 +400,7 @@ const QuickFilter: React.FC = () => {
         const ok = successPaths.length
         if (fail === 0) message.success(`已删除 ${ok} 个文件`)
         else message.warning(`删除完成：成功 ${ok}，失败 ${fail}`)
+        if (ok > 0) logSignedInUserAction('quick_filter_bulk_delete', `快速筛选批量删除（成功 ${ok}，失败 ${fail}）`)
       }
     })
   }
@@ -426,6 +434,7 @@ const QuickFilter: React.FC = () => {
     setCopyModalOpen(false)
     if (fail === 0) message.success(`已复制 ${ok} 个文件到目标文件夹`)
     else message.warning(`复制完成：成功 ${ok}，失败 ${fail}`)
+    logSignedInUserAction('file_batch_copy', `快速筛选复制到目录（成功 ${ok}，失败 ${fail}）`, copyDestDir)
     if (copyRemoveAfter && ok > 0) {
       const removed = new Set(results.filter(r => r.success).map(r => r.filePath))
       setResult(prev => removePathsFromScanResult(prev, removed))
@@ -463,6 +472,7 @@ const QuickFilter: React.FC = () => {
     const fail = results.length - ok
     if (fail === 0) message.success(`已移动 ${ok} 个文件`)
     else message.warning(`移动完成：成功 ${ok}，失败 ${fail}`)
+    logSignedInUserAction('file_batch_relocate', `快速筛选按标记整理（成功 ${ok}，失败 ${fail}）`)
   }
 
   const runTierOrganize = async () => {
@@ -501,6 +511,7 @@ const QuickFilter: React.FC = () => {
     const fail = results.length - ok
     if (fail === 0) message.success(`已按评级移动 ${ok} 个文件`)
     else message.warning(`移动完成：成功 ${ok}，失败 ${fail}`)
+    logSignedInUserAction('file_batch_relocate', `快速筛选按评级整理（成功 ${ok}，失败 ${fail}）`)
   }
 
   const handleExportCsv = () => {
@@ -528,6 +539,7 @@ const QuickFilter: React.FC = () => {
     a.click()
     URL.revokeObjectURL(url)
     message.success('已导出 CSV')
+    logSignedInUserAction('quick_filter_export_csv', '快速筛选导出 CSV')
   }
 
   const columns: ColumnsType<ImageQualityItemResult> = useMemo(
