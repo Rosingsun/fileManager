@@ -15,6 +15,7 @@ import { writeAppLog } from '../../logger/appLogger.js'
 import { ensureUserCosHome } from '../cos/cos.service.js'
 import * as inviteRepo from '../invite/invite.repository.js'
 import type { InviteCodeRow } from '../invite/invite.repository.js'
+import { getCosUserStorageQuotaBytes } from '../parameters/parameters.repository.js'
 import * as repo from './auth.repository.js'
 import type { UserRow } from './auth.repository.js'
 
@@ -26,13 +27,22 @@ export type PublicUser = {
   createdAt: number
   invitedByUserId?: string | null
   isAdmin: boolean
+  cosStorageQuotaBytes: number
 }
 
 export function toPublicUser(
-  row: Pick<UserRow, 'id' | 'email' | 'display_name' | 'avatar_url' | 'created_at' | 'is_admin'> & {
+  row: Pick<
+    UserRow,
+    'id' | 'email' | 'display_name' | 'avatar_url' | 'created_at' | 'is_admin' | 'cos_storage_quota_bytes'
+  > & {
     invited_by_user_id?: string | null
   }
 ): PublicUser {
+  const quotaRaw = Number(row.cos_storage_quota_bytes ?? 0)
+  const cosStorageQuotaBytes =
+    Number.isFinite(quotaRaw) && quotaRaw > 0
+      ? Math.min(Math.floor(quotaRaw), 1099511627776)
+      : 5 * 1024 * 1024 * 1024
   return {
     id: row.id,
     email: row.email,
@@ -41,6 +51,7 @@ export function toPublicUser(
     createdAt: row.created_at,
     invitedByUserId: row.invited_by_user_id ?? null,
     isAdmin: Boolean(Number(row.is_admin ?? 0)),
+    cosStorageQuotaBytes,
   }
 }
 
@@ -100,6 +111,7 @@ export const authService = {
     const conn = await pool.getConnection()
     try {
       await conn.beginTransaction()
+      const cosStorageQuotaBytes = await getCosUserStorageQuotaBytes(conn)
       await repo.insertUser(conn, {
         id,
         email,
@@ -109,6 +121,7 @@ export const authService = {
         created_at: now,
         invited_by_user_id: null,
         is_admin: 1,
+        cos_storage_quota_bytes: cosStorageQuotaBytes,
       })
       const { raw: refreshToken } = await issueRefreshPairAsync(conn, id)
       await conn.commit()
@@ -128,6 +141,7 @@ export const authService = {
           created_at: now,
           invited_by_user_id: null,
           is_admin: 1,
+          cos_storage_quota_bytes: cosStorageQuotaBytes,
         }),
       }
     } catch (e) {
@@ -174,6 +188,7 @@ export const authService = {
         }
       }
 
+      const cosStorageQuotaBytes = await getCosUserStorageQuotaBytes(conn)
       await repo.insertUser(conn, {
         id,
         email,
@@ -183,6 +198,7 @@ export const authService = {
         created_at: now,
         invited_by_user_id: invitedByUserId,
         is_admin: 0,
+        cos_storage_quota_bytes: cosStorageQuotaBytes,
       })
 
       if (inviteCodeId && inviterForRedemption) {
@@ -215,6 +231,7 @@ export const authService = {
           created_at: now,
           invited_by_user_id: invitedByUserId,
           is_admin: 0,
+          cos_storage_quota_bytes: cosStorageQuotaBytes,
         }),
       }
     } catch (e) {

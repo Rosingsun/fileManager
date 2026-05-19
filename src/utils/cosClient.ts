@@ -18,8 +18,24 @@ export function cosBrowse(prefix?: string, delimiter?: string): Promise<CosBrows
   return authFetchJson<CosBrowseResult>(`/cos/browse${qs ? `?${qs}` : ''}`, { method: 'GET' })
 }
 
-export function cosImageStats(): Promise<{ imageCount: number; totalBytes: number }> {
-  return authFetchJson<{ imageCount: number; totalBytes: number }>('/cos/image-stats', { method: 'GET' })
+export const DEFAULT_COS_USER_STORAGE_QUOTA_BYTES = 5 * 1024 * 1024 * 1024
+
+export interface CosImageStats {
+  imageCount: number
+  totalBytes: number
+  quotaBytes: number
+}
+
+export async function cosImageStats(): Promise<CosImageStats> {
+  const data = await authFetchJson<Partial<CosImageStats> & Pick<CosImageStats, 'imageCount' | 'totalBytes'>>(
+    '/cos/image-stats',
+    { method: 'GET' }
+  )
+  const quotaBytes =
+    typeof data.quotaBytes === 'number' && data.quotaBytes > 0
+      ? data.quotaBytes
+      : DEFAULT_COS_USER_STORAGE_QUOTA_BYTES
+  return { imageCount: data.imageCount, totalBytes: data.totalBytes, quotaBytes }
 }
 
 export function cosPresignUpload(body: {

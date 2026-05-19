@@ -12,6 +12,7 @@ export interface UserRow extends RowDataPacket {
   created_at: number
   invited_by_user_id: string | null
   is_admin?: number
+  cos_storage_quota_bytes?: number
 }
 
 export async function findUserByEmail(db: DbExecutor, email: string): Promise<UserRow | null> {
@@ -44,11 +45,12 @@ export async function insertUser(
     created_at: number
     invited_by_user_id: string | null
     is_admin?: number
+    cos_storage_quota_bytes: number
   }
 ): Promise<void> {
   await db.execute(
-    `INSERT INTO users (id, email, password_hash, display_name, avatar_url, created_at, invited_by_user_id, is_admin)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO users (id, email, password_hash, display_name, avatar_url, created_at, invited_by_user_id, is_admin, cos_storage_quota_bytes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       row.id,
       row.email,
@@ -58,8 +60,23 @@ export async function insertUser(
       row.created_at,
       row.invited_by_user_id,
       row.is_admin ?? 0,
+      row.cos_storage_quota_bytes,
     ]
   )
+}
+
+interface QuotaRow extends RowDataPacket {
+  cos_storage_quota_bytes: number | null
+}
+
+export async function getUserCosStorageQuotaBytes(db: DbExecutor, userId: string): Promise<number | null> {
+  const [rows] = await db.execute<QuotaRow[]>(
+    'SELECT cos_storage_quota_bytes FROM users WHERE id = ? LIMIT 1',
+    [userId]
+  )
+  const v = rows[0]?.cos_storage_quota_bytes
+  if (v == null || !Number.isFinite(Number(v))) return null
+  return Math.floor(Number(v))
 }
 
 interface AdminFlagRow extends RowDataPacket {

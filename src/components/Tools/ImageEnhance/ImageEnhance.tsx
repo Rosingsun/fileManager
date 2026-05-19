@@ -119,7 +119,8 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
     <ToolModal
       open={visible}
       onClose={onClose}
-      title="图片增强"
+      title="图片增强"
+
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -135,7 +136,7 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
         </Space>
       }
     >
-      <div className="app-tool-modal__layout" style={{ display: 'flex', gap: 14, height: 'min(62vh, 560px)', minHeight: 320 }}>
+      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
         <div className="app-tool-modal__sidebar">
           <ToolModalPanel title="选择图片">
             <Button 

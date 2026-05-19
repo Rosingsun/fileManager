@@ -38,11 +38,9 @@
   height: 40px;
   flex-shrink: 0;
   border-radius: 12px;
-  background: linear-gradient(
-    145deg,
-    color-mix(in srgb, var(--app-primary) 28%, transparent),
-    color-mix(in srgb, #5ac8fa 16%, transparent)
-  );
+  background: linear-gradient(145deg,
+      color-mix(in srgb, var(--app-primary) 28%, transparent),
+      color-mix(in srgb, #5ac8fa 16%, transparent));
   color: var(--app-primary);
   font-size: 18px;
   box-shadow: var(--app-shadow-xs);

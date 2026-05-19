@@ -34,6 +34,12 @@ export async function runMigrations(pool: Pool): Promise<void> {
       if (filename === '009_app_parameters_remark.sql') {
         await ensureAppParametersRemarkColumn(conn)
       }
+      if (filename === '010_users_cos_storage_quota.sql') {
+        await ensureUsersCosStorageQuotaColumn(conn)
+      }
+      if (filename === '011_user_cos_quota_adjustments.sql') {
+        await ensureUserCosQuotaAdjustmentsTable(conn)
+      }
 
       const sql = await readFile(join(migrationsDir, filename), 'utf8')
       await conn.beginTransaction()
@@ -56,6 +62,8 @@ export async function runMigrations(pool: Pool): Promise<void> {
     await ensureUsersIsAdminColumn(conn)
     await ensureAppParametersRemarkColumn(conn)
     await ensureUsersInvitedByColumn(conn)
+    await ensureUsersCosStorageQuotaColumn(conn)
+    await ensureUserCosQuotaAdjustmentsTable(conn)
   } finally {
     conn.release()
   }
@@ -103,6 +111,54 @@ async function ensureAppParametersRemarkColumn(conn: PoolConnection): Promise<vo
 }
 
 /** 列或外键可能已由手工执行过 002 旧版 SQL，避免重复 ADD 导致启动失败 */
+async function ensureUsersCosStorageQuotaColumn(conn: PoolConnection): Promise<void> {
+  const [tables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'`
+  )
+  if (!Number(tables[0]?.c)) return
+
+  const [cols] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'cos_storage_quota_bytes'`
+  )
+  if (!Number(cols[0]?.c)) {
+    await conn.query(
+      `ALTER TABLE users ADD COLUMN cos_storage_quota_bytes BIGINT NOT NULL DEFAULT 5368709120
+       COMMENT '云图库存储空间上限（字节），统计与上传校验使用'`
+    )
+    console.info('[migrate] added users.cos_storage_quota_bytes')
+  }
+}
+
+async function ensureUserCosQuotaAdjustmentsTable(conn: PoolConnection): Promise<void> {
+  const [tables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_cos_quota_adjustments'`
+  )
+  if (Number(tables[0]?.c)) return
+
+  await conn.query(`
+    CREATE TABLE user_cos_quota_adjustments (
+      id CHAR(36) NOT NULL COMMENT '主键 UUID',
+      user_id CHAR(36) NOT NULL COMMENT '被调整配额的用户 ID',
+      operator_user_id CHAR(36) NULL COMMENT '操作人用户 ID（管理员）；系统任务可为 NULL',
+      previous_quota_bytes BIGINT NOT NULL COMMENT '调整前云图库配额（字节）',
+      new_quota_bytes BIGINT NOT NULL COMMENT '调整后云图库配额（字节）',
+      delta_bytes BIGINT NOT NULL COMMENT '变更量（字节），new - previous',
+      remark VARCHAR(256) NULL COMMENT '备注，如充值订单号',
+      created_at BIGINT NOT NULL COMMENT '创建时间 Unix 毫秒',
+      PRIMARY KEY (id),
+      KEY idx_quota_adj_user (user_id),
+      KEY idx_quota_adj_created (created_at),
+      CONSTRAINT fk_quota_adj_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+      CONSTRAINT fk_quota_adj_operator FOREIGN KEY (operator_user_id) REFERENCES users (id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    COMMENT='用户云图库配额调整记录（充值/运维调额）'
+  `)
+  console.info('[migrate] created user_cos_quota_adjustments')
+}
+
 async function ensureUsersInvitedByColumn(conn: PoolConnection): Promise<void> {
   const [tables] = await conn.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES

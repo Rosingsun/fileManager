@@ -176,7 +176,8 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
     <ToolModal
       open={visible}
       onClose={onClose}
-      title="图片拼接"
+      title="图片拼接"
+
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -191,7 +192,7 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
         </Space>
       }
     >
-      <div className="app-tool-modal__layout" style={{ display: 'flex', gap: 14, height: 'min(62vh, 560px)', minHeight: 320 }}>
+      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
         <div className="app-tool-modal__sidebar">
           <ToolModalPanel title="选择图片">
             <Button 

@@ -683,6 +683,28 @@
   width: 100%;
 }
 
+.user-center-cos-quota {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.user-center-cos-quota__label {
+  font-size: 12px;
+}
+
+.user-center-cos-quota .ant-progress {
+  margin: 0;
+}
+
+.user-center-admin-quota-forms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
 .user-center-actions-row {
   justify-content: flex-start;
 }
@@ -1288,6 +1310,12 @@
   font-size: 13px;
 }
 
+.cos-library-summary-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .cos-library-summary-card__stats {
   display: flex;
   align-items: center;
@@ -1295,6 +1323,22 @@
   gap: 4px;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.cos-library-summary-card__quota {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cos-library-summary-card__quota-label {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.cos-library-summary-card__quota .ant-progress {
+  margin: 0;
+  line-height: 0;
 }
 
 .cos-library-summary-card__sep {

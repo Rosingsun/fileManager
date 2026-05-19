@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { App, Button, Col, List, Row, Space, Spin, Typography } from 'antd'
+import { App, Button, Col, List, Progress, Row, Space, Spin, Typography } from 'antd'
 import {
   CloudOutlined,
   FolderOpenOutlined,
@@ -39,7 +39,7 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
 
   const [cosLoading, setCosLoading] = useState(true)
   const [cosDisabled, setCosDisabled] = useState(false)
-  const [cosStats, setCosStats] = useState<{ imageCount: number; totalBytes: number } | null>(null)
+  const [cosStats, setCosStats] = useState<{ imageCount: number; totalBytes: number; quotaBytes: number } | null>(null)
   const [recentLogs, setRecentLogs] = useState<OperationLogEntry[]>([])
   const [logsLoading, setLogsLoading] = useState(true)
 
@@ -150,6 +150,23 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
                 />
               </Col>
             </Row>
+            {cosStats && cosStats.quotaBytes > 0 ? (
+              <div className="user-center-cos-quota">
+                <Progress
+                  percent={Math.min(100, Math.round((cosStats.totalBytes / cosStats.quotaBytes) * 100))}
+                  showInfo={false}
+                  size="small"
+                  strokeColor={
+                    cosStats.totalBytes / cosStats.quotaBytes >= 0.9
+                      ? 'var(--app-danger, #ff3b30)'
+                      : 'var(--app-primary, #0a84ff)'
+                  }
+                />
+                <Text type="secondary" className="user-center-cos-quota__label">
+                  已用 {formatFileSize(cosStats.totalBytes)} / 上限 {formatFileSize(cosStats.quotaBytes)}
+                </Text>
+              </div>
+            ) : null}
             <Button
               type="primary"
               onClick={() => onNavigateApp({ type: 'tab', tab: 'organize', organizeMode: 'cloud' })}

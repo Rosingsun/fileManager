@@ -573,3 +573,14 @@ export interface EnhanceOptions {
   scale?: 1 | 2 | 4
   outputPath?: string
 }
+
+/** 图片查看器：人脸/主体对焦点（相对坐标 0–1） */
+export interface PhotoFocusPoint {
+  x: number
+  y: number
+  weight?: number
+}
+
+export interface PhotoFocusPointsResult {
+  points: PhotoFocusPoint[]
+}

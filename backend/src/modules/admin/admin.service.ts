@@ -17,6 +17,8 @@ import {
   PARAM_COS_SECRET_ID,
   PARAM_COS_SECRET_KEY,
   PARAM_COS_UPLOAD_MAX_BYTES,
+  PARAM_COS_USER_STORAGE_QUOTA_BYTES,
+  getCosUserStorageQuotaBytes,
   setIntParam,
   setStringParam,
 } from '../parameters/parameters.repository.js'
@@ -31,10 +33,12 @@ export type CosConfigPublicView = {
   uploadMaxBytes: number
   presignPutExpiresSec: number
   presignGetExpiresSec: number
+  defaultUserStorageQuotaBytes: number
 }
 
-function toPublicView(): CosConfigPublicView {
+async function toPublicView(pool: ReturnType<typeof getPool>): Promise<CosConfigPublicView> {
   const c = getCosConfig()
+  const defaultUserStorageQuotaBytes = await getCosUserStorageQuotaBytes(pool)
   return {
     configured: isCosConfigured(),
     secretId: maskSecretId(c.secretId),
@@ -45,13 +49,15 @@ function toPublicView(): CosConfigPublicView {
     uploadMaxBytes: c.uploadMaxBytes,
     presignPutExpiresSec: c.presignPutExpiresSec,
     presignGetExpiresSec: c.presignGetExpiresSec,
+    defaultUserStorageQuotaBytes,
   }
 }
 
 export const adminService = {
   async getCosParameters(): Promise<CosConfigPublicView> {
-    await loadCosConfig(getPool())
-    return toPublicView()
+    const pool = getPool()
+    await loadCosConfig(pool)
+    return toPublicView(pool)
   },
 
   async updateCosParameters(
@@ -115,6 +121,14 @@ export const adminService = {
       await setIntParam(pool, PARAM_COS_PRESIGN_GET_EXPIRES_SEC, Math.floor(n))
       changedKeys.push(PARAM_COS_PRESIGN_GET_EXPIRES_SEC)
     }
+    if (b.defaultUserStorageQuotaBytes !== undefined) {
+      const n = Number(b.defaultUserStorageQuotaBytes)
+      if (!Number.isFinite(n) || n < 1 || n > 1099511627776) {
+        throw new AppError(400, 'BAD_INPUT', 'defaultUserStorageQuotaBytes 须在 1～1099511627776 之间')
+      }
+      await setIntParam(pool, PARAM_COS_USER_STORAGE_QUOTA_BYTES, Math.floor(n))
+      changedKeys.push(PARAM_COS_USER_STORAGE_QUOTA_BYTES)
+    }
 
     if (changedKeys.length === 0) {
       throw new AppError(400, 'BAD_INPUT', '未提供可更新的 COS 配置字段')
@@ -122,6 +136,6 @@ export const adminService = {
 
     writeAppLog('INFO', `[admin] cos parameters updated by userId=${operatorUserId} keys=${changedKeys.join(',')}`)
     await loadCosConfig(pool)
-    return toPublicView()
+    return toPublicView(pool)
   },
 }

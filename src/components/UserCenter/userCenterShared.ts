@@ -7,6 +7,7 @@ export type UserCenterTabKey =
   | 'oplog'
   | 'invites'
   | 'about'
+  | 'adminQuota'
 
 export interface UserCenterNavItem {
   key: UserCenterTabKey

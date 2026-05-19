@@ -118,7 +118,8 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
     <ToolModal
       open={visible}
       onClose={onClose}
-      title="缩略图生成"
+      title="缩略图生成"
+
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -133,7 +134,7 @@ const ThumbnailGen: React.FC<ThumbnailGenProps> = ({ visible, onClose }) => {
         </Space>
       }
     >
-      <div className="app-tool-modal__layout" style={{ display: 'flex', gap: 14, height: 'min(62vh, 560px)', minHeight: 320 }}>
+      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
         <div className="app-tool-modal__sidebar">
           <ToolModalPanel title="选择图片">
             <Button 

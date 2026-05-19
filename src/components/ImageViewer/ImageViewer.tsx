@@ -5,7 +5,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import ImageCanvas from './components/ImageCanvas'
 import InfoPanel from './components/InfoPanel'
+import FocusPointOverlay from './components/FocusPointOverlay'
 import LivePhotoPlayer from './components/LivePhotoPlayer'
+import { getPhotoFocusPoints } from '../../utils'
+import type { PhotoFocusPoint } from '../../types'
 import type { LivePlaybackMode } from './components/LivePhotoPlayer'
 import { useImageLoader } from './hooks/useImageLoader'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
@@ -36,6 +39,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     modifiedAt: string
   } | null>(null)
   const [livePlaybackMode, setLivePlaybackMode] = useState<LivePlaybackMode>('once')
+  const [focusPoints, setFocusPoints] = useState<PhotoFocusPoint[]>([])
+  const [activeFocusPointIndex, setActiveFocusPointIndex] = useState(0)
 
   const currentImage = useMemo(() => {
     return images[currentIndex] || null
@@ -164,6 +169,24 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     }
   }, [imageFilePathForMeta])
 
+  useEffect(() => {
+    const fp = imageFilePathForMeta
+    if (!fp) {
+      setFocusPoints([])
+      setActiveFocusPointIndex(0)
+      return
+    }
+    let cancelled = false
+    void getPhotoFocusPoints(fp).then((res) => {
+      if (cancelled) return
+      setFocusPoints(res.points)
+      setActiveFocusPointIndex(0)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [imageFilePathForMeta])
+
   // 当图片切换或 URL 变化时，重置状态
   useEffect(() => {
     if (currentImage && displayImageUrl) {
@@ -243,6 +266,14 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     setViewMode('fit')
   }, [])
 
+  const cycleFocusPoint = useCallback(
+    (direction: 1 | -1) => {
+      if (focusPoints.length < 2) return
+      setActiveFocusPointIndex((i) => (i + direction + focusPoints.length) % focusPoints.length)
+    },
+    [focusPoints.length]
+  )
+
   // 键盘快捷键
   useKeyboardShortcuts({
     onEscape: onClose,
@@ -253,6 +284,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     onKey1: () => setViewMode('actual'),
     onPlus: () => setScale(prev => Math.min(prev + 10, 400)),
     onMinus: () => setScale(prev => Math.max(prev - 10, 25)),
+    onBracketLeft: () => cycleFocusPoint(-1),
+    onBracketRight: () => cycleFocusPoint(1),
     enabled: true
   })
 
@@ -285,6 +318,11 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             isLoading={isLoading || isLoadingBlob}
             isError={isError}
             onRetry={retry}
+          />
+          <FocusPointOverlay
+            points={focusPoints}
+            activeIndex={activeFocusPointIndex}
+            visible={focusPoints.length > 0}
           />
           {currentImage?.mediaKind === 'raw' && (
             <span className="image-viewer-badge image-viewer-badge--raw">RAW · 嵌入预览</span>

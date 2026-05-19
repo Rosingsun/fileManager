@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react'
-import { App, Button, Spin, Typography } from 'antd'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { App, Button, Progress, Spin, Typography } from 'antd'
 import { GlassCard } from './UnifiedUI'
 import { CloudOutlined, ReloadOutlined } from '@ant-design/icons'
-import { AuthApiError, cosImageStats, formatAuthApiError, formatFileSize } from '../utils'
+import { AuthApiError, cosImageStats, formatAuthApiError, formatFileSize, type CosImageStats } from '../utils'
 
 export interface CosLibrarySummaryCardProps {
   onOpen: () => void
@@ -13,7 +13,7 @@ const CosLibrarySummaryCard: React.FC<CosLibrarySummaryCardProps> = ({ onOpen, r
   const { message } = App.useApp()
   const [loading, setLoading] = useState(true)
   const [cosDisabled, setCosDisabled] = useState(false)
-  const [stats, setStats] = useState<{ imageCount: number; totalBytes: number } | null>(null)
+  const [stats, setStats] = useState<CosImageStats | null>(null)
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -37,6 +37,11 @@ const CosLibrarySummaryCard: React.FC<CosLibrarySummaryCardProps> = ({ onOpen, r
   useEffect(() => {
     void fetchStats()
   }, [fetchStats, refreshNonce])
+
+  const storagePercent = useMemo(() => {
+    if (!stats?.quotaBytes) return 0
+    return Math.min(100, Math.round((stats.totalBytes / stats.quotaBytes) * 100))
+  }, [stats])
 
   if (cosDisabled) {
     return (
@@ -81,15 +86,31 @@ const CosLibrarySummaryCard: React.FC<CosLibrarySummaryCardProps> = ({ onOpen, r
           <Spin size="small" />
         </div>
       ) : (
-        <div className="cos-library-summary-card__stats" title="点击进入云图库">
-          <span>
-            <Typography.Text strong>{stats?.imageCount ?? 0}</Typography.Text>
-            <Typography.Text type="secondary"> 张</Typography.Text>
-          </span>
-          <Typography.Text type="secondary" className="cos-library-summary-card__sep">
-            ·
-          </Typography.Text>
-          <Typography.Text strong>{formatFileSize(stats?.totalBytes ?? 0)}</Typography.Text>
+        <div className="cos-library-summary-card__body" title="点击进入云图库">
+          <div className="cos-library-summary-card__stats">
+            <span>
+              <Typography.Text strong>{stats?.imageCount ?? 0}</Typography.Text>
+              <Typography.Text type="secondary"> 张</Typography.Text>
+            </span>
+            <Typography.Text type="secondary" className="cos-library-summary-card__sep">
+              ·
+            </Typography.Text>
+            <Typography.Text strong>{formatFileSize(stats?.totalBytes ?? 0)}</Typography.Text>
+          </div>
+          <div className="cos-library-summary-card__quota">
+            <Progress
+              percent={storagePercent}
+              showInfo={false}
+              size="small"
+              strokeColor={storagePercent >= 90 ? 'var(--app-danger, #ff3b30)' : 'var(--app-primary, #0a84ff)'}
+              trailColor="var(--app-border-subtle, rgba(0,0,0,0.06))"
+            />
+            <Typography.Text type="secondary" className="cos-library-summary-card__quota-label">
+              <Typography.Text strong>{formatFileSize(stats?.totalBytes ?? 0)}</Typography.Text>
+              {' / '}
+              <Typography.Text strong>{formatFileSize(stats?.quotaBytes ?? 0)}</Typography.Text>
+            </Typography.Text>
+          </div>
         </div>
       )}
     </GlassCard>

@@ -65,6 +65,7 @@ export interface AuthUser {
   createdAt?: number
   invitedByUserId?: string | null
   isAdmin?: boolean
+  cosStorageQuotaBytes?: number
 }
 
 interface AuthTokensResponse {

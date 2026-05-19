@@ -3,6 +3,10 @@ import COS from 'cos-nodejs-sdk-v5'
 import { getPool } from '../../db/pool.js'
 import { writeAppLog } from '../../logger/appLogger.js'
 import { AppError } from '../../utils/AppError.js'
+import * as userRepo from '../auth/auth.repository.js'
+import {
+  getCosUserStorageQuotaBytes,
+} from '../parameters/parameters.repository.js'
 import {
   getCosConfig,
   isCosConfigured,
@@ -340,8 +344,26 @@ function isImageObjectKey(key: string): boolean {
   return IMAGE_EXT.has(ext)
 }
 
+async function resolveUserCosStorageQuotaBytes(userId: string): Promise<number> {
+  const pool = getPool()
+  const fromUser = await userRepo.getUserCosStorageQuotaBytes(pool, userId)
+  if (fromUser != null && fromUser > 0) {
+    return Math.min(fromUser, 1099511627776)
+  }
+  return getCosUserStorageQuotaBytes(pool)
+}
+
+async function assertCosStorageQuota(userId: string, additionalBytes: number): Promise<void> {
+  const { totalBytes, quotaBytes } = await imageStats(userId)
+  if (totalBytes + additionalBytes > quotaBytes) {
+    throw new AppError(413, 'STORAGE_QUOTA_EXCEEDED', '云图库存储空间已满，请删除部分图片或联系管理员提升配额')
+  }
+}
+
 /** 扁平列举用户根下全部对象，统计图片数量与总字节（分页直至结束） */
-export async function imageStats(userId: string): Promise<{ imageCount: number; totalBytes: number }> {
+export async function imageStats(
+  userId: string
+): Promise<{ imageCount: number; totalBytes: number; quotaBytes: number }> {
   await prepareCos()
   try {
     await ensureUserCosHome(userId)
@@ -400,7 +422,8 @@ export async function imageStats(userId: string): Promise<{ imageCount: number; 
     marker = next
   }
 
-  return { imageCount, totalBytes }
+  const quotaBytes = await resolveUserCosStorageQuotaBytes(userId)
+  return { imageCount, totalBytes, quotaBytes }
 }
 
 export async function presignUpload(
@@ -468,6 +491,7 @@ export async function uploadObjectBuffer(
       `文件超过服务端允许大小（${getCosConfig().uploadMaxBytes} 字节）`
     )
   }
+  await assertCosStorageQuota(userId, input.buffer.length)
   const parentRel = normalizeRelativeDir(input.parentPrefix ?? '')
   const { ext, contentType } = resolveImageExtAndContentType(fileName, undefined)
   const id = randomUUID()

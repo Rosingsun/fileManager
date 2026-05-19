@@ -19,8 +19,10 @@ export const PARAM_COS_KEY_PREFIX = 'cos_key_prefix'
 export const PARAM_COS_UPLOAD_MAX_BYTES = 'cos_upload_max_bytes'
 export const PARAM_COS_PRESIGN_PUT_EXPIRES_SEC = 'cos_presign_put_expires_sec'
 export const PARAM_COS_PRESIGN_GET_EXPIRES_SEC = 'cos_presign_get_expires_sec'
+export const PARAM_COS_USER_STORAGE_QUOTA_BYTES = 'cos_user_storage_quota_bytes'
 
 export const DEFAULT_COS_UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+export const DEFAULT_COS_USER_STORAGE_QUOTA_BYTES = 5 * 1024 * 1024 * 1024
 export const DEFAULT_COS_PRESIGN_PUT_EXPIRES_SEC = 900
 export const DEFAULT_COS_PRESIGN_GET_EXPIRES_SEC = 600
 
@@ -98,4 +100,9 @@ export async function getInviteMaxRedemptionsPerInviter(db: DbExecutor): Promise
 export async function getInviteMaxGenerationsPerDay(db: DbExecutor): Promise<number> {
   const n = await getIntParam(db, PARAM_INVITE_MAX_GENERATIONS_PER_DAY, DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY)
   return n >= 1 ? n : DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY
+}
+
+export async function getCosUserStorageQuotaBytes(db: DbExecutor): Promise<number> {
+  const n = await getIntParam(db, PARAM_COS_USER_STORAGE_QUOTA_BYTES, DEFAULT_COS_USER_STORAGE_QUOTA_BYTES)
+  return Math.min(Math.max(n, 1), 1099511627776)
 }

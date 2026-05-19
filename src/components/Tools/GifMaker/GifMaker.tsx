@@ -137,20 +137,20 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
       title="GIF制作"
 
       footer={
-        <>
+        <Space>
           <Button onClick={onClose}>取消</Button>
-          <Button
-            type="primary"
+          <Button 
+            type="primary" 
             onClick={handleExecute}
             disabled={frames.length < 2 || !outputPath || isProcessing}
             loading={isProcessing}
           >
             {isProcessing ? '处理中...' : '创建GIF'}
           </Button>
-        </>
+        </Space>
       }
     >
-      <div className="app-tool-modal__layout" style={{ display: 'flex', gap: 14, height: 'min(62vh, 560px)', minHeight: 320 }}>
+      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
         <div className="app-tool-modal__sidebar">
           <ToolModalPanel title="选择图片">
             <Button 

@@ -20,6 +20,7 @@ import {
   SafetyOutlined,
   InfoCircleOutlined,
   ApiOutlined,
+  CloudServerOutlined,
   LogoutOutlined,
   TeamOutlined,
   HistoryOutlined,
@@ -48,6 +49,7 @@ import OperationLogTab from './OperationLogTab'
 import UserCenterOverviewTab from './UserCenter/UserCenterOverviewTab'
 import UserCenterUsageStatsTab from './UserCenter/UserCenterUsageStatsTab'
 import UserCenterPreferencesTab from './UserCenter/UserCenterPreferencesTab'
+import UserCenterAdminQuotaTab from './UserCenter/UserCenterAdminQuotaTab'
 import UserCenterSidebar, { type UserCenterSidebarNavEntry } from './UserCenter/UserCenterSidebar'
 import { GlassCard, PageSection } from './UnifiedUI'
 import {
@@ -155,6 +157,9 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
     { key: 'invites', label: '我的邀请', group: 'account', icon: <TeamOutlined /> },
     { key: 'oplog', label: '操作日志', group: 'system', icon: <HistoryOutlined /> },
     { key: 'about', label: '关于与服务', group: 'system', icon: <InfoCircleOutlined /> },
+    ...(user?.isAdmin
+      ? [{ key: 'adminQuota' as const, label: '云库配额管理', group: 'system' as const, icon: <CloudServerOutlined /> }]
+      : []),
   ]
 
   const onUserTabChange = useCallback(
@@ -620,6 +625,7 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                       </PageSection>
               </Space>
             )}
+            {activeUserTab === 'adminQuota' && user?.isAdmin && <UserCenterAdminQuotaTab />}
             {activeUserTab === 'about' && (
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                       <GlassCard title="认证服务" extra={<ApiOutlined />}>
