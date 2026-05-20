@@ -21,6 +21,8 @@ interface EditorAdjustPanelProps {
   onChange: (updates: Partial<ImageEditSettings>) => void
   previewSrc: string | null
   settingsDigest: string
+  filePath?: string
+  imagePixelCount?: number
   onAutoEnhance?: () => void
   autoEnhanceLoading?: boolean
 }
@@ -30,10 +32,15 @@ const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
   onChange,
   previewSrc,
   settingsDigest,
+  filePath,
+  imagePixelCount,
   onAutoEnhance,
   autoEnhanceLoading,
 }) => {
-  const { histogram, loading: histLoading } = useImageHistogram(previewSrc, settingsDigest)
+  const { histogram, loading: histLoading } = useImageHistogram(previewSrc, settingsDigest, {
+    filePath,
+    pixelCount: imagePixelCount,
+  })
 
   const handleSlider = (key: keyof ImageEditSettings) => (value: number) => {
     onChange({ [key]: value })

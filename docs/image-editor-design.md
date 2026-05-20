@@ -86,7 +86,20 @@
 | 几何 | 左旋/右旋 90°、180°、水平/垂直翻转、角度 0–360° |
 | 裁切 | 仅裁切与比例预设（旋转/翻转已迁至几何） |
 
-**数据**：`ImageEditSettings.levels`、`ImageEditSettings.toneCurve.master`；预览图 `previewSrc = sharpPreviewUrl ?? imageUrl ?? originalImageUrl`；直方图 Canvas 采样（最长边 320px，debounce 280ms）。
+**数据**：`ImageEditSettings.levels`、`ImageEditSettings.toneCurve`（master / R / G / B）；预览图 `previewSrc = sharpPreviewUrl ?? imageUrl ?? originalImageUrl`；直方图 Canvas 采样（最长边 320px，debounce 280ms）；≥4K 像素时回退 `image:getHistogram` 主进程采样。
+
+### 2.9 二期专业能力（2026-05-20）
+
+| 能力 | 说明 |
+|------|------|
+| 直方图拖拽黑/白场 | 曲线页直方图下沿三角与色阶滑杆双向绑定 |
+| RGB 分通道曲线 | 曲线页分段：RGB / R / G / B；独立 LUT |
+| RGB 直方图叠层 | 曲线页开关，R/G/B 半透明叠层 |
+| HSL 分色相 8 色 | 色彩页折叠面板：红橙黄绿青蓝紫品红，各 h/s/l ±100 |
+| 灰点白平衡 | 色彩页「灰点取色」→ 点击预览采样 RGB → 色温/色调 |
+| 去雾 / 鲜明度 | 色彩页；Sharp 像素级近似 |
+| 导出尺寸 / 水印 | 格式对话框：缩放 %、文字水印；`convertFormat` 支持 `editSettings` / `scalePercent` / `watermark` |
+| 主进程直方图 | IPC `image:getHistogram`，弱机大图回退 |
 
 ## 3. UI 布局设计
 

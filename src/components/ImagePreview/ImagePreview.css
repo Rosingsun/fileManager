@@ -55,17 +55,17 @@
   text-align: center;
 }
 
-.circular-progress {
+.image-preview__ring {
   width: 60px;
   height: 60px;
   transform: rotate(-90deg);
 }
 
-.circular-progress-bg {
+.image-preview__ring-bg {
   stroke: #e0e0e0;
 }
 
-.circular-progress-fill {
+.image-preview__ring-fill {
   stroke: var(--app-primary);
   transition: stroke-dasharray 0.3s ease;
 }

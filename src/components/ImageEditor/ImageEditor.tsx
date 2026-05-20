@@ -11,6 +11,7 @@ import {
   imageLoader,
   logSignedInUserAction,
   settingsForComparePreview,
+  rgbToWhiteBalance,
 } from '../../utils'
 import type { ImageEditSettings } from '../../types'
 
@@ -38,6 +39,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
   const [sharpCompareUrl, setSharpCompareUrl] = useState<string | null>(null)
   const [sharpPreviewLoading, setSharpPreviewLoading] = useState(false)
   const [autoEnhanceLoading, setAutoEnhanceLoading] = useState(false)
+  const [pickWhiteBalanceMode, setPickWhiteBalanceMode] = useState(false)
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previewGenRef = useRef(0)
 
@@ -172,6 +174,16 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
     setSharpCompareUrl(null)
   }
 
+  const handlePickWhiteBalance = useCallback(
+    (rgb: { r: number; g: number; b: number }) => {
+      const wb = rgbToWhiteBalance(rgb.r, rgb.g, rgb.b)
+      handleSettingsChange(wb)
+      setPickWhiteBalanceMode(false)
+      message.success('已根据采样点设置色温与色调')
+    },
+    [handleSettingsChange]
+  )
+
   const handleAutoEnhance = async () => {
     const api = window.electronAPI
     if (!api?.analyzeForEdit || !filePath) {
@@ -268,6 +280,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
             showCropOverlay={showCropOverlay}
             loading={loadingImage}
             editCount={countActiveEdits(settings)}
+            pickWhiteBalanceMode={pickWhiteBalanceMode}
+            onPickWhiteBalance={handlePickWhiteBalance}
           />
           <EditorSidebar
             settings={settings}
@@ -281,6 +295,9 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
             imageHeight={imageSize.height}
             onAutoEnhance={handleAutoEnhance}
             autoEnhanceLoading={autoEnhanceLoading}
+            filePath={filePath}
+            onPickWhiteBalance={() => setPickWhiteBalanceMode(m => !m)}
+            pickWhiteBalanceActive={pickWhiteBalanceMode}
           />
         </div>
       </ImageEditorShell>
@@ -288,6 +305,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
       <FormatCompressDialog
         visible={openFormatDialog}
         files={[filePath]}
+        editSettings={settings}
         onClose={() => setOpenFormatDialog(false)}
         onConvert={opts => {
           const api = window.electronAPI

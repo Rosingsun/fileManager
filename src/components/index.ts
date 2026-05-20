@@ -5,6 +5,7 @@ export { default as AppHeader } from './AppHeader'
 export { default as CircularProgress } from './CircularProgress'
 
 export { default as ImageViewer } from './ImageViewer/ImageViewer'
+export { MediaPreviewModal } from './MediaPreview'
 export { default as ImagePreview } from './ImagePreview/ImagePreview'
 export { default as SimilarityDetection } from './SimilarityDetection/SimilarityDetection'
 export { default as ImageClassification } from './ImageClassification/ImageClassification'

@@ -1,5 +1,6 @@
 import type { ImageEditSettings } from '../types'
 import { isLevelsDefault, isToneCurveDefault } from './toneCurve'
+import { isHslHueAdjustDefault } from './hslHueAdjust'
 
 /**
  * 在图像内计算指定宽高比下的最大内接裁切矩形（居中），用于比例预设。
@@ -63,6 +64,9 @@ const SHARP_PREVIEW_KEYS: (keyof ImageEditSettings)[] = [
   'crop',
   'levels',
   'toneCurve',
+  'dehaze',
+  'vibrance',
+  'hslHueAdjust',
 ]
 
 function isActiveValue(key: keyof ImageEditSettings, settings: ImageEditSettings): boolean {
@@ -83,6 +87,9 @@ function isActiveValue(key: keyof ImageEditSettings, settings: ImageEditSettings
   }
   if (key === 'toneCurve' && v && typeof v === 'object') {
     return !isToneCurveDefault(v as ImageEditSettings['toneCurve'])
+  }
+  if (key === 'hslHueAdjust' && v && typeof v === 'object') {
+    return !isHslHueAdjustDefault(v as ImageEditSettings['hslHueAdjust'])
   }
   return false
 }
@@ -133,6 +140,9 @@ export function resetEditPanel(group: EditPanelGroup): Partial<ImageEditSettings
         shadows: 0,
         highlights: 0,
         clarity: 0,
+        dehaze: 0,
+        vibrance: 0,
+        hslHueAdjust: undefined,
       }
     case 'curves':
       return {

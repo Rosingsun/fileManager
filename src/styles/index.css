@@ -3,6 +3,7 @@
 @import './ant-overrides.css';
 @import './layout.css';
 @import './editor.css';
+@import '../components/MediaPreview/media-preview.css';
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";

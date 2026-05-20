@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { computeLuminanceHistogram, type LuminanceHistogramResult } from '../utils'
+import {
+  computeLuminanceHistogram,
+  type LuminanceHistogramResult,
+} from '../utils'
 
 const DEBOUNCE_MS = 280
+const LARGE_IMAGE_PIXELS = 3840 * 2160
 
 const EMPTY: LuminanceHistogramResult = {
   bins: new Uint32Array(256),
@@ -11,9 +15,38 @@ const EMPTY: LuminanceHistogramResult = {
   clipHighlight: 0,
 }
 
+function deserializeHistogram(raw: {
+  bins: number[]
+  total: number
+  peak: number
+  clipShadow: number
+  clipHighlight: number
+  rgbBins?: { r: number[]; g: number[]; b: number[] }
+}): LuminanceHistogramResult {
+  const bins = Uint32Array.from(raw.bins)
+  return {
+    bins,
+    total: raw.total,
+    peak: raw.peak,
+    clipShadow: raw.clipShadow,
+    clipHighlight: raw.clipHighlight,
+    rgbBins: raw.rgbBins
+      ? {
+          r: Uint32Array.from(raw.rgbBins.r),
+          g: Uint32Array.from(raw.rgbBins.g),
+          b: Uint32Array.from(raw.rgbBins.b),
+        }
+      : undefined,
+  }
+}
+
 export function useImageHistogram(
   previewSrc: string | null | undefined,
-  depsKey: string | number = ''
+  depsKey: string | number = '',
+  options?: {
+    filePath?: string
+    pixelCount?: number
+  }
 ): {
   histogram: LuminanceHistogramResult
   loading: boolean
@@ -36,8 +69,17 @@ export function useImageHistogram(
     setLoading(true)
     setError(null)
 
+    const useMainProcess =
+      !!options?.filePath &&
+      (options.pixelCount ?? 0) >= LARGE_IMAGE_PIXELS &&
+      !!window.electronAPI?.getImageHistogram
+
     const timer = window.setTimeout(() => {
-      void computeLuminanceHistogram(previewSrc)
+      const run = useMainProcess
+        ? window.electronAPI!.getImageHistogram(options!.filePath!).then(deserializeHistogram)
+        : computeLuminanceHistogram(previewSrc)
+
+      void run
         .then(result => {
           if (gen !== genRef.current) return
           setHistogram(result)
@@ -55,7 +97,7 @@ export function useImageHistogram(
       clearTimeout(timer)
       genRef.current++
     }
-  }, [previewSrc, depsKey])
+  }, [previewSrc, depsKey, options?.filePath, options?.pixelCount])
 
   return { histogram, loading, error }
 }

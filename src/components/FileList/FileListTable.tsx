@@ -42,6 +42,7 @@ interface FileListTableProps {
   onRegisterRef: (filePath: string, el: HTMLDivElement | null) => void
   onPageChange?: (page: number, pageSize: number) => void
   isPreviewable: (file: FileInfo) => boolean
+  isPreviewableImage: (file: FileInfo) => boolean
 }
 
 export const FileListTable: React.FC<FileListTableProps> = ({
@@ -67,6 +68,7 @@ export const FileListTable: React.FC<FileListTableProps> = ({
   onSelectionChange,
   onRegisterRef,
   isPreviewable,
+  isPreviewableImage,
   onPageChange
 }) => {
   const getIcon = (file: FileInfo) => {
@@ -101,22 +103,28 @@ export const FileListTable: React.FC<FileListTableProps> = ({
         const previewData = previews.get(record.path)
         const isLoading = loadingImages.has(record.path)
         const fileProgress = progress.get(record.path)
+        const showImageThumb = isPreviewableImage(record)
 
         return (
           <div
-            ref={(el) => onRegisterRef(record.path, el)}
+            ref={showImageThumb ? (el) => onRegisterRef(record.path, el) : undefined}
+            className={showImageThumb ? undefined : 'media-preview-table-hit'}
             style={{ width: 50, height: 50, borderRadius: 4, overflow: 'hidden', cursor: 'pointer' }}
             onClick={() => onPreview(record)}
           >
-            <ImageThumbnail
-              filePath={record.path}
-              fileName={record.name}
-              size={record.size}
-              maxSize={maxImageSize}
-              previewData={previewData}
-              isLoading={isLoading}
-              progress={fileProgress}
-            />
+            {showImageThumb ? (
+              <ImageThumbnail
+                filePath={record.path}
+                fileName={record.name}
+                size={record.size}
+                maxSize={maxImageSize}
+                previewData={previewData}
+                isLoading={isLoading}
+                progress={fileProgress}
+              />
+            ) : (
+              getIcon(record)
+            )}
           </div>
         )
       }
@@ -180,7 +188,7 @@ export const FileListTable: React.FC<FileListTableProps> = ({
           >
             查看
           </span>
-          {isPreviewable(record) && onEdit && (
+          {isPreviewableImage(record) && onEdit && (
             <span
               className="app-text-link"
               onClick={() => onEdit(record)}
@@ -206,7 +214,7 @@ export const FileListTable: React.FC<FileListTableProps> = ({
         </Space>
       )
     }
-  ], [previewEnabled, previews, loadingImages, progress, imageClassificationResults, maxImageSize, onPreview, onRename, onDelete, onRegisterRef, isPreviewable])
+  ], [previewEnabled, previews, loadingImages, progress, imageClassificationResults, maxImageSize, onPreview, onRename, onDelete, onRegisterRef, isPreviewable, isPreviewableImage])
 
   return (
     <Table

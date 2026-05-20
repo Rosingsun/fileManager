@@ -12,12 +12,13 @@ import { useFileSystem } from '../../hooks'
 import {
   filterFiles,
   getFileExtension,
+  getMediaPreviewKind,
   imageLoader,
-  isPreviewableImage,
+  isPreviewableImageFile,
   isRawImage,
-  logSignedInUserAction,
-  shouldHideAsLiveCompanion
+  logSignedInUserAction
 } from '../../utils'
+import type { MediaPreviewKind } from '../../utils'
 import type { MediaAssetInfo } from '../../types'
 import { useFilePreview } from './useFilePreview'
 import { FileListHeader } from './FileListHeader'
@@ -27,6 +28,7 @@ import ImageEditor from '../ImageEditor/ImageEditor'
 import BatchEditModal from '../ImageEditor/BatchEditModal'
 import { SelectionActionBar } from '../UnifiedUI'
 import ImageViewer from '../ImageViewer/ImageViewer'
+import { MediaPreviewModal } from '../MediaPreview'
 import type { FileInfo } from '../../types'
 import { MAX_IMAGE_SIZE } from './types'
 
@@ -79,6 +81,11 @@ const FileList: React.FC = () => {
   const [previewImages, setPreviewImages] = useState<string[]>([])
   const [previewableFiles, setPreviewableFiles] = useState<FileInfo[]>([])
   const [previewMediaMeta, setPreviewMediaMeta] = useState<Map<string, MediaAssetInfo>>(new Map())
+
+  const [mediaPreviewVisible, setMediaPreviewVisible] = useState(false)
+  const [mediaPreviewKind, setMediaPreviewKind] = useState<Exclude<MediaPreviewKind, 'image'>>('video')
+  const [mediaPreviewFiles, setMediaPreviewFiles] = useState<FileInfo[]>([])
+  const [mediaPreviewIndex, setMediaPreviewIndex] = useState(0)
 
   // 编辑器
   const [editorVisible, setEditorVisible] = useState(false)
@@ -152,14 +159,20 @@ const FileList: React.FC = () => {
   const isPreviewable = useCallback((file: FileInfo): boolean => {
     if (file.isDirectory) return false
     const ext = getFileExtension(file.name).toLowerCase()
-    if (!isPreviewableImage(ext)) return false
-    if (shouldHideAsLiveCompanion(file.name, siblingNames)) return false
-    return true
-  }, [siblingNames])
+    return getMediaPreviewKind(ext) !== null
+  }, [])
+
+  const isPreviewableImage = useCallback(
+    (file: FileInfo): boolean => {
+      if (file.isDirectory) return false
+      return isPreviewableImageFile(file.name, siblingNames)
+    },
+    [siblingNames]
+  )
 
   const getImageFiles = useCallback(() => {
-    return fileList.filter(f => !f.isDirectory && isPreviewable(f))
-  }, [fileList, isPreviewable])
+    return fileList.filter(f => !f.isDirectory && isPreviewableImage(f))
+  }, [fileList, isPreviewableImage])
 
   const handleEdit = useCallback((file: FileInfo) => {
     setEditorFilePath(file.path)
@@ -173,6 +186,23 @@ const FileList: React.FC = () => {
   }, [selectedRows])
 
   const handlePreview = useCallback(async (file: FileInfo) => {
+    const ext = getFileExtension(file.name).toLowerCase()
+    const kind = getMediaPreviewKind(ext)
+
+    if (kind && kind !== 'image') {
+      const sameKindFiles = fileList.filter((f) => {
+        if (f.isDirectory) return false
+        return getMediaPreviewKind(getFileExtension(f.name).toLowerCase()) === kind
+      })
+      const mediaIndex = sameKindFiles.findIndex((f) => f.path === file.path)
+      if (mediaIndex < 0) return
+      setMediaPreviewKind(kind)
+      setMediaPreviewFiles(sameKindFiles)
+      setMediaPreviewIndex(mediaIndex)
+      setMediaPreviewVisible(true)
+      return
+    }
+
     const imageFiles = getImageFiles()
     const index = imageFiles.findIndex(f => f.path === file.path)
     if (index >= 0) {
@@ -205,7 +235,7 @@ const FileList: React.FC = () => {
       setPreviewIndex(index)
       setPreviewModalVisible(true)
     }
-  }, [getImageFiles, previews])
+  }, [fileList, getImageFiles, previews])
 
   const handlePreviewIndexChange = useCallback((newIndex: number) => {
     setPreviewIndex(newIndex)
@@ -458,8 +488,8 @@ const FileList: React.FC = () => {
   }, [])
 
   const analyzableImageCount = useMemo(
-    () => fileList.filter(f => !f.isDirectory && isPreviewable(f)).length,
-    [fileList, isPreviewable]
+    () => fileList.filter(f => !f.isDirectory && isPreviewableImage(f)).length,
+    [fileList, isPreviewableImage]
   )
 
   const hasClassifiedImagesInFolder = useMemo(
@@ -468,7 +498,7 @@ const FileList: React.FC = () => {
   )
 
   const handleAnalyzeImages = useCallback(async () => {
-    const imagePaths = fileList.filter(f => !f.isDirectory && isPreviewable(f)).map(f => f.path)
+    const imagePaths = fileList.filter(f => !f.isDirectory && isPreviewableImage(f)).map(f => f.path)
     if (imagePaths.length === 0) {
       message.warning('当前目录没有可分析的图片')
       return
@@ -509,7 +539,7 @@ const FileList: React.FC = () => {
     } finally {
       setIsAnalyzingImages(false)
     }
-  }, [fileList, isPreviewable])
+  }, [fileList, isPreviewableImage])
 
   const startIndex = (currentPage - 1) * pageSize
   const endIndex = startIndex + pageSize
@@ -603,6 +633,7 @@ const FileList: React.FC = () => {
               onRegisterRef={registerImageRef}
               onPageChange={handlePageChange}
               isPreviewable={isPreviewable}
+              isPreviewableImage={isPreviewableImage}
             />
           ) : (
             <FileListGrid
@@ -625,6 +656,7 @@ const FileList: React.FC = () => {
               onRegisterRef={registerImageRef}
               onPageChange={handlePageChange}
               isPreviewable={isPreviewable}
+              isPreviewableImage={isPreviewableImage}
             />
           )}
         </div>
@@ -685,6 +717,15 @@ const FileList: React.FC = () => {
         />
       </Modal>
       </Card>
+
+      <MediaPreviewModal
+        visible={mediaPreviewVisible}
+        kind={mediaPreviewKind}
+        files={mediaPreviewFiles}
+        currentIndex={mediaPreviewIndex}
+        onClose={() => setMediaPreviewVisible(false)}
+        onIndexChange={setMediaPreviewIndex}
+      />
 
       {previewModalVisible && previewImages.length > 0 && (
         <ImageViewer

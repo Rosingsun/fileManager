@@ -432,8 +432,50 @@ export interface ImageEditSettings {
   denoise?: number // 0-100 降噪
   /** 色阶：黑点/白点 0–255，中间调 gamma 50–200（100=原始） */
   levels?: { black: number; white: number; gamma: number }
-  /** 主曲线控制点，x/y 归一化 0–1 */
-  toneCurve?: { master: Array<{ x: number; y: number }> }
+  /** 色调曲线：主曲线与 R/G/B 分通道（x/y 归一化 0–1） */
+  toneCurve?: {
+    master?: Array<{ x: number; y: number }>
+    red?: Array<{ x: number; y: number }>
+    green?: Array<{ x: number; y: number }>
+    blue?: Array<{ x: number; y: number }>
+  }
+  /** 去雾 0–100 */
+  dehaze?: number
+  /** 鲜明度 -100–100 */
+  vibrance?: number
+  /** HSL 分色相 8 色微调（h/s/l 各 -100–100） */
+  hslHueAdjust?: Partial<Record<HslHueRegionId, HslHueRegionAdjust>>
+}
+
+/** HSL 分色相 8 色区域 */
+export type HslHueRegionId =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'cyan'
+  | 'blue'
+  | 'purple'
+  | 'magenta'
+
+export interface HslHueRegionAdjust {
+  h?: number
+  s?: number
+  l?: number
+}
+
+export interface FormatConversionOptions {
+  // supported formats including common image types and PDF
+  targetFormat: string // e.g. 'jpeg','png','webp','bmp','tiff','pdf'
+  quality?: number // 1-100 (ignored for PDF)
+  /** 最长边上限（像素），与 scalePercent 二选一优先 maxEdge */
+  maxEdge?: number
+  /** 相对原图缩放 1–100% */
+  scalePercent?: number
+  /** 导出前应用的编辑参数（编辑器内导出） */
+  editSettings?: ImageEditSettings
+  /** 导出时叠加水印 */
+  watermark?: WatermarkOptions
 }
 
 export interface PresetGroup {
@@ -447,12 +489,6 @@ export interface ImagePreset {
   name: string
   settings: ImageEditSettings
   groupId?: string // 所属分组ID
-}
-
-export interface FormatConversionOptions {
-  // supported formats including common image types and PDF
-  targetFormat: string // e.g. 'jpeg','png','webp','bmp','tiff','pdf'
-  quality?: number // 1-100 (ignored for PDF)
 }
 
 export interface CompressionOptions {

@@ -182,20 +182,73 @@ export async function preprocessImage(imagePath: string, inputSize: number = 224
 
 // ---------- image editing / format / compression helpers -----------
 import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../src/types'
-import { composeLuts } from '../../../src/utils/toneCurve'
+import { composeLuts, type ToneLutResult } from '../../../src/utils/toneCurve'
+import { applyHslHueAdjustToBuffer, isHslHueAdjustDefault } from '../../../src/utils/hslHueAdjust'
+import { applyDehazeToBuffer, applyVibranceToBuffer } from '../../../src/utils/imageColorEffects'
+import type { LuminanceHistogramResult } from '../../../src/utils/imageHistogram'
 
-async function applyToneLut(sharpInstance: sharp.Sharp, lut: Uint8Array): Promise<sharp.Sharp> {
+async function readRawRgb(sharpInstance: sharp.Sharp): Promise<{
+  data: Buffer
+  width: number
+  height: number
+  channels: number
+} | null> {
   const { data, info } = await sharpInstance.clone().ensureAlpha().raw().toBuffer({ resolveWithObject: true })
   const { width, height, channels } = info
-  if (!width || !height || channels < 3) return sharpInstance
+  if (!width || !height || channels < 3) return null
+  return { data, width, height, channels }
+}
 
-  for (let i = 0; i < data.length; i += channels) {
-    data[i] = lut[data[i]] ?? data[i]
-    data[i + 1] = lut[data[i + 1]] ?? data[i + 1]
-    data[i + 2] = lut[data[i + 2]] ?? data[i + 2]
+async function applyToneLuts(sharpInstance: sharp.Sharp, luts: ToneLutResult): Promise<sharp.Sharp> {
+  const raw = await readRawRgb(sharpInstance)
+  if (!raw) return sharpInstance
+  const { data, width, height, channels } = raw
+  const arr = new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+
+  if (luts.master) {
+    const lut = luts.master
+    for (let i = 0; i < arr.length; i += channels) {
+      arr[i] = lut[arr[i]] ?? arr[i]
+      arr[i + 1] = lut[arr[i + 1]] ?? arr[i + 1]
+      arr[i + 2] = lut[arr[i + 2]] ?? arr[i + 2]
+    }
+  } else {
+    const lr = luts.red
+    const lg = luts.green
+    const lb = luts.blue
+    if (lr || lg || lb) {
+      for (let i = 0; i < arr.length; i += channels) {
+        if (lr) arr[i] = lr[arr[i]] ?? arr[i]
+        if (lg) arr[i + 1] = lg[arr[i + 1]] ?? arr[i + 1]
+        if (lb) arr[i + 2] = lb[arr[i + 2]] ?? arr[i + 2]
+      }
+    }
   }
 
-  return sharp(data, {
+  return sharp(Buffer.from(arr), {
+    raw: { width, height, channels },
+  })
+}
+
+async function applyPixelEffects(
+  sharpInstance: sharp.Sharp,
+  settings: ImageEditSettings
+): Promise<sharp.Sharp> {
+  const needsHsl = settings.hslHueAdjust && !isHslHueAdjustDefault(settings.hslHueAdjust)
+  const needsVibrance = settings.vibrance != null && settings.vibrance !== 0
+  const needsDehaze = settings.dehaze != null && settings.dehaze > 0
+  if (!needsHsl && !needsVibrance && !needsDehaze) return sharpInstance
+
+  const raw = await readRawRgb(sharpInstance)
+  if (!raw) return sharpInstance
+  const { data, width, height, channels } = raw
+  const arr = new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+
+  if (needsDehaze) applyDehazeToBuffer(arr, channels, settings.dehaze!)
+  if (needsVibrance) applyVibranceToBuffer(arr, channels, settings.vibrance!)
+  if (needsHsl) applyHslHueAdjustToBuffer(arr, channels, settings.hslHueAdjust!)
+
+  return sharp(Buffer.from(arr), {
     raw: { width, height, channels },
   })
 }
@@ -289,8 +342,10 @@ export async function buildImageEditPipeline(
 
   const toneLut = composeLuts(settings.levels, settings.toneCurve)
   if (toneLut) {
-    sharpInstance = await applyToneLut(sharpInstance, toneLut)
+    sharpInstance = await applyToneLuts(sharpInstance, toneLut)
   }
+
+  sharpInstance = await applyPixelEffects(sharpInstance, settings)
 
   if (settings.grayscale) {
     sharpInstance = sharpInstance.grayscale()
@@ -441,7 +496,82 @@ export async function applyEdits(
   return targetPath
 }
 
-export async function convertFormat(filePath: string, options: FormatConversionOptions, outputPath?: string): Promise<void> {
+const HISTOGRAM_MAX_EDGE = 512
+const LARGE_IMAGE_PIXELS = 3840 * 2160
+
+/** 主进程计算亮度直方图（大图 / 弱机 Canvas 回退） */
+export async function getImageHistogram(filePath: string): Promise<LuminanceHistogramResult> {
+  const empty: LuminanceHistogramResult = {
+    bins: new Uint32Array(256),
+    total: 0,
+    peak: 0,
+    clipShadow: 0,
+    clipHighlight: 0,
+  }
+  try {
+    const { displayPath } = await resolveStillPathForDisplay(filePath)
+    const meta = await sharp(displayPath).metadata()
+    const w = meta.width ?? 0
+    const h = meta.height ?? 0
+    if (w <= 0 || h <= 0) return empty
+
+    const scale = Math.min(1, HISTOGRAM_MAX_EDGE / Math.max(w, h))
+    const cw = Math.max(1, Math.round(w * scale))
+    const ch = Math.max(1, Math.round(h * scale))
+
+    const { data, info } = await sharp(displayPath)
+      .resize(cw, ch, { fit: 'inside', withoutEnlargement: true })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+
+    const channels = info.channels ?? 4
+    const bins = new Uint32Array(256)
+    const rBins = new Uint32Array(256)
+    const gBins = new Uint32Array(256)
+    const bBins = new Uint32Array(256)
+    let total = 0
+    let peak = 0
+
+    for (let i = 0; i < data.length; i += channels) {
+      const r = data[i]
+      const g = data[i + 1]
+      const b = data[i + 2]
+      rBins[r] += 1
+      gBins[g] += 1
+      bBins[b] += 1
+      const lum = Math.min(255, Math.round(0.299 * r + 0.587 * g + 0.114 * b))
+      bins[lum] += 1
+      total += 1
+      if (bins[lum] > peak) peak = bins[lum]
+    }
+
+    let shadowSum = 0
+    let highlightSum = 0
+    for (let j = 0; j <= 15; j++) shadowSum += bins[j]
+    for (let j = 240; j < 256; j++) highlightSum += bins[j]
+
+    return {
+      bins,
+      total,
+      peak,
+      clipShadow: total > 0 ? shadowSum / total : 0,
+      clipHighlight: total > 0 ? highlightSum / total : 0,
+      rgbBins: { r: rBins, g: gBins, b: bBins },
+    }
+  } catch (e) {
+    console.error('[getImageHistogram] failed:', e)
+    return empty
+  }
+}
+
+export { LARGE_IMAGE_PIXELS }
+
+export async function convertFormat(
+  filePath: string,
+  options: FormatConversionOptions,
+  outputPath?: string
+): Promise<string> {
   try {
     console.log(`[convertFormat] 开始转换: ${filePath}`)
     console.log(`[convertFormat] 选项:`, options)
@@ -457,6 +587,33 @@ export async function convertFormat(filePath: string, options: FormatConversionO
     console.log(`[convertFormat] 规范化后输出路径:`, normalizedOutputPath)
     
     let instance = sharp(normalizedFilePath)
+
+    if (options.editSettings) {
+      instance = await buildImageEditPipeline(instance, options.editSettings)
+    }
+
+    const metaBeforeResize = await instance.metadata()
+    const rw = metaBeforeResize.width ?? 0
+    const rh = metaBeforeResize.height ?? 0
+    if (rw > 0 && rh > 0) {
+      if (options.scalePercent != null && options.scalePercent > 0 && options.scalePercent < 100) {
+        instance = instance.resize(
+          Math.max(1, Math.round(rw * (options.scalePercent / 100))),
+          Math.max(1, Math.round(rh * (options.scalePercent / 100))),
+          { fit: 'inside', withoutEnlargement: true }
+        )
+      } else if (options.maxEdge != null && options.maxEdge > 0) {
+        const longest = Math.max(rw, rh)
+        if (longest > options.maxEdge) {
+          const s = options.maxEdge / longest
+          instance = instance.resize(Math.round(rw * s), Math.round(rh * s), {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+        }
+      }
+    }
+
     const fmt = options.targetFormat.toLowerCase()
     if (fmt === 'jpeg' || fmt === 'jpg') {
       instance = instance.jpeg({ quality: options.quality || 80 })
@@ -526,6 +683,15 @@ export async function convertFormat(filePath: string, options: FormatConversionO
     
     await instance.toFile(outputFilePath)
     console.log(`[convertFormat] 转换成功:`, outputFilePath)
+
+    if (options.watermark) {
+      const { previewWatermark } = await import('../services/imageToolService')
+      const dataUrl = await previewWatermark(outputFilePath, options.watermark)
+      const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '')
+      await sharp(Buffer.from(base64, 'base64')).toFile(outputFilePath)
+    }
+
+    return outputFilePath
   } catch (error) {
     console.error(`[convertFormat] 转换失败:`, error)
     console.error(`[convertFormat] 失败文件:`, filePath)

@@ -12,7 +12,23 @@ export const DEFAULT_TONE_CURVE_POINTS: ToneCurvePoint[] = [
 
 export const DEFAULT_LEVELS = { black: 0, white: 255, gamma: 100 } as const
 
+export type ToneCurveChannelKey = 'master' | 'red' | 'green' | 'blue'
+
+export interface ToneLutResult {
+  master?: Uint8Array
+  red?: Uint8Array
+  green?: Uint8Array
+  blue?: Uint8Array
+}
+
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max)
+
+function channelPointsDefault(points?: ToneCurvePoint[]): boolean {
+  if (!points?.length) return true
+  const pts = normalizeCurvePoints(points)
+  if (pts.length !== 2) return false
+  return pts[0].x === 0 && pts[0].y === 0 && pts[1].x === 1 && pts[1].y === 1
+}
 
 export function isLevelsDefault(levels: ImageEditSettings['levels']): boolean {
   if (!levels) return true
@@ -24,10 +40,13 @@ export function isLevelsDefault(levels: ImageEditSettings['levels']): boolean {
 }
 
 export function isToneCurveDefault(curve: ImageEditSettings['toneCurve']): boolean {
-  if (!curve?.master?.length) return true
-  const pts = normalizeCurvePoints(curve.master)
-  if (pts.length !== 2) return false
-  return pts[0].x === 0 && pts[0].y === 0 && pts[1].x === 1 && pts[1].y === 1
+  if (!curve) return true
+  return (
+    channelPointsDefault(curve.master) &&
+    channelPointsDefault(curve.red) &&
+    channelPointsDefault(curve.green) &&
+    channelPointsDefault(curve.blue)
+  )
 }
 
 export function normalizeCurvePoints(points: ToneCurvePoint[]): ToneCurvePoint[] {
@@ -89,34 +108,64 @@ export function buildCurveLut(points: ToneCurvePoint[]): Uint8Array {
   return lut
 }
 
-export function composeLuts(
-  levels?: ImageEditSettings['levels'],
-  toneCurve?: ImageEditSettings['toneCurve']
+function chainLut(base: Uint8Array, extra: Uint8Array): Uint8Array {
+  const next = new Uint8Array(256)
+  for (let i = 0; i < 256; i++) next[i] = extra[base[i]]
+  return next
+}
+
+function buildLevelsOnlyLut(levels?: ImageEditSettings['levels']): Uint8Array | null {
+  if (!levels || isLevelsDefault(levels)) return null
+  return buildLevelsLut(levels)
+}
+
+function chainLevelsWithCurve(
+  levelsLut: Uint8Array | null,
+  points?: ToneCurvePoint[]
 ): Uint8Array | null {
-  let identity = true
   let combined = new Uint8Array(256)
   for (let i = 0; i < 256; i++) combined[i] = i
-
-  if (levels && !isLevelsDefault(levels)) {
-    identity = false
-    const ll = buildLevelsLut(levels)
-    const next = new Uint8Array(256)
-    for (let i = 0; i < 256; i++) next[i] = ll[combined[i]]
-    combined = next
+  if (levelsLut) combined = chainLut(combined, levelsLut)
+  if (points && !channelPointsDefault(points)) {
+    combined = chainLut(combined, buildCurveLut(points))
   }
-
-  if (toneCurve && !isToneCurveDefault(toneCurve)) {
-    identity = false
-    const cl = buildCurveLut(toneCurve.master)
-    const next = new Uint8Array(256)
-    for (let i = 0; i < 256; i++) next[i] = cl[combined[i]]
-    combined = next
-  }
-
-  if (identity) return null
   for (let i = 0; i < 256; i++) {
     if (combined[i] !== i) return combined
   }
+  return null
+}
+
+export function composeLuts(
+  levels?: ImageEditSettings['levels'],
+  toneCurve?: ImageEditSettings['toneCurve']
+): ToneLutResult | null {
+  if (!toneCurve && (!levels || isLevelsDefault(levels))) return null
+
+  const levelsLut = buildLevelsOnlyLut(levels)
+  const masterLut = chainLevelsWithCurve(levelsLut, toneCurve?.master)
+  const redLut = chainLevelsWithCurve(levelsLut, toneCurve?.red)
+  const greenLut = chainLevelsWithCurve(levelsLut, toneCurve?.green)
+  const blueLut = chainLevelsWithCurve(levelsLut, toneCurve?.blue)
+
+  const hasRgbChannel =
+    (toneCurve?.red && !channelPointsDefault(toneCurve.red)) ||
+    (toneCurve?.green && !channelPointsDefault(toneCurve.green)) ||
+    (toneCurve?.blue && !channelPointsDefault(toneCurve.blue))
+
+  if (!masterLut && !hasRgbChannel && !levelsLut) return null
+
+  if (hasRgbChannel) {
+    const identity = new Uint8Array(256)
+    for (let i = 0; i < 256; i++) identity[i] = i
+    return {
+      red: redLut ?? masterLut ?? identity,
+      green: greenLut ?? masterLut ?? identity,
+      blue: blueLut ?? masterLut ?? identity,
+    }
+  }
+
+  if (masterLut) return { master: masterLut }
+  if (levelsLut) return { master: levelsLut }
   return null
 }
 
@@ -159,4 +208,14 @@ export function computeAutoLevels(bins: Uint32Array | number[]): {
   }
 
   return { black, white, gamma: 100 }
+}
+
+export function getCurvePointsForChannel(
+  toneCurve: ImageEditSettings['toneCurve'] | undefined,
+  channel: ToneCurveChannelKey
+): ToneCurvePoint[] {
+  if (channel === 'master') {
+    return normalizeCurvePoints(toneCurve?.master ?? DEFAULT_TONE_CURVE_POINTS)
+  }
+  return normalizeCurvePoints(toneCurve?.[channel] ?? DEFAULT_TONE_CURVE_POINTS)
 }

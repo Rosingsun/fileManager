@@ -44,6 +44,7 @@ interface FileListGridProps {
   onRegisterRef: (filePath: string, el: HTMLDivElement | null) => void
   onPageChange: (page: number, pageSize: number) => void
   isPreviewable: (file: FileInfo) => boolean
+  isPreviewableImage: (file: FileInfo) => boolean
   siblingFileNames?: string[]
 }
 
@@ -67,6 +68,7 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
   onRegisterRef,
   onPageChange,
   isPreviewable,
+  isPreviewableImage,
   siblingFileNames = []
 }) => {
   const contentRef = useRef<HTMLDivElement | null>(null)
@@ -127,6 +129,7 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
           const isLoading = loadingImages.has(file.path)
           const fileProgress = progress.get(file.path)
           const canPreview = isPreviewable(file)
+          const canPreviewImage = isPreviewableImage(file)
 
           return (
             <div
@@ -145,7 +148,7 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
               onDoubleClick={() => onDoubleClick(file)}
             >
               <div className="file-grid-card__preview">
-                {canPreview ? (
+                {canPreviewImage ? (
                   <ImageThumbnail
                     filePath={file.path}
                     fileName={file.name}
@@ -159,6 +162,22 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
                     onClick={() => onPreview(file)}
                     onRef={(el) => onRegisterRef(file.path, el)}
                   />
+                ) : canPreview ? (
+                  <div
+                    className="media-preview-grid-hit"
+                    role="button"
+                    tabIndex={0}
+                    title="预览"
+                    onClick={() => onPreview(file)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onPreview(file)
+                      }
+                    }}
+                  >
+                    {getFileIcon(file)}
+                  </div>
                 ) : (
                   getFileIcon(file)
                 )}
@@ -168,7 +187,7 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
                   onClick={(e) => e.stopPropagation()}
                   onDoubleClick={(e) => e.stopPropagation()}
                 >
-                  {canPreview && onEdit && (
+                  {canPreviewImage && onEdit && (
                     <button
                       type="button"
                       className="file-grid-card__preview-action-btn file-grid-card__preview-action-btn--edit"
@@ -181,7 +200,7 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
                       <EditOutlined />
                     </button>
                   )}
-                  {canPreview && onEdit && (
+                  {canPreviewImage && onEdit && (
                     <span className="file-grid-card__preview-actions-divider" aria-hidden />
                   )}
                   <button

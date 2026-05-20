@@ -49,6 +49,14 @@ declare global {
       // image editing operations
       applyEdits: (paths: string[] | string, settings: import('./index').ImageEditSettings) => Promise<import('./index').BatchOperationResult[]>
       previewEdits: (filePath: string, settings: import('./index').ImageEditSettings) => Promise<string>
+      getImageHistogram: (filePath: string) => Promise<{
+        bins: number[]
+        total: number
+        peak: number
+        clipShadow: number
+        clipHighlight: number
+        rgbBins?: { r: number[]; g: number[]; b: number[] }
+      }>
       analyzeForEdit: (filePath: string) => Promise<import('./index').ImageEditSettings>
       convertFormat: (paths: string[] | string, options: import('./index').FormatConversionOptions) => Promise<import('./index').BatchOperationResult[]>
       compressImage: (paths: string[] | string, options: import('./index').CompressionOptions) => Promise<import('./index').BatchOperationResult[]>

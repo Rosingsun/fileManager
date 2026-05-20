@@ -6,6 +6,12 @@ export interface LuminanceHistogramResult {
   clipShadow: number
   /** 高光裁切：240–255 档累计占比 */
   clipHighlight: number
+  /** RGB 分通道直方图（二期叠层） */
+  rgbBins?: {
+    r: Uint32Array
+    g: Uint32Array
+    b: Uint32Array
+  }
 }
 
 const DEFAULT_MAX_EDGE = 320
@@ -67,6 +73,9 @@ export async function computeLuminanceHistogram(
         ctx.drawImage(img, 0, 0, cw, ch)
         const data = ctx.getImageData(0, 0, cw, ch).data
         const bins = new Uint32Array(256)
+        const rBins = new Uint32Array(256)
+        const gBins = new Uint32Array(256)
+        const bBins = new Uint32Array(256)
         let total = 0
         let peak = 0
 
@@ -74,6 +83,9 @@ export async function computeLuminanceHistogram(
           const r = data[i]
           const g = data[i + 1]
           const b = data[i + 2]
+          rBins[r] += 1
+          gBins[g] += 1
+          bBins[b] += 1
           const lum = Math.min(255, Math.round(0.299 * r + 0.587 * g + 0.114 * b))
           bins[lum] += 1
           total += 1
@@ -91,6 +103,7 @@ export async function computeLuminanceHistogram(
           peak,
           clipShadow: total > 0 ? shadowSum / total : 0,
           clipHighlight: total > 0 ? highlightSum / total : 0,
+          rgbBins: { r: rBins, g: gBins, b: bBins },
         })
       } catch (e) {
         reject(e)

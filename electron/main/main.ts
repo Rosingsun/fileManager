@@ -17,6 +17,7 @@ import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount
 import { IMAGE_EXTENSIONS } from './utils/fileUtils'
 import { probeMediaAsset, shutdownMediaAssetCache } from './services/mediaAssetService'
 import { getMainCacheOverview, clearMainCache, type MainCacheScope } from './services/cacheService'
+import { registerMediaLocalProtocol } from './utils/mediaLocalProtocol'
 
 function authRefreshTokenPath(): string {
   return join(app.getPath('userData'), 'auth-refresh.enc')
@@ -184,26 +185,6 @@ protocol.registerSchemesAsPrivileged([
     }
   }
 ])
-
-function registerMediaLocalProtocol(): void {
-  protocol.registerFileProtocol('media-local', (request, callback) => {
-    try {
-      let raw = request.url.replace(/^media-local:\/\//i, '')
-      raw = decodeURIComponent(raw)
-      if (process.platform === 'win32' && /^\/[a-zA-Z]:/.test(raw)) {
-        raw = raw.slice(1)
-      }
-      const filePath = normalize(raw)
-      if (!nodeFileExistsSync(filePath)) {
-        callback({ error: -2 })
-        return
-      }
-      callback({ path: filePath })
-    } catch {
-      callback({ error: -2 })
-    }
-  })
-}
 
 // 设置缓存目录，避免权限问题
 // 必须在 app.whenReady() 之前调用
@@ -1628,6 +1609,25 @@ ipcHandle('image:previewEdits', async (_event, filePath: string, settings: any):
   return imageUtils.previewEdits(filePath, settings)
 })
 
+ipcHandle('image:getHistogram', async (_event, filePath: string): Promise<any> => {
+  const imageUtils = await import('./utils/imageUtils')
+  const result = await imageUtils.getImageHistogram(filePath)
+  return {
+    bins: Array.from(result.bins),
+    total: result.total,
+    peak: result.peak,
+    clipShadow: result.clipShadow,
+    clipHighlight: result.clipHighlight,
+    rgbBins: result.rgbBins
+      ? {
+          r: Array.from(result.rgbBins.r),
+          g: Array.from(result.rgbBins.g),
+          b: Array.from(result.rgbBins.b),
+        }
+      : undefined,
+  }
+})
+
 // IPC：分析建议编辑参数
 ipcHandle('image:analyzeForEdit', async (_event, filePath: string): Promise<any> => {
   const imageUtils = await import('./utils/imageUtils')
@@ -1659,8 +1659,10 @@ ipcHandle('image:convertFormat', async (_event, paths: string[] | string, option
   const results: BatchOperationResult[] = []
   for (const p of filePaths) {
     try {
-      await import('./utils/imageUtils').then(mod => mod.convertFormat(p, options, outputPath))
-      results.push({ filePath: p, success: true })
+      const newPath = await import('./utils/imageUtils').then(mod =>
+        mod.convertFormat(p, options, outputPath)
+      )
+      results.push({ filePath: p, success: true, newPath })
     } catch (err: any) {
       results.push({ filePath: p, success: false, error: err.message })
     }

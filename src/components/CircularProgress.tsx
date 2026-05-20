@@ -65,7 +65,6 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </svg>
       {/* 文字 */}

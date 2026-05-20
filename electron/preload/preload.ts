@@ -171,6 +171,16 @@ try {
     previewEdits: (filePath: string, settings: import('../../src/types').ImageEditSettings): Promise<string> => {
       return ipcRenderer.invoke('image:previewEdits', filePath, settings)
     },
+    getImageHistogram: (filePath: string): Promise<{
+      bins: number[]
+      total: number
+      peak: number
+      clipShadow: number
+      clipHighlight: number
+      rgbBins?: { r: number[]; g: number[]; b: number[] }
+    }> => {
+      return ipcRenderer.invoke('image:getHistogram', filePath)
+    },
     analyzeForEdit: (filePath: string): Promise<import('../../src/types').ImageEditSettings> => {
       return ipcRenderer.invoke('image:analyzeForEdit', filePath)
     },

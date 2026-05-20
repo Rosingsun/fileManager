@@ -28,6 +28,8 @@ interface EditorPreviewCanvasProps {
   showCropOverlay?: boolean
   loading?: boolean
   editCount?: number
+  pickWhiteBalanceMode?: boolean
+  onPickWhiteBalance?: (rgb: { r: number; g: number; b: number }) => void
 }
 
 const MIN_SCALE = 25
@@ -47,6 +49,8 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
   showCropOverlay = false,
   loading = false,
   editCount = 0,
+  pickWhiteBalanceMode = false,
+  onPickWhiteBalance,
 }) => {
   const stageRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
@@ -211,6 +215,34 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
     })
   }
 
+  const samplePixelFromImage = (img: HTMLImageElement, clientX: number, clientY: number) => {
+    const rect = img.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0 || img.naturalWidth <= 0) return null
+    const scaleX = img.naturalWidth / rect.width
+    const scaleY = img.naturalHeight / rect.height
+    const x = Math.min(img.naturalWidth - 1, Math.max(0, Math.floor((clientX - rect.left) * scaleX)))
+    const y = Math.min(img.naturalHeight - 1, Math.max(0, Math.floor((clientY - rect.top) * scaleY)))
+    const canvas = document.createElement('canvas')
+    canvas.width = 1
+    canvas.height = 1
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return null
+    try {
+      ctx.drawImage(img, x, y, 1, 1, 0, 0, 1, 1)
+      const d = ctx.getImageData(0, 0, 1, 1).data
+      return { r: d[0], g: d[1], b: d[2] }
+    } catch {
+      return null
+    }
+  }
+
+  const handlePickClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!pickWhiteBalanceMode || !onPickWhiteBalance) return
+    e.stopPropagation()
+    const rgb = samplePixelFromImage(e.currentTarget, e.clientX, e.clientY)
+    if (rgb) onPickWhiteBalance(rgb)
+  }
+
   const renderImageContent = () => {
     if (useWipe && pristineSrc && compareEditedSrc) {
       return (
@@ -224,6 +256,8 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
             src={pristineSrc}
             alt="原图"
             draggable={false}
+            className={pickWhiteBalanceMode ? 'is-wb-pick' : undefined}
+            onClick={handlePickClick}
             onLoad={e => {
               const img = e.currentTarget
               setDisplaySize({ width: img.naturalWidth, height: img.naturalHeight })
@@ -238,6 +272,8 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
               src={compareEditedSrc}
               alt="效果"
               draggable={false}
+              className={pickWhiteBalanceMode ? 'is-wb-pick' : undefined}
+              onClick={handlePickClick}
               style={{
                 filter: compareEditedFilter,
                 transform: compareEditedTransform,
@@ -273,6 +309,8 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
             src={displaySrc}
             alt="preview"
             draggable={false}
+            className={pickWhiteBalanceMode ? 'is-wb-pick' : undefined}
+            onClick={handlePickClick}
             onLoad={e => {
               const img = e.currentTarget
               setDisplaySize({ width: img.naturalWidth, height: img.naturalHeight })
@@ -282,6 +320,7 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
               height: renderH || 'auto',
               filter: cssFilter,
               transform: cssTransform,
+              cursor: pickWhiteBalanceMode ? 'crosshair' : undefined,
             }}
           />
           {showCropOverlay && imageWidth > 0 && !holdOriginal && (
@@ -370,7 +409,7 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
       ) : (
         <div
           ref={stageRef}
-          className={`image-editor-preview-stage${isPanning ? ' is-dragging' : ''}${useWipe ? ' is-compare' : ''}`}
+          className={`image-editor-preview-stage${isPanning ? ' is-dragging' : ''}${useWipe ? ' is-compare' : ''}${pickWhiteBalanceMode ? ' is-wb-pick-mode' : ''}`}
           onWheel={handleWheel}
           onMouseDown={handleStageMouseDown}
           onMouseMove={handleStageMouseMove}

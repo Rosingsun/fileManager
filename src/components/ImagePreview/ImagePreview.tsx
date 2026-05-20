@@ -450,9 +450,9 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
         {/* 加载状态指示器 */}
         {isLoading && (
           <div className="image-preview-loading">
-            <svg className="circular-progress" viewBox="0 0 100 100">
+            <svg className="image-preview__ring" viewBox="0 0 100 100">
               <circle
-                className="circular-progress-bg"
+                className="image-preview__ring-bg"
                 cx="50"
                 cy="50"
                 r="45"
@@ -460,7 +460,7 @@ const ImagePreview: React.FC<ImagePreviewProps> = ({
                 strokeWidth="8"
               />
               <circle
-                className="circular-progress-fill"
+                className="image-preview__ring-fill"
                 cx="50"
                 cy="50"
                 r="45"

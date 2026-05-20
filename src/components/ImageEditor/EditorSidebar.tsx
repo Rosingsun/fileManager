@@ -34,6 +34,9 @@ interface EditorSidebarProps {
   imageHeight?: number
   onAutoEnhance?: () => void
   autoEnhanceLoading?: boolean
+  filePath?: string
+  onPickWhiteBalance?: () => void
+  pickWhiteBalanceActive?: boolean
 }
 
 const EditorSidebar: React.FC<EditorSidebarProps> = ({
@@ -48,7 +51,11 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   imageHeight,
   onAutoEnhance,
   autoEnhanceLoading,
+  filePath,
+  onPickWhiteBalance,
+  pickWhiteBalanceActive,
 }) => {
+  const imagePixelCount = (imageWidth ?? 0) * (imageHeight ?? 0)
   const [collapsed, setCollapsed] = useState(false)
   const [activeTool, setActiveTool] = useState<EditorToolKey>('adjust')
 
@@ -62,7 +69,14 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   const renderToolPanel = () => {
     switch (activeTool) {
       case 'color':
-        return <EditorColorPanel settings={settings} onChange={onChange} />
+        return (
+          <EditorColorPanel
+            settings={settings}
+            onChange={onChange}
+            onPickWhiteBalance={onPickWhiteBalance}
+            pickWhiteBalanceActive={pickWhiteBalanceActive}
+          />
+        )
       case 'curves':
         return (
           <EditorCurvesPanel
@@ -70,6 +84,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
             onChange={onChange}
             previewSrc={previewSrc}
             settingsDigest={settingsDigest}
+            filePath={filePath}
+            imagePixelCount={imagePixelCount}
           />
         )
       case 'geometry':
@@ -95,6 +111,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
             onChange={onChange}
             previewSrc={previewSrc}
             settingsDigest={settingsDigest}
+            filePath={filePath}
+            imagePixelCount={imagePixelCount}
             onAutoEnhance={onAutoEnhance}
             autoEnhanceLoading={autoEnhanceLoading}
           />

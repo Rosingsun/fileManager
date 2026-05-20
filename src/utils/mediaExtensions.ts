@@ -104,6 +104,74 @@ export function shouldHideAsLiveCompanion(
   })
 }
 
+/**
+ * 生成本地媒体 URL（media-local:///…，路径在 pathname，避免 Windows 盘符被解析为 host）
+ */
 export function toMediaLocalUrl(absolutePath: string): string {
-  return `media-local://${encodeURIComponent(absolutePath.replace(/\\/g, '/'))}`
+  const normalized = absolutePath.replace(/\\/g, '/')
+  return `media-local:///${encodeURIComponent(normalized)}`
+}
+
+export const PREVIEWABLE_VIDEO_EXTENSIONS = [
+  'mp4',
+  'avi',
+  'mov',
+  'wmv',
+  'flv',
+  'mkv',
+  'webm',
+  'm4v',
+  '3gp',
+  'rmvb'
+] as const
+
+export const PREVIEWABLE_AUDIO_EXTENSIONS = [
+  'mp3',
+  'wav',
+  'flac',
+  'aac',
+  'ogg',
+  'wma',
+  'm4a',
+  'ape',
+  'aiff'
+] as const
+
+export const PREVIEWABLE_PDF_EXTENSIONS = ['pdf'] as const
+
+export type MediaPreviewKind = 'image' | 'video' | 'audio' | 'pdf'
+
+export function isPreviewableVideo(ext: string): boolean {
+  return (PREVIEWABLE_VIDEO_EXTENSIONS as readonly string[]).includes(normalizeExtension(ext))
+}
+
+export function isPreviewableAudio(ext: string): boolean {
+  return (PREVIEWABLE_AUDIO_EXTENSIONS as readonly string[]).includes(normalizeExtension(ext))
+}
+
+export function isPreviewablePdf(ext: string): boolean {
+  return (PREVIEWABLE_PDF_EXTENSIONS as readonly string[]).includes(normalizeExtension(ext))
+}
+
+export function getMediaPreviewKind(ext: string): MediaPreviewKind | null {
+  const normalized = normalizeExtension(ext)
+  if (isPreviewableImage(normalized)) return 'image'
+  if (isPreviewableVideo(normalized)) return 'video'
+  if (isPreviewableAudio(normalized)) return 'audio'
+  if (isPreviewablePdf(normalized)) return 'pdf'
+  return null
+}
+
+export function isPreviewableMedia(ext: string): boolean {
+  return getMediaPreviewKind(ext) !== null
+}
+
+export function isPreviewableImageFile(
+  fileName: string,
+  siblingFileNames: string[]
+): boolean {
+  const ext = normalizeExtension(fileName.split('.').pop() || '')
+  if (!isPreviewableImage(ext)) return false
+  if (shouldHideAsLiveCompanion(fileName, siblingFileNames)) return false
+  return true
 }
