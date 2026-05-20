@@ -1,3 +1,4 @@
+export { useImageHistogram } from './useImageHistogram'
 export { useAvatarSrc } from './useAvatarSrc'
 export { useFileSystem } from './useFileSystem'
 export { useImageLoader } from './useImageLoader'

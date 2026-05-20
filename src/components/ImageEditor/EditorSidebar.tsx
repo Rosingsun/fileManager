@@ -4,6 +4,8 @@ import { TbLayoutSidebarRightCollapse, TbLayoutSidebarRightExpand } from '../ico
 import EditorSegmentNav, { type EditorToolKey } from './EditorSegmentNav'
 import EditorAdjustPanel from './EditorAdjustPanel'
 import EditorColorPanel from './EditorColorPanel'
+import EditorCurvesPanel from './EditorCurvesPanel'
+import EditorGeometryPanel from './EditorGeometryPanel'
 import EditorEffectsPanel from './EditorEffectsPanel'
 import EditorCropPanel from './EditorCropPanel'
 import PresetsPanel from './PresetsPanel'
@@ -14,6 +16,8 @@ import type { ImageEditSettings } from '../../types'
 const TOOL_RESET_GROUP: Record<EditorToolKey, EditPanelGroup> = {
   adjust: 'adjust',
   color: 'color',
+  curves: 'curves',
+  geometry: 'transform',
   effects: 'effects',
   crop: 'transform',
 }
@@ -22,6 +26,8 @@ interface EditorSidebarProps {
   settings: ImageEditSettings
   onChange: (updates: Partial<ImageEditSettings>) => void
   onApplyPreset: (settings: ImageEditSettings) => void
+  previewSrc: string | null
+  settingsDigest: string
   showCropMode?: boolean
   onToggleCropMode?: (show: boolean) => void
   imageWidth?: number
@@ -34,6 +40,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   settings,
   onChange,
   onApplyPreset,
+  previewSrc,
+  settingsDigest,
   showCropMode,
   onToggleCropMode,
   imageWidth,
@@ -55,6 +63,17 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
     switch (activeTool) {
       case 'color':
         return <EditorColorPanel settings={settings} onChange={onChange} />
+      case 'curves':
+        return (
+          <EditorCurvesPanel
+            settings={settings}
+            onChange={onChange}
+            previewSrc={previewSrc}
+            settingsDigest={settingsDigest}
+          />
+        )
+      case 'geometry':
+        return <EditorGeometryPanel settings={settings} onChange={onChange} />
       case 'effects':
         return <EditorEffectsPanel settings={settings} onChange={onChange} />
       case 'crop':
@@ -74,6 +93,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
           <EditorAdjustPanel
             settings={settings}
             onChange={onChange}
+            previewSrc={previewSrc}
+            settingsDigest={settingsDigest}
             onAutoEnhance={onAutoEnhance}
             autoEnhanceLoading={autoEnhanceLoading}
           />

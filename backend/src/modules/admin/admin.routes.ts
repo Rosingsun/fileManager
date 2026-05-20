@@ -23,6 +23,14 @@ adminRouter.post(
 )
 
 adminRouter.get(
+  '/users/cos-quota/list',
+  asyncHandler(async (req, res) => {
+    const data = await adminUserQuotaService.listUsersCosQuota(req.query as Record<string, unknown>)
+    sendOk(res, data)
+  })
+)
+
+adminRouter.get(
   '/users/cos-quota',
   asyncHandler(async (req, res) => {
     const userId = typeof req.query.userId === 'string' ? req.query.userId : undefined

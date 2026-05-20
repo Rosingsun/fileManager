@@ -358,7 +358,7 @@
 .editor-segment-nav {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   margin: 12px 14px 10px;
   padding: 4px;
@@ -755,7 +755,16 @@
 
 .editor-control-row__rail[style*='--editor-rail-gradient'] .ant-slider-rail {
   background: var(--editor-rail-gradient) !important;
-  opacity: 0.85;
+  opacity: 1;
+}
+
+/* 渐变轨：隐藏默认蓝色 track，整段显示 rail 渐变（修复色相等左侧发蓝） */
+.editor-control-row__rail[style*='--editor-rail-gradient'] .editor-controls-slider.ant-slider .ant-slider-track {
+  background: transparent !important;
+}
+
+.editor-control-row__rail[style*='--editor-rail-gradient'] .editor-controls-slider.ant-slider:hover .ant-slider-track {
+  background: transparent !important;
 }
 
 .editor-control-row__center {
@@ -769,6 +778,145 @@
   background: color-mix(in srgb, var(--app-text-secondary) 55%, transparent);
   pointer-events: none;
   z-index: 1;
+}
+
+.editor-control-row__value-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* —— 直方图 —— */
+.editor-histogram {
+  position: relative;
+  width: 100%;
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  overflow: hidden;
+}
+
+.editor-histogram.is-loading {
+  opacity: 0.7;
+}
+
+.editor-histogram__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* —— 曝光块 —— */
+.editor-exposure-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+/* —— 色相 —— */
+.editor-hue-control__swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--app-border) 80%, transparent);
+  flex-shrink: 0;
+  box-shadow: var(--app-shadow-sm);
+}
+
+.editor-hue-control__slider.ant-slider .ant-slider-handle::after {
+  box-shadow: 0 0 0 2px var(--editor-hue-thumb, var(--app-primary));
+}
+
+/* —— 曲线 / 色阶 —— */
+.editor-curves-auto-row {
+  margin-top: 8px;
+}
+
+.editor-curves-hint {
+  margin: 0 0 8px;
+  font-size: 11px;
+  color: var(--app-text-secondary);
+  line-height: 1.45;
+}
+
+.editor-curves-chart-wrap {
+  padding: 0 2px;
+}
+
+.editor-curves-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.editor-curves-chart__grid-line {
+  stroke: color-mix(in srgb, var(--app-border) 65%, transparent);
+  stroke-width: 0.5;
+}
+
+.editor-curves-chart__diag {
+  stroke: color-mix(in srgb, var(--app-text-secondary) 35%, transparent);
+  stroke-width: 0.75;
+  stroke-dasharray: 4 3;
+}
+
+.editor-curves-chart__path {
+  stroke: var(--app-primary);
+  stroke-width: 2;
+}
+
+.editor-curves-point {
+  fill: var(--app-surface);
+  stroke: var(--app-primary);
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.editor-curves-point.is-active {
+  fill: var(--app-primary);
+  stroke: var(--app-surface);
+}
+
+.editor-curves-reset-curve {
+  margin-top: 6px;
+  padding: 0 !important;
+  font-size: 11px !important;
+  color: var(--app-text-secondary) !important;
+}
+
+/* —— 几何 —— */
+.editor-geometry-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.editor-geometry-flip-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.editor-geometry-flip-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+  font-size: 12px;
+  color: var(--app-text-primary);
+}
+
+.editor-geometry-flip-item span {
+  flex: 1;
 }
 
 

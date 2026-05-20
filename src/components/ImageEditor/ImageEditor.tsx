@@ -43,6 +43,16 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
 
   const fileName = filePath ? filePath.split(/[/\\]/).pop() ?? filePath : ''
 
+  const previewSrc = useMemo(
+    () => sharpPreviewUrl ?? imageUrl ?? originalImageUrl ?? null,
+    [sharpPreviewUrl, imageUrl, originalImageUrl]
+  )
+
+  const settingsDigest = useMemo(
+    () => `${sharpPreviewUrl ?? ''}|${JSON.stringify(settings)}`,
+    [sharpPreviewUrl, settings]
+  )
+
   const loadImage = useCallback(async () => {
     if (!filePath) return
     setLoadingImage(true)
@@ -263,6 +273,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
             settings={settings}
             onChange={handleSettingsChange}
             onApplyPreset={handleApplyPreset}
+            previewSrc={previewSrc}
+            settingsDigest={settingsDigest}
             showCropMode={showCropOverlay}
             onToggleCropMode={setShowCropOverlay}
             imageWidth={imageSize.width}

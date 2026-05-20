@@ -730,6 +730,10 @@
   margin-bottom: 8px;
 }
 
+.user-center-admin-quota-row--active > td {
+  background: rgba(10, 132, 255, 0.08) !important;
+}
+
 .user-center-actions-row {
   justify-content: flex-start;
 }

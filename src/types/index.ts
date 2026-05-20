@@ -430,6 +430,10 @@ export interface ImageEditSettings {
   fade?: number // 0-100 褪色
   grain?: number // 0-100 颗粒
   denoise?: number // 0-100 降噪
+  /** 色阶：黑点/白点 0–255，中间调 gamma 50–200（100=原始） */
+  levels?: { black: number; white: number; gamma: number }
+  /** 主曲线控制点，x/y 归一化 0–1 */
+  toneCurve?: { master: Array<{ x: number; y: number }> }
 }
 
 export interface PresetGroup {

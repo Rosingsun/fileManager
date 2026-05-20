@@ -1,4 +1,5 @@
 import type { ImageEditSettings } from '../types'
+import { isLevelsDefault, isToneCurveDefault } from './toneCurve'
 
 /**
  * 在图像内计算指定宽高比下的最大内接裁切矩形（居中），用于比例预设。
@@ -60,6 +61,8 @@ const SHARP_PREVIEW_KEYS: (keyof ImageEditSettings)[] = [
   'grain',
   'denoise',
   'crop',
+  'levels',
+  'toneCurve',
 ]
 
 function isActiveValue(key: keyof ImageEditSettings, settings: ImageEditSettings): boolean {
@@ -75,6 +78,12 @@ function isActiveValue(key: keyof ImageEditSettings, settings: ImageEditSettings
     return v !== 0
   }
   if (typeof v === 'object' && key === 'crop') return true
+  if (key === 'levels' && v && typeof v === 'object') {
+    return !isLevelsDefault(v as ImageEditSettings['levels'])
+  }
+  if (key === 'toneCurve' && v && typeof v === 'object') {
+    return !isToneCurveDefault(v as ImageEditSettings['toneCurve'])
+  }
   return false
 }
 
@@ -102,7 +111,7 @@ export function countActiveEdits(settings: ImageEditSettings): number {
   return [...BASIC_PREVIEW_KEYS, ...SHARP_PREVIEW_KEYS].filter(k => isActiveValue(k, settings)).length
 }
 
-export type EditPanelGroup = 'adjust' | 'color' | 'effects' | 'transform'
+export type EditPanelGroup = 'adjust' | 'color' | 'curves' | 'effects' | 'transform'
 
 /** 按面板重置为默认值（不改变其它面板参数） */
 export function resetEditPanel(group: EditPanelGroup): Partial<ImageEditSettings> {
@@ -124,6 +133,11 @@ export function resetEditPanel(group: EditPanelGroup): Partial<ImageEditSettings
         shadows: 0,
         highlights: 0,
         clarity: 0,
+      }
+    case 'curves':
+      return {
+        levels: undefined,
+        toneCurve: undefined,
       }
     case 'effects':
       return {

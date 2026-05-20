@@ -4,13 +4,14 @@ import type { FileInfo } from '../types'
  * 格式化文件大小
  */
 export function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  
+  if (!Number.isFinite(bytes)) return '—'
+  const n = Math.abs(bytes)
+  if (n === 0) return '0 B'
+
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(k)), sizes.length - 1)
+  return `${parseFloat((n / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
 }
 
 /**

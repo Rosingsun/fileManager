@@ -5,12 +5,118 @@ import { AppError } from '../../utils/AppError.js'
 import { imageStats, isCosConfigured } from '../cos/cos.service.js'
 import { getCosUserStorageQuotaBytes } from '../parameters/parameters.repository.js'
 import * as quotaRepo from './admin.userQuota.repository.js'
+import type { UserCosQuotaListRow } from './admin.userQuota.repository.js'
 
 const MIN_QUOTA_BYTES = 1
 const MAX_QUOTA_BYTES = 1099511627776
 
 function clampQuotaBytes(n: number): number {
   return Math.min(Math.max(Math.floor(n), MIN_QUOTA_BYTES), MAX_QUOTA_BYTES)
+}
+
+async function mapRowsWithUsage(
+  rows: UserCosQuotaListRow[]
+): Promise<
+  {
+    userId: string
+    email: string
+    displayName: string
+    quotaBytes: number
+    createdAt: number
+    usage: { imageCount: number; totalBytes: number } | null
+  }[]
+> {
+  if (!isCosConfigured() || rows.length === 0) {
+    return rows.map((row) => ({
+      userId: row.id,
+      email: row.email,
+      displayName: row.display_name,
+      quotaBytes: clampQuotaBytes(Number(row.cos_storage_quota_bytes)),
+      createdAt: Number(row.created_at),
+      usage: null,
+    }))
+  }
+  const concurrency = 4
+  const out: {
+    userId: string
+    email: string
+    displayName: string
+    quotaBytes: number
+    createdAt: number
+    usage: { imageCount: number; totalBytes: number } | null
+  }[] = []
+  for (let i = 0; i < rows.length; i += concurrency) {
+    const chunk = rows.slice(i, i + concurrency)
+    const part = await Promise.all(
+      chunk.map(async (row) => {
+        let usage: { imageCount: number; totalBytes: number } | null = null
+        try {
+          const stats = await imageStats(row.id)
+          usage = { imageCount: stats.imageCount, totalBytes: stats.totalBytes }
+        } catch (e) {
+          const detail = e instanceof Error ? e.message : String(e)
+          writeAppLog('WARN', `[admin] listUserCosQuota imageStats userId=${row.id}`, detail)
+        }
+        return {
+          userId: row.id,
+          email: row.email,
+          displayName: row.display_name,
+          quotaBytes: clampQuotaBytes(Number(row.cos_storage_quota_bytes)),
+          createdAt: Number(row.created_at),
+          usage,
+        }
+      })
+    )
+    out.push(...part)
+  }
+  return out
+}
+
+function usagePercent(
+  usage: { totalBytes: number } | null,
+  quotaBytes: number
+): number | null {
+  if (!usage || quotaBytes <= 0) return null
+  return Math.round((usage.totalBytes / quotaBytes) * 100)
+}
+
+function parseListQuery(query: Record<string, unknown>) {
+  const keyword = typeof query.keyword === 'string' ? query.keyword.trim() : ''
+  const minQuotaGb = query.minQuotaGb != null ? Number(query.minQuotaGb) : undefined
+  const maxQuotaGb = typeof query.maxQuotaGb === 'string' || typeof query.maxQuotaGb === 'number' ? Number(query.maxQuotaGb) : undefined
+  const page = Math.max(1, Math.floor(Number(query.page ?? 1)))
+  const pageSize = Math.min(Math.max(Math.floor(Number(query.pageSize ?? 20)), 1), 100)
+  const sortByRaw = typeof query.sortBy === 'string' ? query.sortBy : 'createdAt'
+  const sortBy: quotaRepo.UserCosQuotaListSortBy =
+    sortByRaw === 'email' || sortByRaw === 'displayName' || sortByRaw === 'quotaBytes' || sortByRaw === 'createdAt'
+      ? sortByRaw
+      : 'createdAt'
+  const sortOrder: 'asc' | 'desc' = query.sortOrder === 'asc' ? 'asc' : 'desc'
+  const withUsage = query.withUsage === '1' || query.withUsage === 'true'
+  const usageLevel =
+    query.usageLevel === 'high' || query.usageLevel === 'over' ? query.usageLevel : 'all'
+
+  const minQuotaBytes =
+    minQuotaGb != null && Number.isFinite(minQuotaGb) && minQuotaGb > 0
+      ? Math.floor(minQuotaGb * 1024 * 1024 * 1024)
+      : undefined
+  const maxQuotaBytes =
+    maxQuotaGb != null && Number.isFinite(maxQuotaGb) && maxQuotaGb > 0
+      ? Math.floor(maxQuotaGb * 1024 * 1024 * 1024)
+      : undefined
+
+  return {
+    keyword: keyword || undefined,
+    minQuotaBytes,
+    maxQuotaBytes,
+    page,
+    pageSize,
+    sortBy,
+    sortOrder,
+    withUsage,
+    usageLevel,
+    offset: (page - 1) * pageSize,
+  }
 }
 
 function resolveTargetUser(query: { userId?: string; email?: string }) {
@@ -26,6 +132,73 @@ function resolveTargetUser(query: { userId?: string; email?: string }) {
 }
 
 export const adminUserQuotaService = {
+  async listUsersCosQuota(query: Record<string, unknown>) {
+    const parsed = parseListQuery(query)
+    const pool = getPool()
+    const defaultQuotaBytes = await getCosUserStorageQuotaBytes(pool)
+    const baseFilters = {
+      keyword: parsed.keyword,
+      minQuotaBytes: parsed.minQuotaBytes,
+      maxQuotaBytes: parsed.maxQuotaBytes,
+      sortBy: parsed.sortBy,
+      sortOrder: parsed.sortOrder,
+    }
+
+    const needsUsageFilter = parsed.withUsage && parsed.usageLevel !== 'all'
+
+    if (needsUsageFilter) {
+      const rows = await quotaRepo.listAllUsersCosQuotaForUsageFilter(pool, baseFilters)
+      let items = await mapRowsWithUsage(rows)
+      if (parsed.usageLevel === 'high') {
+        items = items.filter((it) => {
+          const p = usagePercent(it.usage, it.quotaBytes)
+          return p != null && p >= 90
+        })
+      } else if (parsed.usageLevel === 'over') {
+        items = items.filter((it) => {
+          const p = usagePercent(it.usage, it.quotaBytes)
+          return p != null && p >= 100
+        })
+      }
+      const total = items.length
+      const pageItems = items.slice(parsed.offset, parsed.offset + parsed.pageSize)
+      return {
+        items: pageItems,
+        total,
+        page: parsed.page,
+        pageSize: parsed.pageSize,
+        defaultQuotaBytesForNewUsers: defaultQuotaBytes,
+        cosConfigured: isCosConfigured(),
+      }
+    }
+
+    const total = await quotaRepo.countUsersCosQuota(pool, baseFilters)
+    const rows = await quotaRepo.listUsersCosQuota(pool, {
+      ...baseFilters,
+      offset: parsed.offset,
+      limit: parsed.pageSize,
+    })
+    const items = parsed.withUsage
+      ? await mapRowsWithUsage(rows)
+      : rows.map((row) => ({
+          userId: row.id,
+          email: row.email,
+          displayName: row.display_name,
+          quotaBytes: clampQuotaBytes(Number(row.cos_storage_quota_bytes)),
+          createdAt: Number(row.created_at),
+          usage: null as { imageCount: number; totalBytes: number } | null,
+        }))
+
+    return {
+      items,
+      total,
+      page: parsed.page,
+      pageSize: parsed.pageSize,
+      defaultQuotaBytesForNewUsers: defaultQuotaBytes,
+      cosConfigured: isCosConfigured(),
+    }
+  },
+
   async getUserCosQuota(query: { userId?: string; email?: string }) {
     const target = resolveTargetUser(query)
     const pool = getPool()

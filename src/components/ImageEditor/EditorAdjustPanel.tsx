@@ -2,12 +2,25 @@ import React from 'react'
 import { Button } from 'antd'
 import { TbSparkles } from '../icons'
 import { ControlRow, PanelSection } from './editorControlPrimitives'
+import { HueControlRow, ExposureControlRow } from './editorSpecialControls'
 import { numSetting, resetEditPanel } from '../../utils'
+import { useImageHistogram } from '../../hooks'
 import type { ImageEditSettings } from '../../types'
+
+const SATURATION_RAIL =
+  'linear-gradient(90deg, #6b6b6b 0%, #c41e3a 50%, #ff2d55 100%)'
+
+const BRIGHTNESS_RAIL =
+  'linear-gradient(90deg, #0d0d0d 0%, #a0a0a0 50%, #ffffff 100%)'
+
+const CONTRAST_RAIL =
+  'linear-gradient(90deg, #808080 0%, #404040 50%, #101010 100%)'
 
 interface EditorAdjustPanelProps {
   settings: ImageEditSettings
   onChange: (updates: Partial<ImageEditSettings>) => void
+  previewSrc: string | null
+  settingsDigest: string
   onAutoEnhance?: () => void
   autoEnhanceLoading?: boolean
 }
@@ -15,9 +28,13 @@ interface EditorAdjustPanelProps {
 const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
   settings,
   onChange,
+  previewSrc,
+  settingsDigest,
   onAutoEnhance,
   autoEnhanceLoading,
 }) => {
+  const { histogram, loading: histLoading } = useImageHistogram(previewSrc, settingsDigest)
+
   const handleSlider = (key: keyof ImageEditSettings) => (value: number) => {
     onChange({ [key]: value })
   }
@@ -41,14 +58,11 @@ const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
       )}
 
       <PanelSection title="光效" onReset={() => onChange(resetEditPanel('adjust'))}>
-        <ControlRow
-          label="曝光"
+        <ExposureControlRow
           value={numSetting(settings, 'exposure', 100)}
-          defaultValue={100}
-          min={0}
-          max={200}
           onChange={handleSlider('exposure')}
-          unit="%"
+          histogram={histogram}
+          histogramLoading={histLoading}
         />
         <ControlRow
           label="亮度"
@@ -58,6 +72,7 @@ const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
           max={200}
           onChange={handleSlider('brightness')}
           unit="%"
+          railGradient={BRIGHTNESS_RAIL}
         />
         <ControlRow
           label="对比度"
@@ -67,6 +82,7 @@ const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
           max={200}
           onChange={handleSlider('contrast')}
           unit="%"
+          railGradient={CONTRAST_RAIL}
         />
         <ControlRow
           label="饱和度"
@@ -76,15 +92,11 @@ const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
           max={200}
           onChange={handleSlider('saturation')}
           unit="%"
+          railGradient={SATURATION_RAIL}
         />
-        <ControlRow
-          label="色相"
+        <HueControlRow
           value={numSetting(settings, 'hue', 0)}
-          defaultValue={0}
-          min={0}
-          max={360}
           onChange={handleSlider('hue')}
-          unit="°"
         />
       </PanelSection>
 

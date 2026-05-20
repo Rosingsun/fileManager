@@ -182,6 +182,23 @@ export async function preprocessImage(imagePath: string, inputSize: number = 224
 
 // ---------- image editing / format / compression helpers -----------
 import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../src/types'
+import { composeLuts } from '../../../src/utils/toneCurve'
+
+async function applyToneLut(sharpInstance: sharp.Sharp, lut: Uint8Array): Promise<sharp.Sharp> {
+  const { data, info } = await sharpInstance.clone().ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+  const { width, height, channels } = info
+  if (!width || !height || channels < 3) return sharpInstance
+
+  for (let i = 0; i < data.length; i += channels) {
+    data[i] = lut[data[i]] ?? data[i]
+    data[i + 1] = lut[data[i + 1]] ?? data[i + 1]
+    data[i + 2] = lut[data[i + 2]] ?? data[i + 2]
+  }
+
+  return sharp(data, {
+    raw: { width, height, channels },
+  })
+}
 
 /** 统一图片编辑管线：裁切 → 几何 → 色彩 → 局部 → 滤镜 → 锐化/模糊 → 颗粒/暗角 → 降噪 */
 export async function buildImageEditPipeline(
@@ -268,6 +285,11 @@ export async function buildImageEditPipeline(
   if (settings.clarity != null && settings.clarity !== 0) {
     const clarityFactor = 1 + settings.clarity / 200
     sharpInstance = sharpInstance.linear(clarityFactor, -(128 * (clarityFactor - 1)))
+  }
+
+  const toneLut = composeLuts(settings.levels, settings.toneCurve)
+  if (toneLut) {
+    sharpInstance = await applyToneLut(sharpInstance, toneLut)
   }
 
   if (settings.grayscale) {

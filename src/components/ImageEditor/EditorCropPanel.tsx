@@ -1,6 +1,6 @@
 import React from 'react'
-import { Button, InputNumber, Switch } from 'antd'
-import { ScissorOutlined, SwapOutlined } from '@ant-design/icons'
+import { Button, InputNumber } from 'antd'
+import { ScissorOutlined } from '@ant-design/icons'
 import { SectionTitle } from './editorControlPrimitives'
 import { computeCropRectForAspectRatio } from '../../utils'
 import type { ImageEditSettings } from '../../types'
@@ -34,11 +34,6 @@ const EditorCropPanel: React.FC<EditorCropPanelProps> = ({
   imageWidth = 800,
   imageHeight = 600,
 }) => {
-  const num = (key: keyof ImageEditSettings, def: number) => {
-    const v = settings[key]
-    return typeof v === 'number' ? v : def
-  }
-
   const clampCropRect = (rect: NonNullable<ImageEditSettings['crop']>): NonNullable<ImageEditSettings['crop']> => {
     let { x, y, width, height } = rect
     width = Math.max(MIN_CROP_DIM, Math.min(width, imageWidth))
@@ -62,33 +57,6 @@ const EditorCropPanel: React.FC<EditorCropPanelProps> = ({
 
   return (
     <div className="image-editor-controls-panel editor-panel-body">
-      <SectionTitle icon={<SwapOutlined />}>变换</SectionTitle>
-      <div className="editor-control-row">
-        <div className="editor-control-row__head">
-          <span>旋转角度</span>
-          <InputNumber
-            min={0}
-            max={360}
-            size="small"
-            value={num('rotation', 0)}
-            onChange={v => onChange({ rotation: v || 0 })}
-            style={{ width: 72 }}
-          />
-        </div>
-      </div>
-      <div className="editor-control-row">
-        <div className="editor-control-row__head">
-          <span>水平翻转</span>
-          <Switch checked={!!settings.flipHorizontal} onChange={c => onChange({ flipHorizontal: c })} size="small" />
-        </div>
-      </div>
-      <div className="editor-control-row">
-        <div className="editor-control-row__head">
-          <span>垂直翻转</span>
-          <Switch checked={!!settings.flipVertical} onChange={c => onChange({ flipVertical: c })} size="small" />
-        </div>
-      </div>
-
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
         <SectionTitle icon={<ScissorOutlined />}>裁切</SectionTitle>
         <Button size="small" type={showCropMode ? 'primary' : 'default'} onClick={() => onToggleCropMode?.(!showCropMode)}>
