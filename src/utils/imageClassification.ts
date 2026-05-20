@@ -36,6 +36,10 @@ export function clearClassificationCache(): void {
   classificationCache.clear()
 }
 
+export function getClassificationCacheStats(): { itemCount: number } {
+  return { itemCount: classificationCache.size }
+}
+
 export function getCategoryLabel(category: ImageContentCategory): string {
   return categoryLabels[category] || categoryLabels.other
 }

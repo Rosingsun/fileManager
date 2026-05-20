@@ -5,6 +5,7 @@ import { useFileStore, useImageEditorStore, useThemeStore } from '../../stores'
 import type { ThemePreference } from '../../stores'
 import { PageSection, SettingsRow } from '../UnifiedUI'
 import { type UserCenterPanelProps } from './userCenterShared'
+import UserCenterCacheSection from './UserCenterCacheSection'
 
 const { Text } = Typography
 
@@ -119,6 +120,8 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
           <Text strong>{groups.filter((g) => !g.isBuiltIn).length}</Text> 个
         </Text>
       </PageSection>
+
+      <UserCenterCacheSection />
 
       <PageSection
         title="最近访问目录"

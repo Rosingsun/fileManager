@@ -18,6 +18,8 @@ declare global {
       ) => Promise<Array<{ from: string; to: string; success: boolean; error?: string }>>
       getAppVersion: () => Promise<string>
       getPlatform: () => Promise<string>
+      getCacheOverview: () => Promise<import('./cache').MainCacheOverview>
+      clearAppCache: (scopes: import('./cache').MainCacheScope[]) => Promise<void>
       minimizeWindow: () => void
       maximizeWindow: () => void
       closeWindow: () => void
@@ -46,6 +48,8 @@ declare global {
       getPhotoFocusPoints: (filePath: string) => Promise<import('./index').PhotoFocusPointsResult>
       // image editing operations
       applyEdits: (paths: string[] | string, settings: import('./index').ImageEditSettings) => Promise<import('./index').BatchOperationResult[]>
+      previewEdits: (filePath: string, settings: import('./index').ImageEditSettings) => Promise<string>
+      analyzeForEdit: (filePath: string) => Promise<import('./index').ImageEditSettings>
       convertFormat: (paths: string[] | string, options: import('./index').FormatConversionOptions) => Promise<import('./index').BatchOperationResult[]>
       compressImage: (paths: string[] | string, options: import('./index').CompressionOptions) => Promise<import('./index').BatchOperationResult[]>
       estimateCompressedSize: (path: string, options: import('./index').CompressionOptions) => Promise<number>

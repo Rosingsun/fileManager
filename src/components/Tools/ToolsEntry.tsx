@@ -60,7 +60,7 @@ const ToolsEntry: React.FC = () => {
 
   return (
     <>
-      <div className="app-tab-panel tools-entry-page">
+      <div className="tools-entry-page">
         <header className="tools-entry-hero">
           <div className="tools-entry-hero__brand">
             <span className="tools-entry-hero__icon" aria-hidden>

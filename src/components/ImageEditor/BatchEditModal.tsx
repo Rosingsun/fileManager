@@ -107,7 +107,7 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
           <p>共 {filePaths.length} 张图片</p>
         </div>
         <div style={{ width: 320, borderLeft: '1px solid #eee' }}>
-          <PresetsPanel onApply={handleApplyPreset} currentSettings={settings} />
+          <PresetsPanel layout="modal" onApply={handleApplyPreset} currentSettings={settings} />
           <EditorControls settings={settings} onChange={handleSettingsChange} />
         </div>
       </div>

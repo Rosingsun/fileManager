@@ -3,66 +3,468 @@
   color: var(--app-text-primary);
 }
 
-.image-editor-toolbar {
-  background: var(--app-glass-bg);
+.image-editor-shell {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-editor-panel-bg);
+}
+
+/* 全屏编辑器高于默认 antd 弹出层，需显式抬高下拉/菜单 */
+.image-editor-popup.ant-select-dropdown,
+.image-editor-popup.ant-dropdown {
+  z-index: 1200 !important;
+}
+
+.image-editor-shell__toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--app-border);
+  background: var(--app-glass-bg);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
 }
 
+.image-editor-shell__toolbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--app-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 40vw;
+}
+
+.image-editor-shell__toolbar-meta {
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  margin-left: 8px;
+}
+
+.image-editor-shell__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
+
 .image-editor-layout {
   display: flex;
-  gap: 16px;
-  height: 520px;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
   overflow: hidden;
 }
 
 .image-editor-canvas-wrap {
   flex: 1;
-  text-align: center;
-  border-radius: 12px;
-  padding: 20px;
+  min-width: 0;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
   position: relative;
   background: var(--app-editor-canvas-bg);
+  background-image:
+    linear-gradient(45deg, color-mix(in srgb, var(--app-border) 40%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--app-border) 40%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--app-border) 40%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--app-border) 40%, transparent) 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
+
+/* preview toolbar — see extended block below canvas-wrap */
+
+.image-editor-preview-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.image-editor-preview-stage.is-dragging {
+  cursor: grabbing;
+}
+
+.image-editor-preview-inner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center center;
+  will-change: transform;
 }
 
 .image-editor-preview-frame {
   position: relative;
   display: inline-block;
-  border-radius: 12px;
-  overflow: hidden;
+  line-height: 0;
   box-shadow: var(--app-shadow-md);
-  background: var(--app-surface);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.image-editor-preview-frame img {
+  display: block;
+  max-width: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.image-editor-preview-sharp {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.image-editor-preview-loading {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--app-text-secondary);
+  background: var(--app-glass-bg);
+  border: 1px solid var(--app-border);
 }
 
 .image-editor-loading,
 .image-editor-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 14px;
   color: var(--app-text-secondary);
 }
 
 .image-editor-sidebar {
-  width: 340px;
-  border-radius: 12px;
+  flex-shrink: 0;
+  width: 360px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: var(--app-editor-control-bg);
-  border: 1px solid var(--app-border);
-  backdrop-filter: blur(20px);
+  border-left: 1px solid var(--app-border);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  transition: width 0.22s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-.image-editor-sidebar__presets {
-  padding: 16px;
+.image-editor-sidebar.is-collapsed {
+  width: 52px;
+}
+
+.image-editor-sidebar__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-glass-bg) 70%, transparent);
 }
 
-.image-editor-sidebar__controls {
+.image-editor-sidebar__brand {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--app-text-primary);
+}
+
+.image-editor-sidebar__collapse-btn {
+  color: var(--app-text-secondary);
+}
+
+.image-editor-sidebar__presets-zone {
+  flex-shrink: 0;
+  min-height: 200px;
+  max-height: min(46vh, 340px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 0 8px;
+  border-bottom: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-surface) 40%, transparent);
+}
+
+.editor-presets-bar--sidebar {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.editor-presets-bar__meta {
+  padding: 0 14px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+  letter-spacing: 0.02em;
+}
+
+.editor-presets-bar__grid-scroll {
+  flex: 1;
+  min-height: 100px;
+}
+
+.image-editor-sidebar__tools-zone {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.image-editor-sidebar__panel-scroll {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--app-border) 80%, transparent) transparent;
+}
+
+.image-editor-sidebar.is-collapsed .image-editor-sidebar__brand,
+.image-editor-sidebar.is-collapsed .image-editor-sidebar__presets-zone,
+.image-editor-sidebar.is-collapsed .image-editor-sidebar__tools-zone {
+  display: none;
+}
+
+.image-editor-sidebar.is-collapsed .image-editor-sidebar__header {
+  justify-content: center;
+  padding: 0 6px;
+}
+
+/* —— 预设条（侧栏顶部） —— */
+.editor-presets-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 14px;
+}
+
+.editor-presets-bar__heading {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-text-secondary);
+}
+
+.editor-presets-bar__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+.editor-presets-bar__group-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-presets-bar__toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.editor-presets-bar__group-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editor-presets-bar__strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-height: 168px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px 0 4px;
+  scrollbar-width: thin;
+}
+
+.editor-presets-bar__empty {
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  padding: 8px 0;
+}
+
+.editor-preset-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border-radius: 999px;
+  border: 1px solid var(--app-border);
+  background: var(--app-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.editor-preset-chip.is-active {
+  border-color: color-mix(in srgb, var(--app-primary) 55%, var(--app-border));
+  background: color-mix(in srgb, var(--app-primary) 12%, var(--app-surface));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary) 25%, transparent);
+}
+
+.editor-preset-chip__label {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--app-text-primary);
+  padding: 6px 12px;
+  border-radius: 999px;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-preset-chip.is-active .editor-preset-chip__label {
+  color: var(--app-primary);
+  font-weight: 600;
+}
+
+.editor-preset-chip__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding-right: 4px;
+}
+
+/* —— 分段导航 —— */
+.editor-segment-nav {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin: 12px 14px 10px;
+  padding: 4px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--app-border) 35%, transparent);
+  border: 1px solid var(--app-border);
+}
+
+.editor-segment-nav__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--app-text-secondary);
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.editor-segment-nav__item:hover {
+  color: var(--app-text-primary);
+  background: color-mix(in srgb, var(--app-surface) 80%, transparent);
+}
+
+.editor-segment-nav__item.is-active {
+  color: var(--app-primary);
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-sm);
+  font-weight: 600;
+}
+
+.image-editor-controls-panel {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+}
+
+.editor-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0 16px;
+}
+
+.editor-section-title__icon {
+  color: var(--app-primary);
+}
+
+.editor-control-row {
+  margin-bottom: 16px;
+  padding: 0 16px;
+}
+
+.editor-control-row__head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--app-text-primary);
+}
+
+.editor-control-row__value {
+  color: var(--app-text-secondary);
+  min-width: 40px;
+  text-align: right;
+  font-weight: 500;
+}
+
+.editor-effect-chip {
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--app-text-primary);
+  background: var(--app-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.editor-effect-chip:hover {
+  border-color: color-mix(in srgb, var(--app-primary) 40%, var(--app-border));
+}
+
+.editor-effect-chip.is-active {
+  border-color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary) 14%, var(--app-surface));
+  color: var(--app-primary);
+  font-weight: 600;
+}
+
+.editor-effects-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 16px 12px;
 }
 
 .editor-preset-name.is-selected {
@@ -80,3 +482,293 @@
   border-color: var(--app-primary);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--app-primary) 35%, transparent);
 }
+
+.editor-controls-slider.ant-slider .ant-slider-track {
+  background: var(--app-primary);
+}
+
+.editor-adjust-hero {
+  padding: 4px 16px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 60%, transparent);
+  margin-bottom: 8px;
+}
+
+.editor-adjust-hero__hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--app-text-secondary);
+}
+
+/* —— 预览工具栏 / 状态栏 —— */
+.image-editor-preview-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-glass-bg) 88%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.image-editor-preview-toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.image-editor-preview-toolbar__divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--app-border);
+}
+
+.image-editor-preview-toolbar__zoom {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 44px;
+  text-align: center;
+  color: var(--app-text-secondary);
+}
+
+.image-editor-preview-status {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 14px;
+  font-size: 11px;
+  color: var(--app-text-secondary);
+  border-top: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-editor-panel-bg) 92%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.image-editor-preview-status__sep {
+  opacity: 0.45;
+}
+
+.image-editor-preview-status__edits {
+  color: var(--app-primary);
+  font-weight: 500;
+}
+
+/* —— A/B 对比滑块 —— */
+.editor-compare-frame {
+  position: relative;
+  line-height: 0;
+  box-shadow: var(--app-shadow-md);
+  border-radius: 4px;
+  overflow: hidden;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.editor-compare-frame__img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  object-fit: contain;
+  object-position: center;
+}
+
+.editor-compare-frame__img--base {
+  z-index: 0;
+}
+
+.editor-compare-frame__edited-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.editor-compare-frame__divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 3;
+  width: 2px;
+  margin-left: -1px;
+  cursor: ew-resize;
+  background: var(--app-surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary) 50%, transparent),
+    0 0 12px color-mix(in srgb, var(--app-primary) 35%, transparent);
+}
+
+.editor-compare-frame__handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--app-surface);
+  background: var(--app-primary);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.editor-compare-frame__handle::before,
+.editor-compare-frame__handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border: 5px solid transparent;
+  transform: translateY(-50%);
+}
+
+.editor-compare-frame__handle::before {
+  left: 6px;
+  border-right-color: var(--app-surface);
+}
+
+.editor-compare-frame__handle::after {
+  right: 6px;
+  border-left-color: var(--app-surface);
+}
+
+.editor-compare-frame__badge {
+  position: absolute;
+  bottom: 10px;
+  z-index: 4;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-text-primary);
+  background: color-mix(in srgb, var(--app-glass-bg) 90%, transparent);
+  border: 1px solid var(--app-border);
+  backdrop-filter: blur(8px);
+}
+
+.editor-compare-frame__badge--left {
+  left: 10px;
+}
+
+.editor-compare-frame__badge--right {
+  right: 10px;
+}
+
+.image-editor-preview-stage.is-compare {
+  cursor: default;
+}
+
+/* —— 侧栏品牌 / 重置 —— */
+.image-editor-sidebar__brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.image-editor-sidebar__badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-primary) 30%, transparent);
+}
+
+.image-editor-sidebar__tools-head {
+  flex-shrink: 0;
+  padding: 0 10px 4px;
+}
+
+.image-editor-sidebar__tools-head .editor-segment-nav {
+  margin: 10px 4px 8px;
+}
+
+.image-editor-sidebar__panel-reset {
+  display: block;
+  width: calc(100% - 8px);
+  margin: 0 4px 6px;
+  font-size: 11px;
+  color: var(--app-text-secondary) !important;
+}
+
+/* —— 面板分区 —— */
+.editor-panel-section {
+  margin-bottom: 4px;
+}
+
+.editor-panel-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px 6px;
+}
+
+.editor-panel-section__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-text-secondary);
+}
+
+.editor-panel-section__reset {
+  font-size: 11px !important;
+  padding: 0 4px !important;
+  height: auto !important;
+  color: var(--app-text-secondary) !important;
+}
+
+.editor-panel-section__reset:hover {
+  color: var(--app-primary) !important;
+}
+
+/* —— 专业滑杆 —— */
+.editor-control-row__label {
+  font-weight: 500;
+}
+
+.editor-control-row__value.is-default {
+  color: var(--app-text-secondary);
+  opacity: 0.75;
+}
+
+.editor-control-row__rail {
+  position: relative;
+  padding: 0 2px;
+}
+
+.editor-control-row.is-bipolar .editor-control-row__rail .ant-slider-rail {
+  background: color-mix(in srgb, var(--app-border) 55%, transparent) !important;
+}
+
+.editor-control-row__rail[style*='--editor-rail-gradient'] .ant-slider-rail {
+  background: var(--editor-rail-gradient) !important;
+  opacity: 0.85;
+}
+
+.editor-control-row__center {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  margin-top: -5px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--app-text-secondary) 55%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+

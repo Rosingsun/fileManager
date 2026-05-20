@@ -16,6 +16,7 @@ import { clearCognivisionMobilenetCache } from './services/cognivisionTfClassifi
 import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount'
 import { IMAGE_EXTENSIONS } from './utils/fileUtils'
 import { probeMediaAsset, shutdownMediaAssetCache } from './services/mediaAssetService'
+import { getMainCacheOverview, clearMainCache, type MainCacheScope } from './services/cacheService'
 
 function authRefreshTokenPath(): string {
   return join(app.getPath('userData'), 'auth-refresh.enc')
@@ -722,6 +723,18 @@ ipcHandle('app:getVersion', () => {
 // IPC 处理器：获取平台信息
 ipcHandle('app:getPlatform', () => {
   return process.platform
+})
+
+ipcHandle('cache:getOverview', async () => {
+  return await getMainCacheOverview()
+})
+
+ipcHandle('cache:clear', async (_event, scopes: unknown) => {
+  const list = Array.isArray(scopes)
+    ? scopes.filter((s): s is MainCacheScope => s === 'previewDisk' || s === 'chromiumDisk' || s === 'modelSessions')
+    : []
+  if (list.length === 0) return
+  await clearMainCache(list)
 })
 
 ipcHandle('auth:saveRefreshToken', async (_event, token: string): Promise<{ ok: boolean; error?: string }> => {
@@ -1607,6 +1620,18 @@ ipcHandle('image:classifyBatch', async (event, config: ImageClassificationConfig
 ipcMain.on('image:cancelClassification', () => {
   classificationCancelled = true
   currentClassificationWindow = null
+})
+
+// IPC：编辑预览（降采样 base64）
+ipcHandle('image:previewEdits', async (_event, filePath: string, settings: any): Promise<string> => {
+  const imageUtils = await import('./utils/imageUtils')
+  return imageUtils.previewEdits(filePath, settings)
+})
+
+// IPC：分析建议编辑参数
+ipcHandle('image:analyzeForEdit', async (_event, filePath: string): Promise<any> => {
+  const imageUtils = await import('./utils/imageUtils')
+  return imageUtils.analyzeForEdit(filePath)
 })
 
 // IPC 处理器：应用编辑设置（可用于单图或批量）

@@ -30,10 +30,14 @@ const PREVIEW_BINARY_TAGS = ['PreviewImage', 'JpgFromRaw', 'OtherImage', 'Thumbn
 const probeCache = new Map<string, MediaAssetInfo>()
 const rawPreviewPathCache = new Map<string, string>()
 
-function getPreviewCacheDir(): string {
+export function getMediaPreviewCacheDir(): string {
   const dir = join(app.getPath('temp'), 'fileDeal-preview-cache')
   mkdirSync(dir, { recursive: true })
   return dir
+}
+
+function getPreviewCacheDir(): string {
+  return getMediaPreviewCacheDir()
 }
 
 function cacheKeyForFile(filePath: string): string {

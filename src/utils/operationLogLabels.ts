@@ -25,6 +25,7 @@ export const OPERATION_LOG_ACTION_LABELS: Record<string, string> = {
   image_classify_batch: '图片分类（批量）',
   image_classify_file_list: '图片分类（文件列表）',
   image_classify_clear: '清除分类结果',
+  cache_clear: '清理应用缓存',
   classification_dir_selected: '图片分类选择目录',
   classification_model_download: '分类模型下载',
   classification_model_saved: '分类模型保存',

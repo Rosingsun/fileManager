@@ -2,7 +2,6 @@ import type { ImageEditSettings } from '../types'
 
 /**
  * 在图像内计算指定宽高比下的最大内接裁切矩形（居中），用于比例预设。
- * aspectW:aspectH 表示裁切区域的宽:高（如 16:9、3:4）。
  */
 export function computeCropRectForAspectRatio(
   imageWidth: number,
@@ -34,56 +33,184 @@ export function computeCropRectForAspectRatio(
   return { x, y, width, height }
 }
 
+const BASIC_PREVIEW_KEYS: (keyof ImageEditSettings)[] = [
+  'brightness',
+  'contrast',
+  'saturation',
+  'hue',
+  'exposure',
+  'grayscale',
+  'blur',
+  'vintage',
+  'rotation',
+  'flipHorizontal',
+  'flipVertical',
+]
+
+const SHARP_PREVIEW_KEYS: (keyof ImageEditSettings)[] = [
+  'sharpen',
+  'shadows',
+  'highlights',
+  'clarity',
+  'tint',
+  'temperature',
+  'gamma',
+  'vignette',
+  'fade',
+  'grain',
+  'denoise',
+  'crop',
+]
+
+function isActiveValue(key: keyof ImageEditSettings, settings: ImageEditSettings): boolean {
+  const v = settings[key]
+  if (v == null) return false
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'number') {
+    if (key === 'brightness' || key === 'contrast' || key === 'saturation' || key === 'exposure') {
+      return v !== 100
+    }
+    if (key === 'hue' || key === 'rotation') return v !== 0
+    if (key === 'gamma') return v !== 100
+    return v !== 0
+  }
+  if (typeof v === 'object' && key === 'crop') return true
+  return false
+}
+
+/** 是否仅需 CSS 即可预览（无 Sharp 专属项） */
+export function needsBasicCssOnly(settings: ImageEditSettings): boolean {
+  return !SHARP_PREVIEW_KEYS.some(k => isActiveValue(k, settings))
+}
+
+/** 是否需要 Sharp 降采样预览（高级效果） */
+export function needsSharpPreview(settings: ImageEditSettings): boolean {
+  return SHARP_PREVIEW_KEYS.some(k => isActiveValue(k, settings))
+}
+
+export function hasAnyEdit(settings: ImageEditSettings): boolean {
+  return [...BASIC_PREVIEW_KEYS, ...SHARP_PREVIEW_KEYS].some(k => isActiveValue(k, settings))
+}
+
+/** 对比视图用全画幅预览，避免裁切后效果图只显示局部 */
+export function settingsForComparePreview(settings: ImageEditSettings): ImageEditSettings {
+  const { crop: _crop, ...rest } = settings
+  return rest
+}
+
+export function countActiveEdits(settings: ImageEditSettings): number {
+  return [...BASIC_PREVIEW_KEYS, ...SHARP_PREVIEW_KEYS].filter(k => isActiveValue(k, settings)).length
+}
+
+export type EditPanelGroup = 'adjust' | 'color' | 'effects' | 'transform'
+
+/** 按面板重置为默认值（不改变其它面板参数） */
+export function resetEditPanel(group: EditPanelGroup): Partial<ImageEditSettings> {
+  switch (group) {
+    case 'adjust':
+      return {
+        brightness: 100,
+        contrast: 100,
+        saturation: 100,
+        exposure: 100,
+        hue: 0,
+        denoise: 0,
+      }
+    case 'color':
+      return {
+        temperature: 0,
+        tint: 0,
+        gamma: 100,
+        shadows: 0,
+        highlights: 0,
+        clarity: 0,
+      }
+    case 'effects':
+      return {
+        grayscale: false,
+        vintage: 0,
+        blur: 0,
+        sharpen: 0,
+        vignette: 0,
+        fade: 0,
+        grain: 0,
+      }
+    case 'transform':
+      return {
+        rotation: 0,
+        flipHorizontal: false,
+        flipVertical: false,
+        crop: undefined,
+      }
+    default:
+      return {}
+  }
+}
+
 export function getFilterCss(settings: ImageEditSettings): string {
   const filters: string[] = []
-  if (settings.brightness != null) filters.push(`brightness(${settings.brightness}%)`)
-  if (settings.contrast != null) filters.push(`contrast(${settings.contrast}%)`)
-  if (settings.saturation != null) filters.push(`saturate(${settings.saturation}%)`)
-  if (settings.hue != null) filters.push(`hue-rotate(${settings.hue}deg)`)
-  if (settings.exposure != null) filters.push(`brightness(${settings.exposure}%)`)
-  
+  if (settings.brightness != null && settings.brightness !== 100) {
+    filters.push(`brightness(${settings.brightness}%)`)
+  }
+  if (settings.contrast != null && settings.contrast !== 100) {
+    filters.push(`contrast(${settings.contrast}%)`)
+  }
+  if (settings.saturation != null && settings.saturation !== 100) {
+    filters.push(`saturate(${settings.saturation}%)`)
+  }
+  if (settings.hue != null && settings.hue !== 0) {
+    filters.push(`hue-rotate(${settings.hue}deg)`)
+  }
+  if (settings.exposure != null && settings.exposure !== 100) {
+    filters.push(`brightness(${settings.exposure}%)`)
+  }
   if (settings.grayscale) filters.push('grayscale(100%)')
   if (settings.blur != null && settings.blur > 0) filters.push(`blur(${settings.blur}px)`)
   if (settings.vintage != null && settings.vintage > 0) filters.push(`sepia(${settings.vintage}%)`)
-  
+  if (settings.temperature != null && settings.temperature !== 0) {
+    const warm = settings.temperature > 0
+    filters.push(`sepia(${Math.abs(settings.temperature) * 0.15}%)`)
+    if (!warm) filters.push(`hue-rotate(${settings.temperature * 0.2}deg)`)
+  }
+  if (settings.tint != null && settings.tint !== 0) {
+    filters.push(`hue-rotate(${settings.tint * 0.35}deg)`)
+  }
+  if (settings.gamma != null && settings.gamma !== 100) {
+    const g = settings.gamma / 100
+    filters.push(`contrast(${Math.round(g * 100)}%)`)
+  }
+  if (settings.shadows != null && settings.shadows !== 0) {
+    filters.push(`brightness(${100 + settings.shadows * 0.25}%)`)
+  }
+  if (settings.highlights != null && settings.highlights !== 0) {
+    filters.push(`brightness(${100 - settings.highlights * 0.15}%)`)
+  }
+  if (settings.clarity != null && settings.clarity !== 0) {
+    filters.push(`contrast(${100 + settings.clarity * 0.2}%)`)
+  }
+  if (settings.sharpen != null && settings.sharpen > 0) {
+    filters.push(`contrast(${100 + settings.sharpen * 0.08}%)`)
+  }
+  if (settings.fade != null && settings.fade > 0) {
+    filters.push(`brightness(${100 + settings.fade * 0.12}%)`)
+    filters.push(`contrast(${100 - settings.fade * 0.08}%)`)
+  }
   return filters.length > 0 ? filters.join(' ') : 'none'
 }
 
-/**
- * 将前端设置转换为 Sharp 管线(在主进程中使用)
- * 返回一个函数，它接受 sharp 实例并返回处理过的实例
- */
-export function settingsToSharpPipeline(settings: ImageEditSettings) {
-  return (sharpInstance: any) => {
-    // 色彩调整
-    if (settings.brightness != null || settings.contrast != null || settings.saturation != null || settings.hue != null) {
-      const brightness = settings.brightness != null ? settings.brightness / 100 : 1
-      const contrast = settings.contrast != null ? settings.contrast / 100 : 1
-      const saturation = settings.saturation != null ? settings.saturation / 100 : 1
-      const hue = settings.hue != null ? settings.hue : 0
-      sharpInstance = sharpInstance.modulate({ brightness, saturation, hue, contrast })
-    }
-    if (settings.exposure != null) {
-      const exposure = settings.exposure / 100
-      sharpInstance = sharpInstance.modulate({ brightness: exposure })
-    }
-    if (settings.rotation) {
-      sharpInstance = sharpInstance.rotate(settings.rotation)
-    }
-    if (settings.flipHorizontal) {
-      sharpInstance = sharpInstance.flip()
-    }
-    if (settings.flipVertical) {
-      sharpInstance = sharpInstance.flop()
-    }
-    if (settings.crop) {
-      sharpInstance = sharpInstance.extract({
-        left: Math.round(settings.crop.x),
-        top: Math.round(settings.crop.y),
-        width: Math.round(settings.crop.width),
-        height: Math.round(settings.crop.height)
-      })
-    }
-    return sharpInstance
-  }
+export function numSetting(
+  settings: ImageEditSettings,
+  key: keyof ImageEditSettings,
+  def: number
+): number {
+  const v = settings[key]
+  return typeof v === 'number' ? v : def
+}
+
+export function getTransformCss(settings: ImageEditSettings): string {
+  const transforms: string[] = []
+  if (settings.rotation) transforms.push(`rotate(${settings.rotation}deg)`)
+  if (settings.flipHorizontal) transforms.push('scaleX(-1)')
+  if (settings.flipVertical) transforms.push('scaleY(-1)')
+  return transforms.length > 0 ? transforms.join(' ') : 'none'
 }

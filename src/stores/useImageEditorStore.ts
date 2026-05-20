@@ -144,7 +144,7 @@ const loadInitialPresets = (): ImagePreset[] => {
 export const useImageEditorStore = create<ImageEditorState>((set, get) => ({
   presets: loadInitialPresets(),
   groups: loadInitialGroups(),
-  selectedGroupId: 'ungrouped',
+  selectedGroupId: 'system',
   selectedPresetId: null,
   
   addPreset: (preset) => {

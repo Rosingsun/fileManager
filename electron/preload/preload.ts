@@ -62,6 +62,14 @@ try {
     getPlatform: (): Promise<string> => {
       return ipcRenderer.invoke('app:getPlatform')
     },
+
+    getCacheOverview: (): Promise<import('../../src/types/cache').MainCacheOverview> => {
+      return ipcRenderer.invoke('cache:getOverview')
+    },
+
+    clearAppCache: (scopes: import('../../src/types/cache').MainCacheScope[]): Promise<void> => {
+      return ipcRenderer.invoke('cache:clear', scopes)
+    },
     
     // 窗口控制
     minimizeWindow: (): void => {
@@ -159,6 +167,12 @@ try {
     // 图片编辑/转换/压缩
     applyEdits: (paths: string[] | string, settings: import('../../src/types').ImageEditSettings): Promise<import('../../src/types').BatchOperationResult[]> => {
       return ipcRenderer.invoke('image:applyEdits', paths, settings)
+    },
+    previewEdits: (filePath: string, settings: import('../../src/types').ImageEditSettings): Promise<string> => {
+      return ipcRenderer.invoke('image:previewEdits', filePath, settings)
+    },
+    analyzeForEdit: (filePath: string): Promise<import('../../src/types').ImageEditSettings> => {
+      return ipcRenderer.invoke('image:analyzeForEdit', filePath)
     },
     convertFormat: (paths: string[] | string, options: import('../../src/types').FormatConversionOptions, outputPath?: string): Promise<import('../../src/types').BatchOperationResult[]> => {
       return ipcRenderer.invoke('image:convertFormat', paths, options, outputPath)

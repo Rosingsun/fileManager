@@ -118,6 +118,9 @@ interface FileStore {
   setImageClassificationResults: (results: ImageClassificationResult[]) => void
   addImageClassificationResult: (result: ImageClassificationResult) => void
   clearImageClassificationResults: () => void
+
+  previewCacheEpoch: number
+  bumpPreviewCacheEpoch: () => void
 }
 
 export const useFileStore = create<FileStore>((set, get) => ({
@@ -272,6 +275,11 @@ export const useFileStore = create<FileStore>((set, get) => ({
   },
   clearImageClassificationResults: () => {
     set({ imageClassificationResults: new Map() })
-  }
+  },
+
+  previewCacheEpoch: 0,
+  bumpPreviewCacheEpoch: () => {
+    set((state) => ({ previewCacheEpoch: state.previewCacheEpoch + 1 }))
+  },
 
 }))

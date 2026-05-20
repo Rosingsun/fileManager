@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react'
-import { Button, Input, Space, message, Popconfirm, Select, Modal, Divider } from 'antd'
+import React, { useState, useMemo, useEffect } from 'react'
+import { Button, Input, Space, message, Popconfirm, Select, Modal, Divider, Dropdown } from 'antd'
+import type { MenuProps } from 'antd'
+import { TbPlus, TbFolderPlus, TbDotsVertical } from '../icons'
 import {
   PlusOutlined,
   EditOutlined,
@@ -22,6 +24,8 @@ import type { ImageEditSettings, ImagePreset, PresetGroup } from '../../types'
 interface PresetsPanelProps {
   onApply: (settings: ImageEditSettings) => void
   currentSettings: ImageEditSettings
+  /** sidebar：侧栏顶部横向胶片条；modal：批量编辑等弹窗内网格 */
+  layout?: 'sidebar' | 'modal'
 }
 
 /** 通用系统预设（非富士胶片模拟） */
@@ -139,37 +143,11 @@ const BUILTIN_SECTION_TITLE: Record<string, string> = {
   polaroid: '宝丽来即时成像近似',
 }
 
-const GROUP_SELECT_ICON_GAP = 4
-
-function renderBuiltinGroupOptionLabel(g: PresetGroup): React.ReactNode {
-  const gap = GROUP_SELECT_ICON_GAP
-  const wrap = (node: React.ReactNode) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap }}>
-      {node}
-      <span>{g.name}</span>
-    </span>
-  )
-  switch (g.id) {
-    case 'system':
-      return wrap(<ThunderboltOutlined />)
-    case 'fuji':
-      return wrap(<CameraOutlined />)
-    case 'canon':
-      return wrap(<PictureOutlined />)
-    case 'nikon':
-      return wrap(<AimOutlined />)
-    case 'sony':
-      return wrap(<PlayCircleOutlined />)
-    case 'kodak':
-      return wrap(<SunOutlined />)
-    case 'leica':
-      return wrap(<ScanOutlined />)
-    case 'polaroid':
-      return wrap(<BorderOuterOutlined />)
-    default:
-      return g.name
-  }
-}
+/** 全屏编辑器内弹出层挂到 body，避免被侧栏 overflow 裁剪 */
+const editorGroupSelectPopupProps = {
+  getPopupContainer: () => document.body,
+  popupClassName: 'image-editor-popup',
+} as const
 
 function builtinSectionHeadingIcon(groupId: string): React.ReactNode {
   switch (groupId) {
@@ -194,11 +172,11 @@ function builtinSectionHeadingIcon(groupId: string): React.ReactNode {
   }
 }
 
-const PRESET_GRID_SCROLL: React.CSSProperties = {
-  maxHeight: 160,
+const presetGridScrollStyle = (layout: 'sidebar' | 'modal'): React.CSSProperties => ({
+  maxHeight: layout === 'sidebar' ? 240 : 160,
   overflow: 'auto',
   paddingRight: 2,
-}
+})
 
 const presetGridStyle = (columns: number): React.CSSProperties => ({
   display: 'grid',
@@ -224,21 +202,46 @@ const presetActionsRow: React.CSSProperties = {
   flexShrink: 0,
 }
 
-const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings }) => {
-  const { 
-    presets, 
-    groups, 
+const PresetsPanel: React.FC<PresetsPanelProps> = ({
+  onApply,
+  currentSettings,
+  layout = 'modal',
+}) => {
+  const {
+    presets,
+    groups,
     selectedGroupId,
     selectedPresetId,
-    addPreset, 
-    updatePreset, 
+    addPreset,
+    updatePreset,
     deletePreset,
     addGroup,
     updateGroup,
     deleteGroup,
     setSelectedGroup,
-    setSelectedPreset
+    setSelectedPreset,
+    loadPresets,
   } = useImageEditorStore()
+
+  useEffect(() => {
+    loadPresets()
+  }, [loadPresets])
+
+  const groupSelectOptions = useMemo(
+    () =>
+      groups.map(g => ({
+        value: g.id,
+        label: g.name,
+      })),
+    [groups]
+  )
+
+  useEffect(() => {
+    if (groups.length === 0) return
+    if (!groups.some(g => g.id === selectedGroupId)) {
+      setSelectedGroup('system')
+    }
+  }, [groups, selectedGroupId, setSelectedGroup])
   
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingName, setEditingName] = useState('')
@@ -491,18 +494,214 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
     )
   }
 
+  const presetModals = (
+    <>
+      <Modal
+        title="保存预设"
+        open={saveModalVisible}
+        onOk={handleSavePreset}
+        onCancel={() => setSaveModalVisible(false)}
+        okText="保存"
+        cancelText="取消"
+        width={320}
+        destroyOnClose
+      >
+        <div style={{ padding: '8px 0' }}>
+          <div style={{ marginBottom: 12 }}>
+            <div style={{ marginBottom: 4, fontSize: 12 }}>名称</div>
+            <Input
+              placeholder="请输入预设名称"
+              value={savePresetName}
+              onChange={e => setSavePresetName(e.target.value)}
+              onPressEnter={handleSavePreset}
+            />
+          </div>
+          <div>
+            <div style={{ marginBottom: 4, fontSize: 12 }}>分组</div>
+            <Select
+              style={{ width: '100%' }}
+              value={savePresetGroup}
+              onChange={setSavePresetGroup}
+              options={groups.filter(g => !g.isBuiltIn).map(g => ({
+                value: g.id,
+                label: g.name,
+              }))}
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        title="新增分组"
+        open={addGroupModalVisible}
+        onOk={handleSaveNewGroup}
+        onCancel={() => setAddGroupModalVisible(false)}
+        okText="添加"
+        cancelText="取消"
+        width={300}
+        destroyOnClose
+      >
+        <div style={{ padding: '8px 0' }}>
+          <div>
+            <div style={{ marginBottom: 4, fontSize: 12 }}>分组名称</div>
+            <Input
+              placeholder="请输入分组名称"
+              value={addGroupName}
+              onChange={e => setAddGroupName(e.target.value)}
+              onPressEnter={handleSaveNewGroup}
+            />
+          </div>
+        </div>
+      </Modal>
+    </>
+  )
+
+  const renderPresetGridBody = (layoutMode: 'sidebar' | 'modal') => {
+    const scrollStyle = presetGridScrollStyle(layoutMode)
+    const cols = layoutMode === 'sidebar' ? 3 : 4
+
+    if (isBuiltinPresetCollectionGroup(selectedGroupId)) {
+      return (
+        <div style={scrollStyle} className="editor-presets-bar__grid-scroll">
+          <div style={presetGridStyle(cols)}>
+            {(BUILTIN_PRESETS_BY_GROUP[selectedGroupId] ?? []).map((p, i) =>
+              renderBuiltinPresetItem(p, i, selectedGroupId)
+            )}
+          </div>
+        </div>
+      )
+    }
+
+    if (filteredPresets.length === 0) {
+      return (
+        <div className="editor-presets-bar__empty">
+          {layoutMode === 'sidebar' ? '暂无预设，点击「保存」添加' : '暂无预设，点击上方新增预设'}
+        </div>
+      )
+    }
+
+    return (
+      <div style={scrollStyle} className="editor-presets-bar__grid-scroll">
+        <div style={USER_PRESET_GRID}>
+          {filteredPresets.map(p => renderPresetItem(p))}
+        </div>
+      </div>
+    )
+  }
+
+  if (layout === 'sidebar') {
+    const builtinList = isBuiltinPresetCollectionGroup(selectedGroupId)
+      ? BUILTIN_PRESETS_BY_GROUP[selectedGroupId] ?? []
+      : []
+
+    const manageMenuItems: MenuProps['items'] = [
+      { key: 'add-group', label: '新增分组', icon: <TbFolderPlus size={14} />, onClick: () => handleAddGroup() },
+    ]
+    if (!isBuiltinPresetCollectionGroup(selectedGroupId) && currentGroup && !currentGroup.isBuiltIn) {
+      manageMenuItems.push(
+        {
+          key: 'rename-group',
+          label: '重命名分组',
+          onClick: () => handleStartEditGroup(currentGroup.id, currentGroup.name),
+        },
+        {
+          key: 'delete-group',
+          label: '删除分组',
+          danger: true,
+          onClick: () => {
+            Modal.confirm({
+              title: '确认删除此分组？',
+              content: '该分组下的预设将移至未分组',
+              okText: '删除',
+              okType: 'danger',
+              cancelText: '取消',
+              onOk: () => handleDeleteGroup(currentGroup!.id),
+            })
+          },
+        }
+      )
+    }
+
+    return (
+      <div className="editor-presets-bar editor-presets-bar--sidebar">
+        <h3 className="editor-presets-bar__heading">预设</h3>
+        <div className="editor-presets-bar__toolbar">
+          <Select
+            className="editor-presets-bar__group-select"
+            size="small"
+            value={selectedGroupId}
+            onChange={setSelectedGroup}
+            options={groupSelectOptions}
+            {...editorGroupSelectPopupProps}
+          />
+          <div className="editor-presets-bar__toolbar-actions">
+            <Button
+              type="primary"
+              size="small"
+              icon={<TbPlus size={14} />}
+              onClick={handleAddPreset}
+            >
+              保存
+            </Button>
+            <Dropdown
+              menu={{ items: manageMenuItems }}
+              trigger={['click']}
+              overlayClassName="image-editor-popup"
+            >
+              <Button type="text" size="small" icon={<TbDotsVertical size={16} />} aria-label="预设管理" />
+            </Dropdown>
+          </div>
+        </div>
+
+        {editingGroupId && (
+          <div className="editor-presets-bar__group-edit">
+            <Input
+              size="small"
+              value={editingGroupName}
+              onChange={e => setEditingGroupName(e.target.value)}
+              onPressEnter={handleSaveEditGroup}
+              autoFocus
+            />
+            <Button type="primary" size="small" onClick={handleSaveEditGroup}>
+              确定
+            </Button>
+            <Button size="small" onClick={handleCancelEditGroup}>
+              取消
+            </Button>
+          </div>
+        )}
+
+        <div className="editor-presets-bar__meta">
+          {isBuiltinPresetCollectionGroup(selectedGroupId) ? (
+            <>
+              {builtinSectionHeadingIcon(selectedGroupId)}
+              {BUILTIN_SECTION_TITLE[selectedGroupId] ?? '内置预设'} ·{' '}
+              {(BUILTIN_PRESETS_BY_GROUP[selectedGroupId] ?? []).length} 个
+            </>
+          ) : (
+            <>
+              <FolderOutlined style={{ marginRight: 4 }} />
+              {currentGroup?.name || '预设'} · {filteredPresets.length} 个
+            </>
+          )}
+        </div>
+
+        {renderPresetGridBody('sidebar')}
+        {presetModals}
+      </div>
+    )
+  }
+
   return (
-    <div style={{ padding: 8, borderBottom: '1px solid rgba(0, 0, 0, 0.1)' }}>
+    <div className="editor-presets-modal" style={{ padding: 8, borderBottom: '1px solid var(--app-border)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <Select
           style={{ flex: 1 }}
           value={selectedGroupId}
           onChange={setSelectedGroup}
-          options={groups.map(g => ({
-            value: g.id,
-            label: renderBuiltinGroupOptionLabel(g),
-          }))}
+          options={groupSelectOptions}
           size="small"
+          {...editorGroupSelectPopupProps}
         />
         {!isBuiltinPresetCollectionGroup(selectedGroupId) && (
           <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleAddPreset}>
@@ -565,79 +764,9 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({ onApply, currentSettings })
         )}
       </div>
       
-      {isBuiltinPresetCollectionGroup(selectedGroupId) ? (
-        <div style={PRESET_GRID_SCROLL}>
-          <div style={presetGridStyle(4)}>
-            {(BUILTIN_PRESETS_BY_GROUP[selectedGroupId] ?? []).map((p, i) =>
-              renderBuiltinPresetItem(p, i, selectedGroupId)
-            )}
-          </div>
-        </div>
-      ) : filteredPresets.length === 0 ? (
-        <div style={{ fontSize: 12, color: '#999', padding: '8px 0' }}>暂无预设，点击上方新增预设</div>
-      ) : (
-        <div style={PRESET_GRID_SCROLL}>
-          <div style={USER_PRESET_GRID}>
-            {filteredPresets.map(p => renderPresetItem(p))}
-          </div>
-        </div>
-      )}
+      {renderPresetGridBody('modal')}
 
-      <Modal
-        title="保存预设"
-        open={saveModalVisible}
-        onOk={handleSavePreset}
-        onCancel={() => setSaveModalVisible(false)}
-        okText="保存"
-        cancelText="取消"
-        width={320}
-      >
-        <div style={{ padding: '8px 0' }}>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ marginBottom: 4, fontSize: 12 }}>名称</div>
-            <Input 
-              placeholder="请输入预设名称" 
-              value={savePresetName} 
-              onChange={e => setSavePresetName(e.target.value)}
-              onPressEnter={handleSavePreset}
-            />
-          </div>
-          <div>
-            <div style={{ marginBottom: 4, fontSize: 12 }}>分组</div>
-            <Select
-              style={{ width: '100%' }}
-              value={savePresetGroup}
-              onChange={setSavePresetGroup}
-              options={groups.filter(g => !g.isBuiltIn).map(g => ({
-                value: g.id,
-                label: g.name,
-              }))}
-            />
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        title="新增分组"
-        open={addGroupModalVisible}
-        onOk={handleSaveNewGroup}
-        onCancel={() => setAddGroupModalVisible(false)}
-        okText="添加"
-        cancelText="取消"
-        width={300}
-      >
-        <div style={{ padding: '8px 0' }}>
-          <div>
-            <div style={{ marginBottom: 4, fontSize: 12 }}>分组名称</div>
-            <Input 
-              placeholder="请输入分组名称" 
-              value={addGroupName} 
-              onChange={e => setAddGroupName(e.target.value)}
-              onPressEnter={handleSaveNewGroup}
-            />
-          </div>
-        </div>
-      </Modal>
+      {presetModals}
     </div>
   )
 }

@@ -255,32 +255,24 @@ async function applySharpSettings(sharpInstance: any, settings: ImageEditSetting
 }
 ```
 
-## 5. 实现计划
+## 5. 全屏编辑器（2026-05）
 
-### Phase 1: 完善现有功能
-- [x] 图片加载优化（base64）
-- [x] 翻转/旋转预览
-- [x] 重置功能
-- [ ] 可视化裁切
+- **布局**：近全屏 `ImageEditorShell`，左侧大预览 + 右侧 320px Tab 侧栏（调整 / 色彩 / 滤镜 / 裁切 / 预设）。
+- **预览**：基础项 CSS 实时；高级项（锐化、高光、暗角、颗粒等）经 IPC `image:previewEdits` 降采样 Sharp 预览（300ms debounce）。
+- **保存**：主进程 `buildImageEditPipeline` 与预览共用管线。
+- **IPC**：`image:previewEdits`、`image:analyzeForEdit`（一键增强建议参数）。
 
-### Phase 2: 新增滤镜
-- [ ] 灰度滤镜
-- [ ] 复古滤镜
-- [ ] 模糊滤镜
-- [ ] 锐化滤镜
+### ImageEditSettings 扩展字段
 
-### Phase 3: 高级调整
-- [ ] 阴影/高光
-- [ ] 清晰度
-- [ ] 色调分离
-
-### Phase 4: 预设系统
-- [ ] 内置预设
-- [ ] 预设分类
+| 字段 | 范围 |
+|------|------|
+| temperature | -100 ~ 100 |
+| gamma | 50 ~ 200 |
+| vignette / fade / grain / denoise | 0 ~ 100 |
 
 ## 6. 设计原则
 
 1. **直观易用**：滑块 + 实时预览，所见即所得
-2. **专业实用**：提供常用高级功能（阴影、高光、锐化等）
-3. **性能优先**：图片处理在主进程进行，预览用 CSS
+2. **专业实用**：色温、伽马、暗角、颗粒、降噪、一键增强
+3. **性能优先**：基础 CSS + 降采样 Sharp 预览；保存走完整管线
 4. **风格统一**：遵循 macOS/iOS 设计规范

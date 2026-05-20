@@ -20,10 +20,14 @@ import { useFileStore, useImageClassificationStore } from '../../stores'
 import ImageViewer from '../ImageViewer/ImageViewer'
 import type { Image } from '../ImageViewer/types'
 import { CategoryTag, PageSection, StatCard } from '../UnifiedUI'
-import { getCategoryTagColor, logSignedInUserAction } from '../../utils'
+import {
+  CLASSIFICATION_CACHE_CLEARED_EVENT,
+  IMAGE_CLASSIFICATION_RESULTS_KEY,
+  clearClassificationCache,
+  getCategoryTagColor,
+  logSignedInUserAction,
+} from '../../utils'
 import CategoryImageSelector from './CategoryImageSelector'
-
-const STORAGE_KEY = 'image_classification_results'
 
 const { Text } = Typography
 
@@ -257,6 +261,16 @@ const ImageClassification: React.FC = () => {
   const [categorySelectorLabel, setCategorySelectorLabel] = useState('')
 
   useEffect(() => {
+    const onCacheCleared = () => {
+      setResults(new Map())
+      useImageClassificationStore.getState().clearResults()
+      useFileStore.getState().clearImageClassificationResults()
+    }
+    window.addEventListener(CLASSIFICATION_CACHE_CLEARED_EVENT, onCacheCleared)
+    return () => window.removeEventListener(CLASSIFICATION_CACHE_CLEARED_EVENT, onCacheCleared)
+  }, [])
+
+  useEffect(() => {
     if (window.electronAPI && window.electronAPI.onImageClassificationProgress) {
       const unsubscribe = window.electronAPI.onImageClassificationProgress((prog) => {
         setProgress(prog)
@@ -293,7 +307,7 @@ const ImageClassification: React.FC = () => {
     loadModels()
 
     try {
-      const saved = localStorage.getItem(STORAGE_KEY)
+      const saved = localStorage.getItem(IMAGE_CLASSIFICATION_RESULTS_KEY)
       if (saved) {
         const resultsArray: Array<[string, ImageClassificationResult]> = JSON.parse(saved)
         const loadedResults = new Map<string, ImageClassificationResult>()
@@ -471,7 +485,7 @@ const ImageClassification: React.FC = () => {
 
       try {
         const resultsArray = Array.from(newResults.entries())
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(resultsArray))
+        localStorage.setItem(IMAGE_CLASSIFICATION_RESULTS_KEY, JSON.stringify(resultsArray))
       } catch (e) {
         console.warn('保存分类结果失败:', e)
       }
@@ -491,11 +505,12 @@ const ImageClassification: React.FC = () => {
   }
 
   const handleClearResults = () => {
+    clearClassificationCache()
     setResults(new Map())
     useImageClassificationStore.getState().clearResults()
     useFileStore.getState().clearImageClassificationResults()
     try {
-      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(IMAGE_CLASSIFICATION_RESULTS_KEY)
     } catch (e) {
       console.warn('清除分类结果失败:', e)
     }

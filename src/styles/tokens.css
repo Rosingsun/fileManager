@@ -46,6 +46,8 @@
   --app-editor-canvas-bg: #1a1a1a;
   --app-editor-panel-bg: rgba(246, 248, 252, 0.96);
   --app-editor-control-bg: rgba(255, 255, 255, 0.94);
+  --app-feature-shell-padding-x: 8px;
+  --app-feature-shell-padding-y: 0;
 }
 
 [data-app-theme='dark'] {

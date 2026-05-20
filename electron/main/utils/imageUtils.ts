@@ -183,63 +183,20 @@ export async function preprocessImage(imagePath: string, inputSize: number = 224
 // ---------- image editing / format / compression helpers -----------
 import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../src/types'
 
-async function applySharpSettings(sharpInstance: any, settings: ImageEditSettings) {
-  // 基础色彩调整
-  if (settings.brightness != null || settings.contrast != null || settings.saturation != null || settings.hue != null) {
-    const brightness = settings.brightness != null ? settings.brightness / 100 : 1
-    const saturation = settings.saturation != null ? settings.saturation / 100 : 1
-    const hue = settings.hue != null ? settings.hue : 0
-    sharpInstance = sharpInstance.modulate({ brightness, saturation, hue })
+/** 统一图片编辑管线：裁切 → 几何 → 色彩 → 局部 → 滤镜 → 锐化/模糊 → 颗粒/暗角 → 降噪 */
+export async function buildImageEditPipeline(
+  sharpInstance: sharp.Sharp,
+  settings: ImageEditSettings
+): Promise<sharp.Sharp> {
+  if (settings.crop) {
+    sharpInstance = sharpInstance.extract({
+      left: Math.round(settings.crop.x),
+      top: Math.round(settings.crop.y),
+      width: Math.round(settings.crop.width),
+      height: Math.round(settings.crop.height),
+    })
   }
-  
-  // 对比度调整
-  if (settings.contrast != null) {
-    const factor = settings.contrast / 100
-    sharpInstance = sharpInstance.linear(factor, -(128 * (factor - 1)))
-  }
-  
-  // 曝光调整
-  if (settings.exposure != null) {
-    const exposure = settings.exposure / 100
-    sharpInstance = sharpInstance.modulate({ brightness: exposure })
-  }
-  
-  // 滤镜效果
-  if (settings.grayscale) {
-    sharpInstance = sharpInstance.grayscale()
-  }
-  
-  if (settings.blur != null && settings.blur > 0) {
-    sharpInstance = sharpInstance.blur(settings.blur)
-  }
-  
-  if (settings.sharpen != null && settings.sharpen > 0) {
-    const sigma = Math.max(settings.sharpen / 50, 0.3)
-    sharpInstance = sharpInstance.sharpen(sigma, 1, 0)
-  }
-  
-  if (settings.vintage != null && settings.vintage > 0) {
-    const sepiaAmount = settings.vintage / 100
-    sharpInstance = sharpInstance.recomb([
-      [0.393 + 0.607 * (1 - sepiaAmount), 0.769 - 0.769 * (1 - sepiaAmount), 0.189 - 0.189 * (1 - sepiaAmount)],
-      [0.349 - 0.349 * (1 - sepiaAmount), 0.686 + 0.314 * (1 - sepiaAmount), 0.168 - 0.168 * (1 - sepiaAmount)],
-      [0.272 - 0.272 * (1 - sepiaAmount), 0.534 - 0.534 * (1 - sepiaAmount), 0.131 + 0.869 * (1 - sepiaAmount)]
-    ])
-  }
-  
-  // 高级调整 - 阴影
-  if (settings.shadows != null && settings.shadows !== 0) {
-    const shadowFactor = 1 + settings.shadows / 200
-    sharpInstance = sharpInstance.modulate({ brightness: shadowFactor })
-  }
-  
-  // 高级调整 - 清晰度（通过局部对比度增强）
-  if (settings.clarity != null && settings.clarity !== 0) {
-    const clarityFactor = 1 + settings.clarity / 200
-    sharpInstance = sharpInstance.linear(clarityFactor, -(128 * (clarityFactor - 1)))
-  }
-  
-  // 变换操作
+
   if (settings.rotation) {
     sharpInstance = sharpInstance.rotate(settings.rotation)
   }
@@ -249,18 +206,183 @@ async function applySharpSettings(sharpInstance: any, settings: ImageEditSetting
   if (settings.flipVertical) {
     sharpInstance = sharpInstance.flop()
   }
-  
-  // 裁剪
-  if (settings.crop) {
-    sharpInstance = sharpInstance.extract({
-      left: Math.round(settings.crop.x),
-      top: Math.round(settings.crop.y),
-      width: Math.round(settings.crop.width),
-      height: Math.round(settings.crop.height)
-    })
+
+  if (
+    settings.brightness != null ||
+    settings.saturation != null ||
+    settings.hue != null
+  ) {
+    const brightness = settings.brightness != null ? settings.brightness / 100 : 1
+    const saturation = settings.saturation != null ? settings.saturation / 100 : 1
+    const hue = settings.hue != null ? settings.hue : 0
+    sharpInstance = sharpInstance.modulate({ brightness, saturation, hue })
   }
-  
+
+  if (settings.contrast != null && settings.contrast !== 100) {
+    const factor = settings.contrast / 100
+    sharpInstance = sharpInstance.linear(factor, -(128 * (factor - 1)))
+  }
+
+  if (settings.exposure != null && settings.exposure !== 100) {
+    sharpInstance = sharpInstance.modulate({ brightness: settings.exposure / 100 })
+  }
+
+  if (settings.temperature != null && settings.temperature !== 0) {
+    const t = settings.temperature / 100
+    const warm = Math.max(0, t)
+    const cool = Math.max(0, -t)
+    sharpInstance = sharpInstance.recomb([
+      [1 + warm * 0.08, cool * 0.02, cool * 0.04],
+      [warm * 0.02, 1, cool * 0.02],
+      [warm * 0.04, cool * 0.02, 1 + cool * 0.08],
+    ])
+  }
+
+  if (settings.tint != null && settings.tint !== 0) {
+    const tint = settings.tint / 100
+    sharpInstance = sharpInstance.modulate({ hue: tint * 8 })
+  }
+
+  if (settings.gamma != null && settings.gamma !== 100) {
+    const g = Math.max(0.4, Math.min(2.5, settings.gamma / 100))
+    sharpInstance = sharpInstance.gamma(g)
+  }
+
+  if (settings.fade != null && settings.fade > 0) {
+    const lift = (settings.fade / 100) * 28
+    sharpInstance = sharpInstance.linear(1, lift)
+  }
+
+  if (settings.shadows != null && settings.shadows !== 0) {
+    const shadowFactor = 1 + settings.shadows / 200
+    sharpInstance = sharpInstance.modulate({ brightness: shadowFactor })
+  }
+
+  if (settings.highlights != null && settings.highlights !== 0) {
+    const h = settings.highlights / 100
+    const factor = 1 - h * 0.12
+    const offset = h * 18
+    sharpInstance = sharpInstance.linear(factor, offset)
+  }
+
+  if (settings.clarity != null && settings.clarity !== 0) {
+    const clarityFactor = 1 + settings.clarity / 200
+    sharpInstance = sharpInstance.linear(clarityFactor, -(128 * (clarityFactor - 1)))
+  }
+
+  if (settings.grayscale) {
+    sharpInstance = sharpInstance.grayscale()
+  }
+
+  if (settings.vintage != null && settings.vintage > 0) {
+    const sepiaAmount = settings.vintage / 100
+    sharpInstance = sharpInstance.recomb([
+      [0.393 + 0.607 * (1 - sepiaAmount), 0.769 - 0.769 * (1 - sepiaAmount), 0.189 - 0.189 * (1 - sepiaAmount)],
+      [0.349 - 0.349 * (1 - sepiaAmount), 0.686 + 0.314 * (1 - sepiaAmount), 0.168 - 0.168 * (1 - sepiaAmount)],
+      [0.272 - 0.272 * (1 - sepiaAmount), 0.534 - 0.534 * (1 - sepiaAmount), 0.131 + 0.869 * (1 - sepiaAmount)],
+    ])
+  }
+
+  if (settings.blur != null && settings.blur > 0) {
+    sharpInstance = sharpInstance.blur(settings.blur)
+  }
+
+  if (settings.sharpen != null && settings.sharpen > 0) {
+    const sigma = Math.max(settings.sharpen / 50, 0.3)
+    sharpInstance = sharpInstance.sharpen(sigma, 1, 0)
+  }
+
+  if (settings.denoise != null && settings.denoise > 0) {
+    const size = Math.min(5, Math.max(1, Math.round(settings.denoise / 25)))
+    sharpInstance = sharpInstance.median(size)
+  }
+
+  if (settings.vignette != null && settings.vignette > 0) {
+    const meta = await sharpInstance.metadata()
+    const w = meta.width ?? 0
+    const h = meta.height ?? 0
+    if (w > 0 && h > 0) {
+      const opacity = Math.min(0.85, settings.vignette / 100)
+      const svg = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="v" cx="50%" cy="50%" r="75%">
+            <stop offset="55%" stop-color="rgb(0,0,0)" stop-opacity="0"/>
+            <stop offset="100%" stop-color="rgb(0,0,0)" stop-opacity="${opacity}"/>
+          </radialGradient>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#v)"/>
+      </svg>`
+      const overlay = await sharp(Buffer.from(svg)).resize(w, h).png().toBuffer()
+      sharpInstance = sharpInstance.composite([{ input: overlay, blend: 'multiply' }])
+    }
+  }
+
+  if (settings.grain != null && settings.grain > 0) {
+    const meta = await sharpInstance.metadata()
+    const w = meta.width ?? 0
+    const h = meta.height ?? 0
+    if (w > 0 && h > 0) {
+      const sigma = Math.max(1, settings.grain / 12)
+      const noiseBuf = await sharp({
+        create: {
+          width: w,
+          height: h,
+          channels: 3,
+          noise: { type: 'gaussian', mean: 128, sigma },
+        },
+      })
+        .png()
+        .toBuffer()
+      sharpInstance = sharpInstance.composite([
+        { input: noiseBuf, blend: 'overlay', opacity: Math.min(0.5, settings.grain / 200) },
+      ])
+    }
+  }
+
   return sharpInstance
+}
+
+/** 分析并返回建议的编辑参数（一键增强） */
+export async function analyzeForEdit(_filePath: string): Promise<ImageEditSettings> {
+  return {
+    brightness: 108,
+    contrast: 104,
+    saturation: 106,
+    exposure: 102,
+    sharpen: 28,
+    denoise: 18,
+    clarity: 14,
+    shadows: 8,
+    highlights: -6,
+  }
+}
+
+const PREVIEW_MAX_EDGE = 1280
+
+/** 降采样预览，返回 data URL */
+export async function previewEdits(
+  filePath: string,
+  settings: ImageEditSettings,
+  maxEdge: number = PREVIEW_MAX_EDGE
+): Promise<string> {
+  const { displayPath } = await resolveStillPathForDisplay(filePath)
+  let instance = sharp(displayPath)
+  const meta = await instance.metadata()
+  const w = meta.width ?? 0
+  const h = meta.height ?? 0
+  if (w > 0 && h > 0) {
+    const longest = Math.max(w, h)
+    if (longest > maxEdge) {
+      const scale = maxEdge / longest
+      instance = instance.resize(Math.round(w * scale), Math.round(h * scale), {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+    }
+  }
+  instance = await buildImageEditPipeline(instance, settings)
+  const buffer = await instance.jpeg({ quality: 85, mozjpeg: true }).toBuffer()
+  return `data:image/jpeg;base64,${buffer.toString('base64')}`
 }
 
 /** 与同目录原图并排生成唯一文件名，保留扩展名；默认 `{原名}_编辑_{日期时间}` */
@@ -292,7 +414,7 @@ export async function applyEdits(
   console.log('[imageUtils] applyEdits invoked', { filePath, targetPath, explicitOutput: !!outputPath, settings })
 
   let instance = sharp(filePath)
-  instance = await applySharpSettings(instance, settings)
+  instance = await buildImageEditPipeline(instance, settings)
   await instance.toFile(targetPath)
   return targetPath
 }

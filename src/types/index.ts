@@ -423,7 +423,13 @@ export interface ImageEditSettings {
   shadows?: number // -100 到 100
   highlights?: number // -100 到 100
   clarity?: number // -100 到 100
-  tint?: number // -100 到 100
+  tint?: number // -100 到 100（绿/品红）
+  temperature?: number // -100 到 100（冷/暖）
+  gamma?: number // 50-200，100 为原始
+  vignette?: number // 0-100 暗角
+  fade?: number // 0-100 褪色
+  grain?: number // 0-100 颗粒
+  denoise?: number // 0-100 降噪
 }
 
 export interface PresetGroup {

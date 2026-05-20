@@ -304,7 +304,7 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
   }
 
   return (
-      <div className="app-tab-panel user-center-root">
+      <div className="app-tab-panel user-center-root app-feature-shell">
         {apiWarning}
         <div className="user-center-shell">
           <UserCenterSidebar

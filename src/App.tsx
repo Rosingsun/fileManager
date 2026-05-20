@@ -194,6 +194,7 @@ const App: React.FC = () => {
       )}
       <Content className="app-content">
         {activeTab === 'organize' && (
+          <div className="app-feature-shell">
           <div className="app-main">
             <div className="app-sidebar">
               <CosLibrarySummaryCard
@@ -231,24 +232,25 @@ const App: React.FC = () => {
               <ControlPanel />
             </div>
           </div>
+          </div>
         )}
         {activeTab === 'similarity' && (
-          <div className="app-tab-panel">
+          <div className="app-tab-panel app-feature-shell">
             <SimilarityDetection />
           </div>
         )}
         {activeTab === 'classify' && (
-          <div className="app-tab-panel">
+          <div className="app-tab-panel app-feature-shell">
             <ImageClassification />
           </div>
         )}
         {activeTab === 'tools' && (
-          <div className="app-tab-panel" style={{ overflow: 'hidden' }}>
+          <div className="app-tab-panel app-feature-shell" style={{ overflow: 'hidden' }}>
             <ToolsEntry />
           </div>
         )}
         {activeTab === 'quickFilter' && (
-          <div className="app-tab-panel">
+          <div className="app-tab-panel app-feature-shell">
             <QuickFilter />
           </div>
         )}

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { App, Col, Empty, Progress, Row, Segmented, Space, Spin, Typography } from 'antd'
+import { App, Col, Empty, Row, Segmented, Space, Spin, Typography } from 'antd'
+import CategoryProportionChart from './CategoryProportionChart'
 import {
   aggregateOperationLogs,
   formatAuthApiError,
@@ -44,8 +45,6 @@ const UserCenterUsageStatsTab: React.FC<Pick<UserCenterPanelProps, 'userId'>> = 
   useEffect(() => {
     void load()
   }, [load])
-
-  const maxCategoryCount = Math.max(1, ...(summary?.byCategory.map((c) => c.count) ?? [1]))
 
   return (
     <Space direction="vertical" size="middle" style={{ width: '100%' }}>
@@ -100,23 +99,8 @@ const UserCenterUsageStatsTab: React.FC<Pick<UserCenterPanelProps, 'userId'>> = 
             </Row>
           </PageSection>
 
-          <PageSection title="分类占比" subtitle="相对最高频类别的比例">
-            <Space direction="vertical" style={{ width: '100%' }} size="middle">
-              {summary.byCategory.map((c) => (
-                <div key={c.category} className="user-center-stat-bar">
-                  <Space style={{ width: '100%', justifyContent: 'space-between' }}>
-                    <Text>{c.label}</Text>
-                    <Text type="secondary">{c.count}</Text>
-                  </Space>
-                  <Progress
-                    percent={Math.round((c.count / maxCategoryCount) * 100)}
-                    showInfo={false}
-                    strokeColor="var(--app-primary)"
-                    size="small"
-                  />
-                </div>
-              ))}
-            </Space>
+          <PageSection title="分类占比" subtitle="左侧占比分布，右侧次数对比">
+            <CategoryProportionChart items={summary.byCategory} total={summary.total} />
           </PageSection>
 
           <PageSection title="各能力最近使用">
