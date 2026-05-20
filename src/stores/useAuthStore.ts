@@ -78,12 +78,17 @@ interface AuthState {
   accessToken: string | null
   user: AuthUser | null
   isHydrating: boolean
+  /** 会话失效后提示一次，由 App 消费 */
+  sessionExpiredNotice: boolean
   hydrateFromRefresh: () => Promise<void>
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, displayName?: string, inviteCode?: string) => Promise<void>
   /** 库中无任何用户且后端已配置 BOOTSTRAP_INVITE_SECRET 时可用 */
   bootstrapFirstUser: (secret: string, email: string, password: string, displayName?: string) => Promise<void>
   logout: () => Promise<void>
+  /** 清除本地会话（不调用登出 API），用于令牌失效 */
+  clearLocalSession: (options?: { expired?: boolean }) => Promise<void>
+  consumeSessionExpiredNotice: () => void
   tryRefresh: () => Promise<boolean>
   fetchProfile: () => Promise<void>
   updateProfile: (patch: { displayName?: string; avatarUrl?: string | null }) => Promise<void>
@@ -94,6 +99,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken: null,
   user: null,
   isHydrating: false,
+  sessionExpiredNotice: false,
 
   hydrateFromRefresh: async () => {
     if (!isAuthApiConfigured()) return
@@ -181,6 +187,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     void appendOperationLog(data.user.id, 'bootstrap_first_user', '通过引导创建首个账号并登录')
   },
 
+  clearLocalSession: async (options) => {
+    await clearStoredRefresh()
+    set({
+      accessToken: null,
+      user: null,
+      sessionExpiredNotice: options?.expired === true,
+    })
+  },
+
+  consumeSessionExpiredNotice: () => {
+    set({ sessionExpiredNotice: false })
+  },
+
   logout: async () => {
     const uid = get().user?.id
     const rt = await loadStoredRefresh()
@@ -197,7 +216,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     await clearStoredRefresh()
     if (uid) void appendOperationLog(uid, 'logout', '主动退出登录')
-    set({ accessToken: null, user: null })
+    set({ accessToken: null, user: null, sessionExpiredNotice: false })
   },
 
   fetchProfile: async () => {
@@ -231,4 +250,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 configureAuthClient({
   getAccessToken: () => useAuthStore.getState().accessToken,
   refreshAccess: () => useAuthStore.getState().tryRefresh(),
+  onSessionInvalid: () => {
+    void useAuthStore.getState().clearLocalSession({ expired: true })
+  },
 })

@@ -38,6 +38,7 @@
 - `electron/preload/` - 预加载脚本（桥接主进程和渲染进程）
 - `src/` - React 渲染进程代码
   - `components/` - React 组件
+  - `components/icons/` - **react-icons** 统一导出（Tabler / Remix / Phosphor 等，见 [图标库](https://react-icons.github.io/react-icons/)）；Ant Design 与 Lucide 仍用各自包
   - `hooks/` - 自定义 Hooks
   - `stores/` - Zustand 状态管理
   - `utils/` - 工具函数

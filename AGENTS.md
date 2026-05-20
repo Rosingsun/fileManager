@@ -17,6 +17,31 @@
   - 字体使用 San Francisco 字体族
   - 实现适当的交互反馈和动效
 
+## 图标使用规范
+
+界面需要图标时，**优先选用项目已安装的图标依赖**，不随意新增第三方图标库，让视觉语言保持克制、统一、耐看。
+
+### 选用顺序
+
+1. **react-icons（首选）**  
+   自研页面、统计卡片、工具入口、空状态等，优先从统一出口引入 Tabler / Remix / Phosphor 等线条图标（如 `Tb*`、`Ri*`、`Pi*`），线条利落，贴近 macOS / SF Symbols 气质。  
+   - 统一出口：`src/components/icons/index.ts`（经 `src/components/index.ts` 导出）  
+   - 检索与命名：[react-icons 图标库](https://react-icons.github.io/react-icons/)  
+   - 按需具名导入，利于 tree-shaking，避免整包引用  
+
+2. **@ant-design/icons（antd 场景）**  
+   与 Ant Design 组件强绑定的场景（`Button` 的 `icon`、`Menu`、`Table` 操作列等），可继续使用 `@ant-design/icons`，与 antd 交互习惯一致。  
+
+3. **lucide-react（shadcn / ui 组件）**  
+   `src/components/ui/` 下 shadcn 系组件已内建 Lucide，保持原有用法，不必为同一枚图标重复引入 react-icons。  
+
+### 编写约定
+
+- **统一导入**：react-icons 必须从 `../components` 或 `../components/icons` 引入，禁止直连 `node_modules/react-icons/...` 子路径（与「统一导出规则」一致）。  
+- **语义与体量**：同一模块内同类操作尽量复用同一图标；尺寸与 `StatCard`、`ToolTile` 等现有组件协调（常见 `size={16}`～`18`）。  
+- **分类与配色**：操作日志、能力入口等可按业务分类维护图标与强调色映射（参考 `src/components/UserCenter/operationLogCategoryVisuals.tsx`），避免「一图多用」或「一屏千面」。  
+- **克制新增**：确无合适图标时再考虑扩展 `src/components/icons/index.ts` 中的图标集导出，而非安装新的图标 npm 包。
+
 ## 通用规则
 1. **每次执行前**：必须称呼用户为"徐工"
 2. **每次执行后**：必须称呼用户为"徐工"并总结执行结果

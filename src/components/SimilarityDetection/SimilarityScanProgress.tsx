@@ -78,10 +78,12 @@ const SimilarityScanProgressPanel: React.FC<SimilarityScanProgressPanelProps> = 
         </div>
       ) : null}
 
-      <Button type="button" variant="destructive" size="sm" onClick={onCancel}>
-        <StopOutlined />
-        取消扫描
-      </Button>
+      <div className="sim-scan__actions">
+        <Button type="button" variant="destructive" onClick={onCancel}>
+          <StopOutlined />
+          取消扫描
+        </Button>
+      </div>
     </section>
   )
 }

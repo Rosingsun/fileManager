@@ -95,6 +95,32 @@ async function withPresignConcurrency<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+const COS_GRID_ITEM_STYLE: React.CSSProperties = {
+  position: 'relative',
+  borderRadius: 12,
+  padding: 8,
+  background: 'rgba(255, 255, 255, 0.55)',
+  border: '1px solid rgba(0, 0, 0, 0.06)',
+}
+
+const COS_GRID_THUMB_SHELL_STYLE: React.CSSProperties = {
+  width: '100%',
+  aspectRatio: '1',
+  borderRadius: 10,
+  overflow: 'hidden',
+  background: 'rgba(0, 0, 0, 0.04)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginBottom: 6,
+}
+
+const COS_GRID_ITEM_MORE_BTN_STYLE: React.CSSProperties = {
+  position: 'absolute',
+  top: 2,
+  right: 2,
+}
+
 const CosBrowseThumb: React.FC<{
   cosKey: string
   title: string
@@ -165,18 +191,7 @@ const CosBrowseThumb: React.FC<{
           onOpenPreview()
         }
       }}
-      style={{
-        width: '100%',
-        aspectRatio: '1',
-        borderRadius: 10,
-        overflow: 'hidden',
-        background: 'rgba(0,0,0,0.04)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        marginBottom: 6,
-      }}
+      style={{ ...COS_GRID_THUMB_SHELL_STYLE, cursor: 'pointer' }}
       aria-label={`预览 ${title}`}
     >
       {url ? (
@@ -844,16 +859,7 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                   },
                 ]
                 return (
-                  <div
-                    key={row.key}
-                    style={{
-                      position: 'relative',
-                      borderRadius: 12,
-                      padding: '12px 10px',
-                      background: 'rgba(255, 255, 255, 0.55)',
-                      border: '1px solid rgba(0, 0, 0, 0.06)',
-                    }}
-                  >
+                  <div key={row.key} style={COS_GRID_ITEM_STYLE}>
                     <div
                       role="button"
                       tabIndex={0}
@@ -864,19 +870,23 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                           setCurrentPrefix(row.prefix)
                         }
                       }}
-                      style={{ cursor: 'pointer', textAlign: 'center', paddingRight: 20 }}
+                      style={{ ...COS_GRID_THUMB_SHELL_STYLE, cursor: 'pointer' }}
+                      aria-label={`打开文件夹 ${row.label}`}
                     >
-                      <FolderOutlined style={{ fontSize: 36, marginBottom: 8, color: 'rgba(0, 122, 255, 0.85)' }} />
-                      <Typography.Text ellipsis title={row.label} style={{ display: 'block' }}>
-                        {row.label}
-                      </Typography.Text>
+                      <FolderOutlined style={{ fontSize: 36, color: 'rgba(0, 122, 255, 0.85)' }} />
                     </div>
+                    <Typography.Text ellipsis title={row.label} style={{ display: 'block', fontSize: 12 }}>
+                      {row.label}
+                    </Typography.Text>
+                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                      文件夹
+                    </Typography.Text>
                     <Dropdown menu={{ items: folderMenu }} trigger={['click']} placement="bottomRight">
                       <Button
                         type="text"
                         size="small"
                         icon={<MoreOutlined />}
-                        style={{ position: 'absolute', top: 2, right: 2 }}
+                        style={COS_GRID_ITEM_MORE_BTN_STYLE}
                         onClick={(e) => e.stopPropagation()}
                         aria-label={`文件夹 ${row.label} 更多操作`}
                       />
@@ -906,16 +916,7 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                   },
                 ]
                 return (
-                  <div
-                    key={row.key}
-                    style={{
-                      position: 'relative',
-                      borderRadius: 12,
-                      padding: 8,
-                      background: 'rgba(255, 255, 255, 0.55)',
-                      border: '1px solid rgba(0, 0, 0, 0.06)',
-                    }}
-                  >
+                  <div key={row.key} style={COS_GRID_ITEM_STYLE}>
                     <CosBrowseThumb
                       cosKey={row.cosKey}
                       title={row.name}
@@ -932,7 +933,7 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                         type="text"
                         size="small"
                         icon={<MoreOutlined />}
-                        style={{ position: 'absolute', top: 2, right: 2 }}
+                        style={COS_GRID_ITEM_MORE_BTN_STYLE}
                         onClick={(e) => e.stopPropagation()}
                         aria-label={`${row.name} 更多操作`}
                       />

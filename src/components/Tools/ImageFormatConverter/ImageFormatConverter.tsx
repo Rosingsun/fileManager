@@ -162,7 +162,7 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
         </Space>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
+      <div className="app-tool-modal__layout">
         <div className="app-tool-modal__sidebar">
           <ToolModalPanel title="选择图片">
             <Button 
@@ -214,7 +214,7 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
           </ToolModalPanel>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <div className="app-tool-modal__main">
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <Text strong>图片列表 ({images.length} 张)</Text>
@@ -229,31 +229,13 @@ const ImageFormatConverter: React.FC<ImageFormatConverterProps> = ({ visible, on
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div
-            style={{
-              flex: 1,
-              overflow: 'auto',
-              border: '1px solid #d9d9d9',
-              borderRadius: 6,
-              display: 'flex',
-              flexDirection: 'column',
-              minHeight: 0
-            }}
-          >
+          <div className="app-tool-modal__preview">
             {images.length === 0 ? (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 0
-                }}
-              >
+              <div className="app-tool-modal__preview-empty">
                 <Empty description="请先添加图片" />
               </div>
             ) : (
-              <div style={{ padding: 8, width: '100%', boxSizing: 'border-box', flex: 1, minHeight: 0 }}>
+              <div className="app-tool-modal__preview-scroll is-padded">
                   {images.map((img, index) => (
                     <Card
                       size="small"

@@ -18,13 +18,18 @@ import {
   ThunderboltOutlined,
   ScanOutlined,
   DeploymentUnitOutlined,
+  QuestionCircleOutlined,
 } from "@ant-design/icons";
 
 import type { SimilarityScanConfig } from "../../types";
 
 import FormPreview from "../FormPreview/FormPreview";
 
-import { ALGORITHM_OPTIONS, THRESHOLD_PRESETS } from "./similarityShared";
+import {
+  ALGORITHM_OPTIONS,
+  INCLUDE_SUBDIRECTORIES_HINT,
+  THRESHOLD_PRESETS,
+} from "./similarityShared";
 
 interface SimilarityScanSetupProps {
   onStart: (config: SimilarityScanConfig) => void;
@@ -122,14 +127,30 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
             <div className="sim-panel__title-row">
               <h2 className="sim-panel__title">照片目录</h2>
 
-              <Form.Item
+              <div
                 className="sim-panel__subdirs"
-                label="包含子文件夹"
-                name="includeSubdirectories"
-                valuePropName="checked"
+                role="group"
+                aria-label="包含子文件夹"
               >
-                <Switch checkedChildren="是" unCheckedChildren="否" />
-              </Form.Item>
+                <span className="sim-panel__subdirs-label">
+                  <Tooltip title={INCLUDE_SUBDIRECTORIES_HINT}>
+                    <span
+                      className="sim-panel__subdirs-help"
+                      role="img"
+                      aria-label="包含子文件夹说明"
+                    >
+                      <QuestionCircleOutlined />
+                    </span>
+                  </Tooltip>
+                </span>
+                <Form.Item
+                  name="includeSubdirectories"
+                  valuePropName="checked"
+                  noStyle
+                >
+                  <Switch checkedChildren="是" unCheckedChildren="否" />
+                </Form.Item>
+              </div>
             </div>
 
             <p className="sim-panel__sub">选择要扫描的本地文件夹</p>
@@ -330,13 +351,24 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
       </div>
 
       <div className="sim-setup-bar">
-        <Button icon={<EyeOutlined />} onClick={() => setPreviewVisible(true)}>
-          预览配置
-        </Button>
-
-        <Button type="primary" htmlType="submit" disabled={!scanPath}>
-          开始扫描
-        </Button>
+        <div className="sim-setup-bar__row">
+          <Button
+            className="sim-setup-bar__preview"
+            icon={<EyeOutlined />}
+            onClick={() => setPreviewVisible(true)}
+          >
+            预览配置
+          </Button>
+          <Button
+            type="primary"
+            size="large"
+            htmlType="submit"
+            icon={<ScanOutlined />}
+            disabled={!scanPath}
+          >
+            开始扫描
+          </Button>
+        </div>
       </div>
 
       <FormPreview

@@ -12,6 +12,9 @@ export const WORKFLOW_STEPS: {
   { key: 'review', label: '确认保留并清理', short: '审阅' },
 ]
 
+export const INCLUDE_SUBDIRECTORIES_HINT =
+  '开启：递归扫描所选目录下所有子文件夹中的图片。关闭：仅扫描当前所选目录根目录中的图片，不包含子文件夹。'
+
 export const THRESHOLD_PRESETS = [
   { label: '宽松', value: 80, hint: '更多相似组' },
   { label: '普通', value: 90, hint: '推荐' },

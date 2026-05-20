@@ -27,6 +27,8 @@ const App: React.FC = () => {
   const accessToken = useAuthStore((s) => s.accessToken)
   const tryRefresh = useAuthStore((s) => s.tryRefresh)
   const fetchProfile = useAuthStore((s) => s.fetchProfile)
+  const sessionExpiredNotice = useAuthStore((s) => s.sessionExpiredNotice)
+  const consumeSessionExpiredNotice = useAuthStore((s) => s.consumeSessionExpiredNotice)
 
   const hasAuthBase = isAuthApiConfigured()
   const isAuthenticated = !!(user && accessToken)
@@ -58,6 +60,12 @@ const App: React.FC = () => {
       setActiveTab('user')
     }
   }, [isAuthenticated])
+
+  useEffect(() => {
+    if (!sessionExpiredNotice) return
+    message.warning('登录已失效，请重新登录')
+    consumeSessionExpiredNotice()
+  }, [sessionExpiredNotice, consumeSessionExpiredNotice])
 
   const profileFetchedRef = useRef(false)
   useEffect(() => {

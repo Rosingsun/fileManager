@@ -361,16 +361,18 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
           <span>预计释放 {formatFileSize(saved)}</span>
         </div>
         <div className="sim-dock__actions">
-          <Button type="button" size="sm" variant="outline" onClick={handleSelectAllGroups}>
-            {selectedGroups.size === result.groups.length ? '取消全选' : '全选'}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={handleMarkAllBest}>
-            <CheckCircleOutlined />
-            推荐保留
-          </Button>
+          <div className="sim-dock__group" role="group" aria-label="批量操作">
+            <Button type="button" variant="outline" onClick={handleSelectAllGroups}>
+              {selectedGroups.size === result.groups.length ? '取消全选' : '全选'}
+            </Button>
+            <Button type="button" variant="outline" onClick={handleMarkAllBest}>
+              <CheckCircleOutlined />
+              推荐保留
+            </Button>
+          </div>
           <Button
             type="button"
-            size="sm"
+            className="sim-dock__cta"
             variant="destructive"
             disabled={!selectedGroups.size || deleting}
             onClick={handleDeleteSelected}
@@ -378,7 +380,7 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
             <DeleteOutlined />
             删除冗余
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onReset}>
+          <Button type="button" variant="outline" onClick={onReset}>
             <ReloadOutlined />
             重新扫描
           </Button>

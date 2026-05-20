@@ -125,17 +125,35 @@
 /* —— 工具弹窗 —— */
 
 .app-tool-modal .ant-modal-content {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
   overflow: hidden;
+}
+
+.app-tool-modal .ant-modal-footer {
+  flex-shrink: 0;
 }
 
 .app-tool-modal .ant-modal-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   padding: 0 16px 16px;
-  overflow: hidden;
+  overflow: visible;
 }
 
-.app-tool-modal--focus-adjust .ant-modal-body {
+.app-tool-modal__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   overflow: visible;
-  max-height: calc(100vh - 120px);
+}
+
+.app-tool-modal--focus-adjust .ant-modal-content {
+  max-height: calc(100vh - 40px);
 }
 
 .app-tool-modal__title-row {
@@ -167,21 +185,41 @@
   gap: 8px;
 }
 
-.app-tool-modal__layout {
+.app-tool-modal__layout,
+.app-tool-modal__body > .focus-adjust-layout {
   display: flex;
   gap: 14px;
-  height: min(62vh, 560px);
-  min-height: 320px;
+  flex: 1;
+  min-height: 0;
+  max-height: min(68vh, calc(100vh - 220px));
+  height: min(68vh, 600px);
 }
 
-.app-tool-modal__sidebar {
+.app-tool-modal__sidebar,
+.focus-adjust-layout__sidebar.app-tool-modal__sidebar {
   display: flex;
   flex-direction: column;
   gap: 10px;
   width: 272px;
   flex-shrink: 0;
+  min-height: 0;
+  max-height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
-  padding-right: 2px;
+  overscroll-behavior: contain;
+  padding: 2px 6px 12px 2px;
+  scrollbar-gutter: stable;
+}
+
+.app-tool-modal__sidebar::-webkit-scrollbar,
+.focus-adjust-layout__sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-tool-modal__sidebar::-webkit-scrollbar-thumb,
+.focus-adjust-layout__sidebar::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--app-text-secondary) 35%, transparent);
+  border-radius: 3px;
 }
 
 .app-tool-modal__main {
@@ -208,10 +246,11 @@
 }
 
 .app-tool-modal__panel {
+  flex-shrink: 0;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-md);
   background: var(--app-surface-subtle);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .app-tool-modal__panel-head {
@@ -225,10 +264,22 @@
 
 .app-tool-modal__panel-body {
   padding: 10px 12px;
+  overflow: visible;
 }
 
 .app-tool-modal__panel-body .ant-typography {
   font-size: 12px;
+}
+
+.app-tool-modal__panel-body .ant-slider {
+  margin: 6px 10px 14px;
+}
+
+.app-tool-modal__panel-body .ant-radio-wrapper {
+  align-items: flex-start;
+  line-height: 1.35;
+  white-space: normal;
+  margin-inline-end: 0;
 }
 
 .app-tool-modal__preview {
@@ -321,7 +372,7 @@
 
 .app-tool-confirm-modal__body {
   position: relative;
-  padding: 4px 0 0;
+  padding: 4px 28px 0 0;
 }
 
 .app-tool-confirm-modal__prompt {
@@ -340,6 +391,7 @@
 
 .app-tool-confirm-modal__close {
   position: absolute;
-  top: -4px;
-  right: -4px;
+  top: 0;
+  right: 0;
+  z-index: 1;
 }

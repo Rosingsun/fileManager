@@ -33,7 +33,6 @@ export const ToolModal: React.FC<ToolModalProps> = ({
     destroyOnClose
     maskClosable={false}
     className={classNames('app-tool-modal', className)}
-    styles={{ body: { overflow: 'hidden' } }}
     title={
       <div className="app-tool-modal__title-row">
         <Button
@@ -49,7 +48,7 @@ export const ToolModal: React.FC<ToolModalProps> = ({
     }
     footer={<div className="app-tool-modal__footer">{footer}</div>}
   >
-    {children}
+    <div className="app-tool-modal__body">{children}</div>
   </Modal>
 )
 

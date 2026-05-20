@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { App, Col, Empty, Progress, Row, Segmented, Space, Spin, Typography } from 'antd'
-import { BarChartOutlined, ThunderboltOutlined } from '@ant-design/icons'
 import {
   aggregateOperationLogs,
   formatAuthApiError,
@@ -9,6 +8,11 @@ import {
   type OperationLogStatsSummary,
 } from '../../utils'
 import { PageSection, StatCard } from '../UnifiedUI'
+import {
+  OPERATION_LOG_CATEGORY_ACCENTS,
+  operationLogCategoryIcon,
+  operationLogTotalIcon,
+} from './operationLogCategoryVisuals'
 import { type UserCenterPanelProps } from './userCenterShared'
 
 const { Text } = Typography
@@ -77,14 +81,20 @@ const UserCenterUsageStatsTab: React.FC<Pick<UserCenterPanelProps, 'userId'>> = 
                 <StatCard
                   title="记录条数"
                   value={summary.total}
-                  icon={<BarChartOutlined />}
+                  icon={operationLogTotalIcon()}
                   accent="var(--app-primary)"
                   subtle
                 />
               </Col>
               {summary.byCategory.slice(0, 5).map((c) => (
                 <Col xs={12} sm={8} key={c.category}>
-                  <StatCard title={c.label} value={c.count} icon={<ThunderboltOutlined />} accent="#7c5cff" subtle />
+                  <StatCard
+                    title={c.label}
+                    value={c.count}
+                    icon={operationLogCategoryIcon(c.category)}
+                    accent={OPERATION_LOG_CATEGORY_ACCENTS[c.category]}
+                    subtle
+                  />
                 </Col>
               ))}
             </Row>

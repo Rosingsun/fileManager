@@ -40,13 +40,20 @@ export class AuthApiError extends Error {
 
 let getAccessToken: () => string | null = () => null
 let refreshAccess: () => Promise<boolean> = async () => false
+let onSessionInvalid: () => void = () => {}
+
+function notifySessionInvalid(): void {
+  onSessionInvalid()
+}
 
 export function configureAuthClient(c: {
   getAccessToken: () => string | null
   refreshAccess: () => Promise<boolean>
+  onSessionInvalid?: () => void
 }): void {
   getAccessToken = c.getAccessToken
   refreshAccess = c.refreshAccess
+  onSessionInvalid = c.onSessionInvalid ?? (() => {})
 }
 
 export function formatAuthApiError(err: unknown): string {
@@ -107,6 +114,11 @@ export async function authFetchJson<T>(
     if (ok) {
       token = getAccessToken()
       res = await run(token)
+      if (res.status === 401) {
+        notifySessionInvalid()
+      }
+    } else {
+      notifySessionInvalid()
     }
   }
 
@@ -124,6 +136,9 @@ export async function authFetchJson<T>(
 
   if (!raw || typeof raw !== 'object' || !('ok' in raw)) {
     const status = res.status
+    if (!options.skipAuth && status === 401) {
+      notifySessionInvalid()
+    }
     const fallback =
       !res.ok && status === 401
         ? '认证失败（未收到有效 JSON）。若长时间无响应，请确认 MySQL 已启动，且 backend/.env 中 MYSQL_HOST 使用 127.0.0.1（避免 localhost 在部分环境下挂起）'
@@ -135,11 +150,11 @@ export async function authFetchJson<T>(
 
   if (!(raw as { ok: boolean }).ok) {
     const err = raw as ApiErr
-    throw new AuthApiError(
-      err.error?.code ?? 'UNKNOWN',
-      err.error?.message || '请求失败',
-      res.status
-    )
+    const code = err.error?.code ?? 'UNKNOWN'
+    if (!options.skipAuth && (res.status === 401 || code === 'UNAUTHORIZED')) {
+      notifySessionInvalid()
+    }
+    throw new AuthApiError(code, err.error?.message || '请求失败', res.status)
   }
 
   return (raw as ApiOk<T>).data
@@ -203,6 +218,7 @@ export async function authPostBinaryJson<T>(
         const text2 = await run(token)
         return parseText(text2, 200)
       }
+      notifySessionInvalid()
       try {
         return parseText(e.responseText, e.status)
       } catch {

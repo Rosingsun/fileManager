@@ -19,7 +19,6 @@ import {
   LoadingOutlined,
   SafetyOutlined,
   InfoCircleOutlined,
-  ApiOutlined,
   CloudServerOutlined,
   LogoutOutlined,
   TeamOutlined,
@@ -33,7 +32,6 @@ import {
   authFetchJson,
   cosDelete,
   formatAuthApiError,
-  getAuthApiBaseUrl,
   isAllowedAvatarFile,
   isAuthApiConfigured,
   isCosAvatarRef,
@@ -41,8 +39,6 @@ import {
   parseCosAvatarKey,
   uploadAvatarToCos,
   AVATAR_SELECT_MAX_BYTES,
-  AuthApiError,
-  cosImageStats,
 } from '../utils'
 import UserAvatar from './UserAvatar'
 import OperationLogTab from './OperationLogTab'
@@ -50,6 +46,7 @@ import UserCenterOverviewTab from './UserCenter/UserCenterOverviewTab'
 import UserCenterUsageStatsTab from './UserCenter/UserCenterUsageStatsTab'
 import UserCenterPreferencesTab from './UserCenter/UserCenterPreferencesTab'
 import UserCenterAdminQuotaTab from './UserCenter/UserCenterAdminQuotaTab'
+import UserCenterAboutTab from './UserCenter/UserCenterAboutTab'
 import UserCenterSidebar, { type UserCenterSidebarNavEntry } from './UserCenter/UserCenterSidebar'
 import { GlassCard, PageSection } from './UnifiedUI'
 import {
@@ -94,9 +91,6 @@ interface InviteQuota {
 
 const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, onNavigateApp }) => {
   const { message } = App.useApp()
-  const baseUrl = getAuthApiBaseUrl()
-  const apiDisplayLabel = baseUrl || '—'
-
   const user = useAuthStore((s) => s.user)
   const accessToken = useAuthStore((s) => s.accessToken)
   const logout = useAuthStore((s) => s.logout)
@@ -107,9 +101,6 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
   const [profileForm] = Form.useForm()
   const [pwdForm] = Form.useForm()
   const [loading, setLoading] = useState(false)
-  const [about, setAbout] = useState<{ version: string; platform: string } | null>(null)
-  const [healthOk, setHealthOk] = useState<boolean | null>(null)
-  const [healthChecking, setHealthChecking] = useState(false)
   const [inviteCodes, setInviteCodes] = useState<MyInviteCodeRow[]>([])
   const [inviteRecords, setInviteRecords] = useState<MyInviteRecordRow[]>([])
   const [inviteQuota, setInviteQuota] = useState<InviteQuota | null>(null)
@@ -117,18 +108,7 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
   const [avatarUploading, setAvatarUploading] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [activeUserTab, setActiveUserTab] = useState<UserCenterTabKey>('overview')
-  const [cosConfigured, setCosConfigured] = useState<boolean | null>(null)
-
   const formatTs = (ms: number) => new Date(ms).toLocaleString()
-
-  const checkCosStatus = useCallback(async () => {
-    try {
-      await cosImageStats()
-      setCosConfigured(true)
-    } catch (e) {
-      setCosConfigured(e instanceof AuthApiError && e.code === 'COS_NOT_CONFIGURED' ? false : null)
-    }
-  }, [])
 
   const loadInviteLists = useCallback(async () => {
     setInviteLoading(true)
@@ -166,9 +146,8 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
     (key: UserCenterTabKey) => {
       setActiveUserTab(key)
       if (key === 'invites') void loadInviteLists()
-      if (key === 'about') void checkCosStatus()
     },
-    [loadInviteLists, checkCosStatus]
+    [loadInviteLists]
   )
 
   useEffect(() => {
@@ -220,28 +199,6 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
       })
     }
   }, [user, accessToken, profileForm])
-
-  useEffect(() => {
-    const api = window.electronAPI
-    if (!api?.getAppVersion || !api.getPlatform) return
-    void Promise.all([api.getAppVersion(), api.getPlatform()]).then(([version, platform]) => {
-      setAbout({ version, platform })
-    })
-  }, [])
-
-  const checkServiceHealth = async () => {
-    if (!isAuthApiConfigured()) return
-    setHealthChecking(true)
-    try {
-      const res = await fetch(`${baseUrl}/health`)
-      const raw = (await res.json()) as { ok?: boolean; data?: { status?: string } }
-      setHealthOk(raw.ok === true && raw.data?.status === 'ok')
-    } catch {
-      setHealthOk(false)
-    } finally {
-      setHealthChecking(false)
-    }
-  }
 
   const onPickAvatarFile = async (file: File) => {
     if (!isAllowedAvatarFile(file)) {
@@ -626,40 +583,7 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
               </Space>
             )}
             {activeUserTab === 'adminQuota' && user?.isAdmin && <UserCenterAdminQuotaTab />}
-            {activeUserTab === 'about' && (
-              <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                      <GlassCard title="认证服务" extra={<ApiOutlined />}>
-                        <Space direction="vertical" style={{ width: '100%' }}>
-                          <Typography.Text type="secondary">API 地址</Typography.Text>
-                          <Typography.Paragraph code copyable style={{ marginBottom: 8 }}>
-                            {apiDisplayLabel}
-                          </Typography.Paragraph>
-                          <Space wrap>
-                            <Button onClick={() => void checkServiceHealth()} loading={healthChecking}>
-                              检测连接
-                            </Button>
-                            {healthOk === true && <Tag color="success">认证 API 可达</Tag>}
-                            {healthOk === false && <Tag color="error">认证 API 不可达</Tag>}
-                            {healthOk === null && <Tag>认证 API 未检测</Tag>}
-                            {cosConfigured === true && <Tag color="success">COS 已配置</Tag>}
-                            {cosConfigured === false && <Tag color="default">COS 未配置</Tag>}
-                            {cosConfigured === null && activeUserTab === 'about' ? (
-                              <Tag>COS 未检测</Tag>
-                            ) : null}
-                          </Space>
-                        </Space>
-                      </GlassCard>
-                      <GlassCard title="关于本应用" loading={!about}>
-                        {about && (
-                          <Typography.Paragraph style={{ marginBottom: 0 }}>
-                            版本：{about.version}
-                            <br />
-                            平台：{about.platform}
-                          </Typography.Paragraph>
-                        )}
-                      </GlassCard>
-              </Space>
-            )}
+            {activeUserTab === 'about' && <UserCenterAboutTab />}
           </main>
         </div>
       </div>
