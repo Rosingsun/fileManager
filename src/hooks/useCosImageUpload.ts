@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, DragEvent, KeyboardEvent } from 'react'
 import type { MessageInstance } from 'antd/es/message/interface'
-import { cosUploadImageViaApi, formatAuthApiError } from '../utils'
+import { cosMetaBatchUpsert, cosUploadImageViaApi, formatAuthApiError } from '../utils'
+import { IMAGE_CATEGORY_LABELS, migrateLegacyImageCategory, type ImageContentCategory } from '../types'
 
 const IMG_RE = /\.(jpe?g|png|gif|webp)$/i
 const COS_UPLOAD_CONCURRENCY = 3
 const AUTO_UPLOAD_STORAGE_KEY = 'cosImageLibrary.autoUploadAfterSelect'
+const SORT_BY_CATEGORY_STORAGE_KEY = 'cosImageLibrary.sortByCategoryOnUpload'
 
 export type CosUploadTask = {
   id: string
@@ -131,12 +133,34 @@ async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => P
   return results
 }
 
+function readSortByCategoryInitial(): boolean {
+  try {
+    return localStorage.getItem(SORT_BY_CATEGORY_STORAGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+async function resolveCategorySubPrefix(file: File): Promise<string | null> {
+  const path = (file as File & { path?: string }).path?.trim()
+  if (!path || !window.electronAPI?.classifyImage) return null
+  try {
+    const result = await window.electronAPI.classifyImage(path)
+    const cat = migrateLegacyImageCategory(result.category as ImageContentCategory)
+    const label = IMAGE_CATEGORY_LABELS[cat] ?? cat
+    return `${label.replace(/[/\\:*?"<>|]/g, '_')}/`
+  } catch {
+    return null
+  }
+}
+
 export function useCosImageUpload(options: {
   message: MessageInstance
   currentPrefix: string
   onAfterBatchUpload: () => void
+  scopePrefix?: string
 }) {
-  const { message, currentPrefix, onAfterBatchUpload } = options
+  const { message, currentPrefix, onAfterBatchUpload, scopePrefix = '' } = options
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
@@ -145,7 +169,9 @@ export function useCosImageUpload(options: {
   const [uploadDropActive, setUploadDropActive] = useState(false)
   const [uploadScanning, setUploadScanning] = useState(false)
   const [autoUploadAfterSelect, setAutoUploadAfterSelectState] = useState(readAutoUploadInitial)
+  const [sortByCategoryOnUpload, setSortByCategoryOnUploadState] = useState(readSortByCategoryInitial)
   const uploadBatchLockRef = useRef(false)
+  const uploadedMetaRef = useRef<{ cosKey: string; contentCategory: string }[]>([])
 
   const uploadTasksRef = useRef<CosUploadTask[]>([])
   useEffect(() => {
@@ -173,6 +199,15 @@ export function useCosImageUpload(options: {
     }
   }, [])
 
+  const setSortByCategoryOnUpload = useCallback((v: boolean) => {
+    setSortByCategoryOnUploadState(v)
+    try {
+      localStorage.setItem(SORT_BY_CATEGORY_STORAGE_KEY, v ? 'true' : 'false')
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
   const updateUploadTask = useCallback((id: string, patch: Partial<CosUploadTask>) => {
     setUploadTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)))
   }, [])
@@ -192,6 +227,7 @@ export function useCosImageUpload(options: {
         return
       }
       uploadBatchLockRef.current = true
+      uploadedMetaRef.current = []
 
       const runOne = async (task: CosUploadTask): Promise<'success' | 'error'> => {
         const taskId = task.id
@@ -206,8 +242,13 @@ export function useCosImageUpload(options: {
           speedBps: undefined,
         })
         try {
-          await cosUploadImageViaApi(task.file, {
-            parentPrefix: currentPrefix || undefined,
+          let uploadParent = currentPrefix || undefined
+          if (sortByCategoryOnUpload) {
+            const sub = await resolveCategorySubPrefix(task.file)
+            if (sub) uploadParent = `${currentPrefix || ''}${sub}`
+          }
+          const { key } = await cosUploadImageViaApi(task.file, {
+            parentPrefix: uploadParent,
             onProgress: (loaded, total) => {
               const now = performance.now()
               const dtSec = (now - lastTs) / 1000
@@ -224,6 +265,19 @@ export function useCosImageUpload(options: {
               updateUploadTask(taskId, { percent: p, speedBps: smoothedBps > 0 ? smoothedBps : undefined })
             },
           })
+          const fullKey = scopePrefix ? `${scopePrefix.replace(/\/?$/, '/')}${key.replace(/^\/+/, '')}` : key
+          if (sortByCategoryOnUpload) {
+            const path = (task.file as File & { path?: string }).path?.trim()
+            if (path && window.electronAPI?.classifyImage) {
+              try {
+                const result = await window.electronAPI.classifyImage(path)
+                const cat = migrateLegacyImageCategory(result.category as ImageContentCategory)
+                uploadedMetaRef.current.push({ cosKey: fullKey, contentCategory: cat })
+              } catch {
+                /* ignore */
+              }
+            }
+          }
           revokeTaskPreview(task)
           updateUploadTask(taskId, {
             status: 'success',
@@ -251,12 +305,20 @@ export function useCosImageUpload(options: {
         else if (errCountResult === n) message.error('上传失败，请查看下方状态与说明')
         else message.warning(`已完成：成功 ${n - errCountResult}，失败 ${errCountResult}`)
 
+        if (uploadedMetaRef.current.length > 0) {
+          void cosMetaBatchUpsert(
+            uploadedMetaRef.current.map((m) => ({
+              cosKey: m.cosKey,
+              contentCategory: m.contentCategory,
+            }))
+          ).catch(() => {})
+        }
         onAfterBatchUpload()
       } finally {
         uploadBatchLockRef.current = false
       }
     },
-    [currentPrefix, message, onAfterBatchUpload, updateUploadTask]
+    [currentPrefix, message, onAfterBatchUpload, updateUploadTask, sortByCategoryOnUpload, scopePrefix]
   )
 
   const enqueueImageFiles = useCallback(
@@ -491,6 +553,8 @@ export function useCosImageUpload(options: {
     uploadScanning,
     autoUploadAfterSelect,
     setAutoUploadAfterSelect,
+    sortByCategoryOnUpload,
+    setSortByCategoryOnUpload,
     isUploading,
     pendingCount,
     errorCount,

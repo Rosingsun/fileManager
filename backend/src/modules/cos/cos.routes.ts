@@ -3,6 +3,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js'
 import { sendOk } from '../../utils/response.js'
 import { getCosConfig } from '../parameters/cosConfig.service.js'
 import * as cosService from './cos.service.js'
+import { cosMetaService } from './cos-meta.service.js'
 
 export const cosRouter = express.Router()
 
@@ -157,6 +158,24 @@ cosRouter.post(
     const data = await cosService.deleteFolder(userId, {
       key: typeof body.key === 'string' ? body.key : '',
     })
+    sendOk(res, data)
+  })
+)
+
+cosRouter.get(
+  '/meta/by-prefix',
+  asyncHandler(async (req, res) => {
+    const userId = req.userId!
+    const data = await cosMetaService.listByPrefix(userId, req.query.prefix)
+    sendOk(res, data)
+  })
+)
+
+cosRouter.post(
+  '/meta/batch-upsert',
+  asyncHandler(async (req, res) => {
+    const userId = req.userId!
+    const data = await cosMetaService.batchUpsert(userId, req.body ?? {})
     sendOk(res, data)
   })
 )

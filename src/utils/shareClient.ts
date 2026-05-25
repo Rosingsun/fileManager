@@ -1,4 +1,5 @@
 import { authFetchJson, getAuthApiBaseUrl } from './authClient'
+import type { SelectionTier, ShareAssetVariant } from './shareSelection'
 
 export type ShareResourceType = 'file' | 'folder'
 export type SharePermission = 'read' | 'download'
@@ -12,6 +13,10 @@ export interface ShareItem {
   displayName: string
   permission: SharePermission
   selectionEnabled: boolean
+  selectionRound: number
+  recommendedKeys: string[]
+  assetVariant: ShareAssetVariant
+  hideQualityFailed: boolean
   expiresAt: number | null
   revokedAt: number | null
   active: boolean
@@ -33,6 +38,19 @@ export interface SharePublicMeta {
   expiresAt: number | null
   ownerDisplayName: string
   selectionEnabled: boolean
+  selectionRound: number
+  recommendedKeys: string[]
+  assetVariant: ShareAssetVariant
+  hideQualityFailed: boolean
+}
+
+export interface ShareBrowseObject {
+  key: string
+  size: number
+  lastModified: string | null
+  recommended?: boolean
+  displayKey?: string
+  originalKey?: string
 }
 
 export interface ShareBrowseResult {
@@ -40,33 +58,58 @@ export interface ShareBrowseResult {
   currentPrefix: string
   delimiter: string
   commonPrefixes: string[]
-  objects: { key: string; size: number; lastModified: string | null }[]
+  objects: ShareBrowseObject[]
   isTruncated: boolean
   nextMarker: string | null
+  selectionRound?: number
+  recommendedKeys?: string[]
+  assetVariant?: ShareAssetVariant
 }
 
 export type SharePresignGetVariant = 'full' | 'thumb'
 
+export interface ShareSelectionItem {
+  cosKey: string
+  tier: SelectionTier
+  note: string | null
+}
+
 export interface ShareSelectionPickSummary {
   cosKey: string
   pickCount: number
+  mustCount: number
+  maybeCount: number
+  rejectCount: number
   lastSubmittedAt: number
+  notes: string[]
 }
 
 export interface ShareSelectionSubmission {
   id: string
   pickerClientId: string
   pickerLabel: string | null
+  selectionRound: number
   itemCount: number
   createdAt: number
   keys: string[]
+  items: ShareSelectionItem[]
 }
 
 export interface ShareWithSelectionMeta extends ShareItem {
   submissionCount: number
 }
 
+export interface ShareSelectionPendingItem {
+  shareId: string
+  token: string
+  displayName: string
+  cosPrefix: string | null
+  submissionCount: number
+  latestSubmissionAt: number
+}
+
 const PICKER_CLIENT_ID_KEY = 'filedeal_share_picker_client_id'
+const SELECTION_SEEN_PREFIX = 'filedeal_selection_seen_'
 
 export function getOrCreatePickerClientId(): string {
   try {
@@ -79,6 +122,23 @@ export function getOrCreatePickerClientId(): string {
     return id
   } catch {
     return crypto.randomUUID()
+  }
+}
+
+export function getSelectionLastSeenMs(shareId: string): number {
+  try {
+    const v = localStorage.getItem(`${SELECTION_SEEN_PREFIX}${shareId}`)
+    return v ? Number(v) : 0
+  } catch {
+    return 0
+  }
+}
+
+export function markSelectionSeen(shareId: string, atMs = Date.now()): void {
+  try {
+    localStorage.setItem(`${SELECTION_SEEN_PREFIX}${shareId}`, String(atMs))
+  } catch {
+    /* ignore */
   }
 }
 
@@ -98,8 +158,25 @@ export function shareCreate(body: {
   permission?: SharePermission
   expiresInHours?: number | null
   selectionEnabled?: boolean
+  selectionRound?: number
+  recommendedKeys?: string[]
+  assetVariant?: ShareAssetVariant
+  hideQualityFailed?: boolean
 }): Promise<ShareCreateResult> {
   return authFetchJson('/share/create', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export function shareUpdateMeta(body: {
+  shareId: string
+  selectionRound?: number
+  recommendedKeys?: string[]
+  assetVariant?: ShareAssetVariant
+  hideQualityFailed?: boolean
+}): Promise<ShareItem | null> {
+  return authFetchJson('/share/update-meta', {
     method: 'POST',
     body: JSON.stringify(body),
   })
@@ -142,8 +219,8 @@ export function shareBrowsePublic(token: string, prefix?: string): Promise<Share
 
 export function sharePresignGetPublic(
   token: string,
-  body: { key?: string; variant?: SharePresignGetVariant }
-): Promise<{ previewUrl: string; expiresAt: number }> {
+  body: { key?: string; variant?: SharePresignGetVariant; originalKey?: string }
+): Promise<{ previewUrl: string; expiresAt: number; originalKey?: string; presignKey?: string }> {
   return authFetchJson(
     `/share/${encodeURIComponent(token)}/presign-get`,
     {
@@ -156,8 +233,14 @@ export function sharePresignGetPublic(
 
 export function shareSubmitSelection(
   token: string,
-  body: { pickerClientId: string; pickerLabel?: string; keys: string[] }
-): Promise<{ submissionId: string; itemCount: number; createdAt: number }> {
+  body: {
+    pickerClientId: string
+    pickerLabel?: string
+    selectionRound?: number
+    items?: { key: string; tier: SelectionTier; note?: string }[]
+    keys?: string[]
+  }
+): Promise<{ submissionId: string; itemCount: number; selectionRound: number; createdAt: number }> {
   return authFetchJson(
     `/share/${encodeURIComponent(token)}/submit-selection`,
     {
@@ -189,6 +272,43 @@ export function shareSelectionSubmissions(
 export function shareSelectionsByFolderPrefix(folderKey: string): Promise<{ shares: ShareWithSelectionMeta[] }> {
   const q = new URLSearchParams({ folderKey })
   return authFetchJson(`/share/selections/by-prefix?${q.toString()}`, { method: 'GET' })
+}
+
+export function shareSelectionPending(sinceMs?: number): Promise<{ items: ShareSelectionPendingItem[] }> {
+  const q = new URLSearchParams()
+  if (sinceMs != null) q.set('sinceMs', String(sinceMs))
+  const qs = q.toString()
+  return authFetchJson(`/share/selections/pending${qs ? `?${qs}` : ''}`, { method: 'GET' })
+}
+
+export function shareSelectionRemapKeys(
+  shareId: string,
+  mappings: { fromKey: string; toKey: string }[]
+): Promise<{ updated: number; mappings: number }> {
+  return authFetchJson('/share/selections/remap-keys', {
+    method: 'POST',
+    body: JSON.stringify({ shareId, mappings }),
+  })
+}
+
+export function shareSelectionDiff(
+  shareId: string,
+  roundA: number,
+  roundB: number
+): Promise<{
+  shareId: string
+  roundA: number
+  roundB: number
+  added: string[]
+  removed: string[]
+  unchanged: string[]
+}> {
+  const q = new URLSearchParams({
+    shareId,
+    roundA: String(roundA),
+    roundB: String(roundB),
+  })
+  return authFetchJson(`/share/selections/diff?${q.toString()}`, { method: 'GET' })
 }
 
 export function parseShareTokenFromHash(hash: string): string | null {

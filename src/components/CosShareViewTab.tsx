@@ -1,6 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { App, Breadcrumb, Button, Checkbox, Empty, Input, Space, Spin, Tag, Typography } from 'antd'
-import { ArrowLeftOutlined, FolderOutlined, PictureOutlined } from '@ant-design/icons'
+import {
+  App,
+  Breadcrumb,
+  Button,
+  Checkbox,
+  Empty,
+  Input,
+  Modal,
+  Segmented,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+} from 'antd'
+import { ArrowLeftOutlined, FolderOutlined, PictureOutlined, StarFilled } from '@ant-design/icons'
 import {
   formatAuthApiError,
   getOrCreatePickerClientId,
@@ -8,10 +21,19 @@ import {
   shareGetPublic,
   sharePresignGetPublic,
   shareSubmitSelection,
+  loadStoredPicks,
+  saveStoredPicks,
+  clearStoredPicks,
+  picksToSubmitItems,
+  SELECTION_TIER_COLORS,
+  SELECTION_TIER_LABELS,
   type ShareBrowseResult,
   type SharePublicMeta,
+  type SelectionPickState,
+  type SelectionTier,
 } from '../utils'
 import ImagePreview from './ImagePreview/ImagePreview'
+import './cos-share-view.css'
 
 const GRID_ITEM_STYLE: React.CSSProperties = {
   position: 'relative',
@@ -48,9 +70,10 @@ function isImageKey(key: string): boolean {
 const ShareBrowseThumb: React.FC<{
   token: string
   cosKey: string
+  originalKey?: string
   title: string
   onOpenPreview: () => void
-}> = ({ token, cosKey, title, onOpenPreview }) => {
+}> = ({ token, cosKey, originalKey, title, onOpenPreview }) => {
   const shellRef = useRef<HTMLDivElement>(null)
   const [url, setUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
@@ -68,7 +91,11 @@ const ShareBrowseThumb: React.FC<{
         obs.disconnect()
         void (async () => {
           try {
-            const { previewUrl } = await sharePresignGetPublic(token, { key: cosKey, variant: 'thumb' })
+            const { previewUrl } = await sharePresignGetPublic(token, {
+              key: cosKey,
+              originalKey,
+              variant: 'thumb',
+            })
             setUrl(previewUrl)
           } catch {
             setFailed(true)
@@ -79,7 +106,7 @@ const ShareBrowseThumb: React.FC<{
     )
     obs.observe(el)
     return () => obs.disconnect()
-  }, [token, cosKey])
+  }, [token, cosKey, originalKey])
 
   const onThumbImgError = () => {
     if (fullTriedRef.current) {
@@ -89,7 +116,11 @@ const ShareBrowseThumb: React.FC<{
     fullTriedRef.current = true
     void (async () => {
       try {
-        const { previewUrl } = await sharePresignGetPublic(token, { key: cosKey, variant: 'full' })
+        const { previewUrl } = await sharePresignGetPublic(token, {
+          key: cosKey,
+          originalKey,
+          variant: 'full',
+        })
         setUrl(previewUrl)
       } catch {
         setFailed(true)
@@ -134,19 +165,35 @@ export interface CosShareViewTabProps {
   onClose: () => void
 }
 
+type GridTab = 'all' | 'recommended'
+
 const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => {
   const { message } = App.useApp()
   const [meta, setMeta] = useState<SharePublicMeta | null>(null)
   const [browse, setBrowse] = useState<ShareBrowseResult | null>(null)
   const [currentPrefix, setCurrentPrefix] = useState('')
   const [loading, setLoading] = useState(true)
-  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null)
+  const [preview, setPreview] = useState<{
+    url: string
+    title: string
+    cosKey: string
+    originalKey?: string
+  } | null>(null)
+  const [compareOriginalUrl, setCompareOriginalUrl] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set())
+  const [picks, setPicks] = useState<Record<string, SelectionPickState>>(() => loadStoredPicks(token))
   const [pickerLabel, setPickerLabel] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [gridTab, setGridTab] = useState<GridTab>('all')
+  const [activeTier, setActiveTier] = useState<SelectionTier>('must')
+  const [noteDraft, setNoteDraft] = useState('')
 
   const selectionEnabled = meta?.selectionEnabled === true && meta.resourceType === 'folder'
+  const recommendedSet = useMemo(() => new Set(meta?.recommendedKeys ?? browse?.recommendedKeys ?? []), [meta, browse])
+
+  useEffect(() => {
+    saveStoredPicks(token, picks)
+  }, [token, picks])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -160,7 +207,7 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
       } else {
         setBrowse(null)
         const { previewUrl } = await sharePresignGetPublic(token, { variant: 'full' })
-        setPreview({ url: previewUrl, title: m.displayName })
+        setPreview({ url: previewUrl, title: m.displayName, cosKey: '' })
       }
     } catch (e: unknown) {
       setLoadError(formatAuthApiError(e))
@@ -175,29 +222,58 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
     void load()
   }, [load])
 
-  const openPreview = useCallback(
-    async (cosKey: string, title: string) => {
-      try {
-        const { previewUrl } = await sharePresignGetPublic(token, { key: cosKey, variant: 'full' })
-        setPreview({ url: previewUrl, title })
-      } catch (e: unknown) {
-        message.error(formatAuthApiError(e))
+  const setPick = useCallback((cosKey: string, tier: SelectionTier | null, note?: string) => {
+    setPicks((prev) => {
+      const next = { ...prev }
+      if (!tier) {
+        delete next[cosKey]
+        return next
       }
-    },
-    [token, message]
-  )
-
-  const toggleSelect = useCallback((cosKey: string, checked: boolean) => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev)
-      if (checked) next.add(cosKey)
-      else next.delete(cosKey)
+      next[cosKey] = {
+        cosKey,
+        tier,
+        note: note ?? next[cosKey]?.note ?? '',
+      }
       return next
     })
   }, [])
 
+  const openPreview = useCallback(
+    async (cosKey: string, title: string, originalKey?: string) => {
+      try {
+        const { previewUrl } = await sharePresignGetPublic(token, {
+          key: cosKey,
+          originalKey,
+          variant: 'full',
+        })
+        setPreview({ url: previewUrl, title, cosKey, originalKey })
+        const existing = picks[cosKey]
+        setNoteDraft(existing?.note ?? '')
+        setActiveTier(existing?.tier ?? 'must')
+        setCompareOriginalUrl(null)
+      } catch (e: unknown) {
+        message.error(formatAuthApiError(e))
+      }
+    },
+    [token, message, picks]
+  )
+
+  const loadCompareOriginal = useCallback(async () => {
+    if (!preview?.originalKey || preview.originalKey === preview.cosKey) return
+    try {
+      const { previewUrl } = await sharePresignGetPublic(token, {
+        key: preview.originalKey,
+        variant: 'full',
+      })
+      setCompareOriginalUrl(previewUrl)
+    } catch (e: unknown) {
+      message.error(formatAuthApiError(e))
+    }
+  }, [preview, token, message])
+
   const submitSelection = useCallback(async () => {
-    if (selectedKeys.size === 0) {
+    const items = picksToSubmitItems(picks)
+    if (items.length === 0) {
       message.warning('请至少选择一张图片')
       return
     }
@@ -206,16 +282,18 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
       await shareSubmitSelection(token, {
         pickerClientId: getOrCreatePickerClientId(),
         pickerLabel: pickerLabel.trim() || undefined,
-        keys: [...selectedKeys],
+        selectionRound: meta?.selectionRound,
+        items,
       })
-      message.success(`已提交 ${selectedKeys.size} 张选片`)
-      setSelectedKeys(new Set())
+      message.success(`已提交 ${items.length} 张选片`)
+      setPicks({})
+      clearStoredPicks(token)
     } catch (e: unknown) {
       message.error(formatAuthApiError(e))
     } finally {
       setSubmitting(false)
     }
-  }, [token, selectedKeys, pickerLabel, message])
+  }, [token, picks, pickerLabel, meta?.selectionRound, message])
 
   const folderRows = useMemo(() => {
     if (!browse) return []
@@ -231,9 +309,26 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
       .filter((o) => isImageKey(o.key))
       .map((o) => {
         const name = o.key.split('/').filter(Boolean).pop() || o.key
-        return { key: o.key, cosKey: o.key, name }
+        const cosKey = o.originalKey ?? o.key
+        return {
+          key: o.key,
+          cosKey,
+          displayKey: o.displayKey ?? o.key,
+          originalKey: o.originalKey ?? o.key,
+          name,
+          recommended: o.recommended === true || recommendedSet.has(o.key) || recommendedSet.has(cosKey),
+        }
       })
-  }, [browse])
+      .filter((row) => gridTab !== 'recommended' || row.recommended)
+  }, [browse, gridTab, recommendedSet])
+
+  const pickCounts = useMemo(() => {
+    const counts = { must: 0, maybe: 0, reject: 0 }
+    for (const p of Object.values(picks)) {
+      counts[p.tier] += 1
+    }
+    return counts
+  }, [picks])
 
   const breadcrumbItems = useMemo(() => {
     const items: { title: React.ReactNode }[] = [
@@ -271,19 +366,8 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
   }, [meta?.displayName, currentPrefix])
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        background: 'rgba(245, 245, 247, 0.96)',
-        backdropFilter: 'blur(20px)',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: 24,
-      }}
-    >
-      <Space style={{ marginBottom: 16 }} wrap>
+    <div className="cos-share-view-root">
+      <Space className="cos-share-view-toolbar" wrap>
         <Button icon={<ArrowLeftOutlined />} onClick={onClose}>
           关闭
         </Button>
@@ -293,7 +377,13 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
               {meta.displayName}
             </Typography.Title>
             <Tag>{meta.resourceType === 'folder' ? '文件夹' : '单文件'}</Tag>
-            {selectionEnabled && <Tag color="blue">选片反馈已开启</Tag>}
+            {selectionEnabled && (
+              <>
+                <Tag color="blue">选片反馈</Tag>
+                <Tag>第 {meta.selectionRound} 轮</Tag>
+              </>
+            )}
+            {meta.assetVariant === 'edited' && <Tag color="purple">精修版</Tag>}
             <Typography.Text type="secondary">来自 {meta.ownerDisplayName}</Typography.Text>
           </>
         )}
@@ -312,17 +402,23 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
       ) : (
         <>
           <Breadcrumb items={breadcrumbItems} style={{ marginBottom: 12 }} />
-          <div style={{ flex: 1, minHeight: 0, overflow: 'auto', paddingBottom: selectionEnabled ? 72 : 0 }}>
+          {selectionEnabled && recommendedSet.size > 0 && (
+            <Segmented
+              size="small"
+              value={gridTab}
+              onChange={(v) => setGridTab(v as GridTab)}
+              options={[
+                { label: '全部', value: 'all' },
+                { label: `摄影师推荐 (${recommendedSet.size})`, value: 'recommended' },
+              ]}
+              style={{ marginBottom: 12 }}
+            />
+          )}
+          <div className={`cos-share-view-scroll${selectionEnabled ? '' : ''}`}>
             {folderRows.length === 0 && imageRows.length === 0 ? (
               <Empty description="文件夹为空" />
             ) : (
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(128px, 1fr))',
-                  gap: 12,
-                }}
-              >
+              <div className="cos-share-view-grid">
                 {folderRows.map((row) => (
                   <div key={row.key} style={GRID_ITEM_STYLE}>
                     <div
@@ -344,56 +440,79 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
                     </Typography.Text>
                   </div>
                 ))}
-                {imageRows.map((row) => (
-                  <div key={row.key} style={GRID_ITEM_STYLE}>
-                    {selectionEnabled && (
-                      <Checkbox
-                        checked={selectedKeys.has(row.cosKey)}
-                        onChange={(e) => toggleSelect(row.cosKey, e.target.checked)}
-                        style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}
-                        onClick={(e) => e.stopPropagation()}
+                {imageRows.map((row) => {
+                  const pick = picks[row.cosKey]
+                  return (
+                    <div key={row.key} style={GRID_ITEM_STYLE}>
+                      {row.recommended && (
+                        <StarFilled
+                          style={{
+                            position: 'absolute',
+                            top: 10,
+                            right: selectionEnabled ? 36 : 10,
+                            color: '#ff9f0a',
+                            fontSize: 14,
+                            zIndex: 2,
+                          }}
+                        />
+                      )}
+                      {pick && (
+                        <span
+                          className="cos-share-tier-badge"
+                          style={{ background: SELECTION_TIER_COLORS[pick.tier] }}
+                        >
+                          {SELECTION_TIER_LABELS[pick.tier]}
+                        </span>
+                      )}
+                      {selectionEnabled && (
+                        <Checkbox
+                          checked={!!pick}
+                          onChange={(e) => {
+                            if (e.target.checked) setPick(row.cosKey, activeTier)
+                            else setPick(row.cosKey, null)
+                          }}
+                          style={{ position: 'absolute', top: 12, left: 12, zIndex: 2 }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      )}
+                      <ShareBrowseThumb
+                        token={token}
+                        cosKey={row.displayKey}
+                        originalKey={row.originalKey}
+                        title={row.name}
+                        onOpenPreview={() => void openPreview(row.displayKey, row.name, row.originalKey)}
                       />
-                    )}
-                    <ShareBrowseThumb
-                      token={token}
-                      cosKey={row.cosKey}
-                      title={row.name}
-                      onOpenPreview={() => void openPreview(row.cosKey, row.name)}
-                    />
-                    <Typography.Text ellipsis title={row.name} style={{ display: 'block', fontSize: 12 }}>
-                      {row.name}
-                    </Typography.Text>
-                  </div>
-                ))}
+                      <Typography.Text ellipsis title={row.name} style={{ display: 'block', fontSize: 12 }}>
+                        {row.name}
+                      </Typography.Text>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
           {selectionEnabled && (
-            <div
-              style={{
-                position: 'fixed',
-                left: 24,
-                right: 24,
-                bottom: 24,
-                padding: '12px 16px',
-                borderRadius: 12,
-                background: 'rgba(255,255,255,0.92)',
-                border: '1px solid rgba(0,0,0,0.08)',
-                boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12,
-                flexWrap: 'wrap',
-                zIndex: 1001,
-              }}
-            >
-              <Typography.Text>已选 {selectedKeys.size} 张</Typography.Text>
+            <div className="cos-share-view-bottom-bar">
+              <Segmented
+                size="small"
+                value={activeTier}
+                onChange={(v) => setActiveTier(v as SelectionTier)}
+                options={[
+                  { label: '必选', value: 'must' },
+                  { label: '备选', value: 'maybe' },
+                  { label: '淘汰', value: 'reject' },
+                ]}
+              />
+              <Typography.Text style={{ fontSize: 12 }}>
+                已选 {pickCounts.must + pickCounts.maybe + pickCounts.reject}（必{pickCounts.must} 备
+                {pickCounts.maybe} 淘{pickCounts.reject}）
+              </Typography.Text>
               <Input
                 placeholder="昵称（可选）"
                 value={pickerLabel}
                 onChange={(e) => setPickerLabel(e.target.value)}
                 maxLength={64}
-                style={{ width: 160 }}
+                style={{ width: 120, flex: '1 1 120px' }}
               />
               <Button type="primary" loading={submitting} onClick={() => void submitSelection()}>
                 提交选片
@@ -403,7 +522,82 @@ const CosShareViewTab: React.FC<CosShareViewTabProps> = ({ token, onClose }) => 
         </>
       )}
 
-      <ImagePreview visible={!!preview} image={preview?.url} onClose={() => setPreview(null)} />
+      {!selectionEnabled && (
+        <ImagePreview
+          visible={!!preview}
+          image={preview?.url}
+          onClose={() => setPreview(null)}
+        />
+      )}
+
+      <Modal
+        title={preview?.title}
+        open={!!preview && selectionEnabled}
+        onCancel={() => setPreview(null)}
+        footer={[
+          meta?.assetVariant === 'edited' && preview?.originalKey ? (
+            <Button
+              key="compare"
+              onMouseDown={() => void loadCompareOriginal()}
+              onMouseUp={() => setCompareOriginalUrl(null)}
+              onTouchStart={() => void loadCompareOriginal()}
+              onTouchEnd={() => setCompareOriginalUrl(null)}
+            >
+              按住看原图
+            </Button>
+          ) : null,
+          <Button
+            key="must"
+            type={activeTier === 'must' ? 'primary' : 'default'}
+            onClick={() => {
+              if (preview) {
+                setPick(preview.cosKey, 'must', noteDraft)
+                message.success('已标为必选')
+              }
+            }}
+          >
+            必选
+          </Button>,
+          <Button
+            key="maybe"
+            onClick={() => {
+              if (preview) {
+                setPick(preview.cosKey, 'maybe', noteDraft)
+                message.success('已标为备选')
+              }
+            }}
+          >
+            备选
+          </Button>,
+          <Button
+            key="reject"
+            danger
+            onClick={() => {
+              if (preview) {
+                setPick(preview.cosKey, 'reject', noteDraft)
+                message.success('已标为淘汰')
+              }
+            }}
+          >
+            淘汰
+          </Button>,
+        ].filter(Boolean)}
+      >
+        {preview?.url && (
+          <img
+            src={compareOriginalUrl ?? preview.url}
+            alt=""
+            style={{ width: '100%', maxHeight: '50vh', objectFit: 'contain', marginBottom: 12, borderRadius: 8 }}
+          />
+        )}
+        <Input.TextArea
+          placeholder="备注（可选）"
+          value={noteDraft}
+          onChange={(e) => setNoteDraft(e.target.value)}
+          maxLength={512}
+          rows={2}
+        />
+      </Modal>
     </div>
   )
 }

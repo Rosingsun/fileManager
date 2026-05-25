@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   Dropdown,
-  Drawer,
   Empty,
   Form,
   Input,
@@ -18,6 +17,7 @@ import {
   Spin,
   Switch,
   Tag,
+  Badge,
   TreeSelect,
   Typography,
 } from 'antd'
@@ -34,6 +34,8 @@ import {
   SwapOutlined,
   ArrowLeftOutlined,
   MoreOutlined,
+  StarFilled,
+  StarOutlined,
 } from '@ant-design/icons'
 import {
   cosBrowse,
@@ -48,15 +50,16 @@ import {
   formatFileSize,
   AuthApiError,
   shareCreate,
+  shareUpdateMeta,
   copyShareLink,
   buildShareDeepLink,
   shareSelectionsByFolderPrefix,
   shareSelectionSummary,
-  shareSelectionSubmissions,
+  shareSelectionRemapKeys,
+  getSelectionLastSeenMs,
   formatDateTime,
   type CosBrowseResult,
   type SharePermission,
-  type ShareSelectionSubmission,
   type ShareWithSelectionMeta,
 } from '../utils'
 import {
@@ -64,43 +67,9 @@ import {
   formatCosImageUploadSpeed,
 } from '../hooks'
 import ShareOpenModal from './ShareOpenModal'
+import CosSelectionDrawer from './CosSelectionDrawer'
 
 type FolderMoveTreeNode = DataNode & { value?: string }
-
-const SelectionThumb: React.FC<{ cosKey: string; title: string }> = ({ cosKey, title }) => {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    void (async () => {
-      try {
-        const { previewUrl } = await cosPresignGet({ key: cosKey, variant: 'thumb' })
-        setUrl(previewUrl)
-      } catch {
-        setUrl(null)
-      }
-    })()
-  }, [cosKey])
-  return (
-    <div
-      title={title}
-      style={{
-        width: 48,
-        height: 48,
-        borderRadius: 6,
-        overflow: 'hidden',
-        background: 'rgba(0,0,0,0.06)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {url ? (
-        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      ) : (
-        <PictureOutlined style={{ opacity: 0.4 }} />
-      )}
-    </div>
-  )
-}
 
 const COS_PREVIEW_MODAL_IMG_STYLE: React.CSSProperties = {
   maxWidth: '100%',
@@ -354,15 +323,21 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
     | { resourceType: 'folder'; prefix: string; name: string }
     | null
   >(null)
-  const [shareForm] = Form.useForm<{ permission: SharePermission; expiresInHours: number; selectionEnabled: boolean }>()
+  const [shareForm] = Form.useForm<{
+    permission: SharePermission
+    expiresInHours: number
+    selectionEnabled: boolean
+    selectionRound: number
+    assetVariant: 'original' | 'edited'
+    hideQualityFailed: boolean
+  }>()
   const [shareOpenInputVisible, setShareOpenInputVisible] = useState(false)
   const [activeSelectionShare, setActiveSelectionShare] = useState<ShareWithSelectionMeta | null>(null)
   const [pickCountByKey, setPickCountByKey] = useState<Record<string, number>>({})
   const [showPickedOnly, setShowPickedOnly] = useState(false)
   const [selectionDrawerOpen, setSelectionDrawerOpen] = useState(false)
-  const [selectionSubmissions, setSelectionSubmissions] = useState<ShareSelectionSubmission[]>([])
-  const [selectionSubmissionsTotal, setSelectionSubmissionsTotal] = useState(0)
-  const [selectionDrawerLoading, setSelectionDrawerLoading] = useState(false)
+  const [latestSubmissionAt, setLatestSubmissionAt] = useState(0)
+  const [recommendedEditing, setRecommendedEditing] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -386,6 +361,8 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
     void load()
   }, [load])
 
+  const scopePrefix = browse?.scopePrefix ?? ''
+
   const {
     fileInputRef,
     uploadModalOpen,
@@ -394,6 +371,8 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
     uploadScanning,
     autoUploadAfterSelect,
     setAutoUploadAfterSelect,
+    sortByCategoryOnUpload,
+    setSortByCategoryOnUpload,
     isUploading,
     pendingCount,
     errorCount,
@@ -417,10 +396,9 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
   } = useCosImageUpload({
     message,
     currentPrefix,
+    scopePrefix,
     onAfterBatchUpload: () => void load(),
   })
-
-  const scopePrefix = browse?.scopePrefix ?? ''
 
   const loadSelectionFeedback = useCallback(async () => {
     const folderKey = `${scopePrefix}${currentPrefix || ''}`
@@ -443,31 +421,60 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
         map[p.cosKey] = p.pickCount
       }
       setPickCountByKey(map)
+      if (summary.picks.length > 0) {
+        const maxAt = Math.max(...summary.picks.map((p) => p.lastSubmittedAt))
+        setLatestSubmissionAt(maxAt)
+      } else {
+        setLatestSubmissionAt(0)
+      }
     } catch {
       setActiveSelectionShare(null)
       setPickCountByKey({})
+      setLatestSubmissionAt(0)
     }
   }, [scopePrefix, currentPrefix])
 
   useEffect(() => {
     if (cosDisabled || !scopePrefix) return
     void loadSelectionFeedback()
+    const timer = window.setInterval(() => void loadSelectionFeedback(), 60_000)
+    return () => clearInterval(timer)
   }, [loadSelectionFeedback, cosDisabled, scopePrefix, browse])
 
-  const openSelectionDrawer = useCallback(async () => {
+  const hasUnseenSelection =
+    activeSelectionShare != null &&
+    latestSubmissionAt > getSelectionLastSeenMs(activeSelectionShare.id)
+
+  const openSelectionDrawer = useCallback(() => {
     if (!activeSelectionShare) return
     setSelectionDrawerOpen(true)
-    setSelectionDrawerLoading(true)
-    try {
-      const data = await shareSelectionSubmissions(activeSelectionShare.id, { page: 1, pageSize: 50 })
-      setSelectionSubmissions(data.items)
-      setSelectionSubmissionsTotal(data.total)
-    } catch (e: unknown) {
-      message.error(formatAuthApiError(e))
-    } finally {
-      setSelectionDrawerLoading(false)
-    }
-  }, [activeSelectionShare, message])
+  }, [activeSelectionShare])
+
+  const toggleRecommendedKey = useCallback(
+    async (cosKey: string) => {
+      if (!activeSelectionShare) return
+      const set = new Set(activeSelectionShare.recommendedKeys ?? [])
+      if (set.has(cosKey)) set.delete(cosKey)
+      else set.add(cosKey)
+      try {
+        const updated = await shareUpdateMeta({
+          shareId: activeSelectionShare.id,
+          recommendedKeys: [...set],
+        })
+        if (updated) {
+          setActiveSelectionShare({
+            ...activeSelectionShare,
+            ...updated,
+            submissionCount: activeSelectionShare.submissionCount,
+          })
+        }
+        message.success(set.has(cosKey) ? '已加入推荐' : '已取消推荐')
+      } catch (e: unknown) {
+        message.error(formatAuthApiError(e))
+      }
+    },
+    [activeSelectionShare, message]
+  )
 
   const folderRows = useMemo(() => {
     const pfxs = browse?.commonPrefixes ?? []
@@ -524,14 +531,28 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
   const openShareFile = (key: string, name: string) => {
     setShareTarget({ resourceType: 'file', key, name })
     setShareResultToken(null)
-    shareForm.setFieldsValue({ permission: 'read', expiresInHours: 168, selectionEnabled: false })
+    shareForm.setFieldsValue({
+      permission: 'read',
+      expiresInHours: 168,
+      selectionEnabled: false,
+      selectionRound: 1,
+      assetVariant: 'original',
+      hideQualityFailed: false,
+    })
     setShareOpen(true)
   }
 
   const openShareFolder = (fullKey: string, displayName: string) => {
     setShareTarget({ resourceType: 'folder', prefix: fullKey, name: displayName })
     setShareResultToken(null)
-    shareForm.setFieldsValue({ permission: 'read', expiresInHours: 168, selectionEnabled: false })
+    shareForm.setFieldsValue({
+      permission: 'read',
+      expiresInHours: 168,
+      selectionEnabled: false,
+      selectionRound: 1,
+      assetVariant: 'original',
+      hideQualityFailed: false,
+    })
     setShareOpen(true)
   }
 
@@ -548,6 +569,9 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
         permission: values.permission,
         expiresInHours,
         selectionEnabled: shareTarget.resourceType === 'folder' ? values.selectionEnabled : false,
+        selectionRound: values.selectionRound ?? 1,
+        assetVariant: values.assetVariant ?? 'original',
+        hideQualityFailed: values.hideQualityFailed ?? false,
       })
       setShareResultToken(result.token)
       message.success('分享链接已创建')
@@ -633,7 +657,14 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
     }
     const toKey = joinObjectKey(scopePrefix, parent, name)
     try {
-      await cosMove({ fromKey: moveFromKey, toKey })
+      const result = await cosMove({ fromKey: moveFromKey, toKey })
+      const resolvedTo = result.key?.trim().replace(/^\/+/, '') || toKey
+      if (activeSelectionShare) {
+        await shareSelectionRemapKeys(activeSelectionShare.id, [
+          { fromKey: moveFromKey, toKey: resolvedTo },
+        ])
+        void loadSelectionFeedback()
+      }
       message.success('已移动')
       setMoveOpen(false)
       setMoveFromKey(null)
@@ -977,9 +1008,20 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                 checkedChildren="仅选中"
                 unCheckedChildren="全部"
               />
-              <Button onClick={() => void openSelectionDrawer()}>
-                选片反馈 ({activeSelectionShare.submissionCount})
-              </Button>
+              <Badge dot={hasUnseenSelection}>
+                <Button onClick={() => openSelectionDrawer()}>
+                  选片反馈 ({activeSelectionShare.submissionCount})
+                </Button>
+              </Badge>
+              {activeSelectionShare.selectionEnabled && (
+                <Button
+                  type={recommendedEditing ? 'primary' : 'default'}
+                  icon={<StarOutlined />}
+                  onClick={() => setRecommendedEditing((v) => !v)}
+                >
+                  编辑推荐
+                </Button>
+              )}
             </>
           )}
         </Space>
@@ -1090,6 +1132,18 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                     icon: <LinkOutlined />,
                     onClick: () => openShareFile(row.cosKey, row.name),
                   },
+                  ...(activeSelectionShare?.selectionEnabled
+                    ? [
+                        {
+                          key: 'recommend',
+                          label: activeSelectionShare.recommendedKeys?.includes(row.cosKey)
+                            ? '取消摄影师推荐'
+                            : '标为摄影师推荐',
+                          icon: <StarOutlined />,
+                          onClick: () => void toggleRecommendedKey(row.cosKey),
+                        },
+                      ]
+                    : []),
                   {
                     key: 'delete',
                     label: '删除',
@@ -1104,6 +1158,37 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                       <Tag color="blue" style={{ position: 'absolute', top: 4, left: 4, zIndex: 2, margin: 0 }}>
                         {row.pickCount} 次选中
                       </Tag>
+                    )}
+                    {activeSelectionShare?.recommendedKeys?.includes(row.cosKey) && (
+                      <StarFilled
+                        style={{
+                          position: 'absolute',
+                          top: 6,
+                          right: 6,
+                          color: '#ff9f0a',
+                          fontSize: 14,
+                          zIndex: 2,
+                        }}
+                      />
+                    )}
+                    {recommendedEditing && activeSelectionShare?.selectionEnabled && (
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={
+                          activeSelectionShare.recommendedKeys?.includes(row.cosKey) ? (
+                            <StarFilled style={{ color: '#ff9f0a' }} />
+                          ) : (
+                            <StarOutlined />
+                          )
+                        }
+                        style={{ position: 'absolute', bottom: 28, right: 4, zIndex: 2 }}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void toggleRecommendedKey(row.cosKey)
+                        }}
+                        aria-label="切换推荐"
+                      />
                     )}
                     <CosBrowseThumb
                       cosKey={row.cosKey}
@@ -1158,6 +1243,14 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                 选择后自动上传
               </Typography.Text>
               <Switch checked={autoUploadAfterSelect} onChange={setAutoUploadAfterSelect} disabled={isUploading} />
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                按 AI 分类分子目录
+              </Typography.Text>
+              <Switch
+                checked={sortByCategoryOnUpload}
+                onChange={setSortByCategoryOnUpload}
+                disabled={isUploading}
+              />
             </Space>
             <Space wrap style={{ marginLeft: 'auto' }}>
               {errorCount > 0 && !isUploading && !uploadScanning ? (
@@ -1457,14 +1550,43 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
             </Space>
           </Space>
         ) : (
-          <Form form={shareForm} layout="vertical" initialValues={{ permission: 'read', expiresInHours: 168, selectionEnabled: false }}>
+          <Form
+            form={shareForm}
+            layout="vertical"
+            initialValues={{
+              permission: 'read',
+              expiresInHours: 168,
+              selectionEnabled: false,
+              selectionRound: 1,
+              assetVariant: 'original',
+              hideQualityFailed: false,
+            }}
+          >
             <Typography.Paragraph style={{ marginBottom: 12 }}>
               分享「{shareTarget?.name ?? ''}」
             </Typography.Paragraph>
             {shareTarget?.resourceType === 'folder' && (
-              <Form.Item name="selectionEnabled" label="选片反馈" valuePropName="checked">
-                <Switch checkedChildren="开启" unCheckedChildren="关闭" />
-              </Form.Item>
+              <>
+                <Form.Item name="selectionEnabled" label="选片反馈" valuePropName="checked">
+                  <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+                </Form.Item>
+                <Form.Item name="selectionRound" label="选片轮次">
+                  <Select
+                    options={[1, 2, 3, 4, 5].map((n) => ({ value: n, label: `第 ${n} 轮` }))}
+                  />
+                </Form.Item>
+                <Form.Item name="assetVariant" label="资源集">
+                  <Select
+                    options={[
+                      { value: 'original', label: '原图' },
+                      { value: 'edited', label: '精修版（_edited 后缀）' },
+                    ]}
+                  />
+                </Form.Item>
+                <Form.Item name="hideQualityFailed" label="隐藏质检未通过" valuePropName="checked">
+                  <Switch />
+                </Form.Item>
+              </>
             )}
             <Form.Item name="permission" label="权限">
               <Select
@@ -1496,43 +1618,18 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
         />
       )}
 
-      <Drawer
-        title={`选片反馈 · ${activeSelectionShare?.displayName ?? ''}`}
+      <CosSelectionDrawer
         open={selectionDrawerOpen}
         onClose={() => setSelectionDrawerOpen(false)}
-        width={420}
-      >
-        {selectionDrawerLoading ? (
-          <div style={{ textAlign: 'center', padding: 24 }}>
-            <Spin />
-          </div>
-        ) : selectionSubmissions.length === 0 ? (
-          <Empty description="暂无访客提交" />
-        ) : (
-          <List
-            dataSource={selectionSubmissions}
-            renderItem={(item) => (
-              <List.Item>
-                <List.Item.Meta
-                  title={item.pickerLabel?.trim() || '匿名访客'}
-                  description={`${formatDateTime(item.createdAt)} · ${item.itemCount} 张`}
-                />
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                  {item.keys.slice(0, 12).map((key) => (
-                    <SelectionThumb key={key} cosKey={key} title={basename(key)} />
-                  ))}
-                  {item.keys.length > 12 && (
-                    <Typography.Text type="secondary">+{item.keys.length - 12} 张</Typography.Text>
-                  )}
-                </div>
-              </List.Item>
-            )}
-          />
-        )}
-        {selectionSubmissionsTotal > selectionSubmissions.length && (
-          <Typography.Text type="secondary">仅显示最近 {selectionSubmissions.length} 条</Typography.Text>
-        )}
-      </Drawer>
+        share={activeSelectionShare}
+        folderFullPrefix={activeSelectionShare?.cosPrefix ?? `${scopePrefix}${currentPrefix || ''}`}
+        mkdirParentRelative={
+          activeSelectionShare?.cosPrefix?.startsWith(scopePrefix)
+            ? activeSelectionShare.cosPrefix.slice(scopePrefix.length)
+            : currentPrefix || undefined
+        }
+        onRefreshFolder={() => void load()}
+      />
 
       <Modal
         title="移动 / 重命名"

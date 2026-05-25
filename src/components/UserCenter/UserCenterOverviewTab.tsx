@@ -15,9 +15,12 @@ import {
   cosImageStats,
   formatAuthApiError,
   formatFileSize,
+  formatDateTime,
   listOperationLogs,
   operationLogActionLabel,
+  shareSelectionPending,
   type OperationLogEntry,
+  type ShareSelectionPendingItem,
 } from '../../utils'
 import { PageSection, StatCard, ToolTile } from '../UnifiedUI'
 import { type UserCenterPanelProps } from './userCenterShared'
@@ -42,6 +45,8 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
   const [cosStats, setCosStats] = useState<{ imageCount: number; totalBytes: number; quotaBytes: number } | null>(null)
   const [recentLogs, setRecentLogs] = useState<OperationLogEntry[]>([])
   const [logsLoading, setLogsLoading] = useState(true)
+  const [pendingSelections, setPendingSelections] = useState<ShareSelectionPendingItem[]>([])
+  const [pendingLoading, setPendingLoading] = useState(false)
 
   const loadCos = useCallback(async () => {
     setCosLoading(true)
@@ -73,10 +78,23 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
     }
   }, [message, userId])
 
+  const loadPendingSelections = useCallback(async () => {
+    setPendingLoading(true)
+    try {
+      const data = await shareSelectionPending()
+      setPendingSelections(data.items)
+    } catch {
+      setPendingSelections([])
+    } finally {
+      setPendingLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     void loadCos()
     void loadRecent()
-  }, [loadCos, loadRecent])
+    void loadPendingSelections()
+  }, [loadCos, loadRecent, loadPendingSelections])
 
   if (!user) return null
 
@@ -176,6 +194,48 @@ const UserCenterOverviewTab: React.FC<UserCenterPanelProps> = ({ userId, onNavig
           </Space>
         )}
       </PageSection>
+
+      {!cosDisabled && (
+        <PageSection
+          title="待处理选片"
+          subtitle="近期访客提交的选片反馈（7 天内）"
+          extra={
+            <Button type="link" size="small" onClick={() => void loadPendingSelections()} loading={pendingLoading}>
+              刷新
+            </Button>
+          }
+        >
+          {pendingLoading && pendingSelections.length === 0 ? (
+            <Spin size="small" />
+          ) : pendingSelections.length === 0 ? (
+            <Text type="secondary">暂无新选片提交</Text>
+          ) : (
+            <List
+              size="small"
+              dataSource={pendingSelections.slice(0, 6)}
+              renderItem={(item) => (
+                <List.Item
+                  actions={[
+                    <Button
+                      key="go"
+                      type="link"
+                      size="small"
+                      onClick={() => onNavigateApp({ type: 'tab', tab: 'organize', organizeMode: 'cloud' })}
+                    >
+                      云图库
+                    </Button>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    title={item.displayName}
+                    description={`${item.submissionCount} 次提交 · ${formatDateTime(item.latestSubmissionAt)}`}
+                  />
+                </List.Item>
+              )}
+            />
+          )}
+        </PageSection>
+      )}
 
       <PageSection
         title="最近活动"

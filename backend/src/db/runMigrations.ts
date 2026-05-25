@@ -46,6 +46,10 @@ export async function runMigrations(pool: Pool): Promise<void> {
       if (filename === '013_cos_share_selections.sql') {
         await ensureCosShareSelectionTables(conn)
       }
+      if (filename === '014_cos_share_enhancements.sql') {
+        await ensureCosShareEnhancements(conn)
+        await ensureCosObjectMetaTable(conn)
+      }
 
       const sql = await readFile(join(migrationsDir, filename), 'utf8')
       await conn.beginTransaction()
@@ -72,6 +76,8 @@ export async function runMigrations(pool: Pool): Promise<void> {
     await ensureUserCosQuotaAdjustmentsTable(conn)
     await ensureCosSharesTable(conn)
     await ensureCosShareSelectionTables(conn)
+    await ensureCosShareEnhancements(conn)
+    await ensureCosObjectMetaTable(conn)
   } finally {
     conn.release()
   }
@@ -174,6 +180,107 @@ async function ensureCosShareSelectionTables(conn: PoolConnection): Promise<void
     COMMENT='分享选片提交内的单张图片'
   `)
   console.info('[migrate] created cos_share_selection_items')
+}
+
+async function ensureCosShareEnhancements(conn: PoolConnection): Promise<void> {
+  const shareColMigrations: { col: string; ddl: string }[] = [
+    {
+      col: 'selection_round',
+      ddl: `ALTER TABLE cos_shares ADD COLUMN selection_round INT UNSIGNED NOT NULL DEFAULT 1
+         COMMENT '当前选片轮次（访客提交默认归属此轮）'`,
+    },
+    {
+      col: 'recommended_keys_json',
+      ddl: `ALTER TABLE cos_shares ADD COLUMN recommended_keys_json TEXT NULL
+         COMMENT '摄影师推荐图片 COS Key 列表 JSON 数组'`,
+    },
+    {
+      col: 'asset_variant',
+      ddl: `ALTER TABLE cos_shares ADD COLUMN asset_variant VARCHAR(16) NOT NULL DEFAULT 'original'
+         COMMENT '分享资源集：original 原图 / edited 精修版（_edited 后缀）'`,
+    },
+    {
+      col: 'hide_quality_failed',
+      ddl: `ALTER TABLE cos_shares ADD COLUMN hide_quality_failed TINYINT(1) NOT NULL DEFAULT 0
+         COMMENT '访客浏览时隐藏质检未通过的图片'`,
+    },
+  ]
+  for (const { col, ddl } of shareColMigrations) {
+    const [cols] = await conn.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_shares' AND COLUMN_NAME = ?`,
+      [col]
+    )
+    if (!Number(cols[0]?.c)) {
+      await conn.query(ddl)
+      console.info(`[migrate] added cos_shares.${col}`)
+    }
+  }
+
+  const [subRound] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_share_selection_submissions' AND COLUMN_NAME = 'selection_round'`
+  )
+  if (Number(subRound[0]?.c) === 0) {
+    await conn.query(
+      `ALTER TABLE cos_share_selection_submissions ADD COLUMN selection_round INT UNSIGNED NOT NULL DEFAULT 1
+       COMMENT '选片轮次' AFTER picker_label`
+    )
+    console.info('[migrate] added cos_share_selection_submissions.selection_round')
+  }
+
+  const itemColMigrations: { col: string; ddl: string }[] = [
+    {
+      col: 'tier',
+      ddl: `ALTER TABLE cos_share_selection_items ADD COLUMN tier VARCHAR(16) NOT NULL DEFAULT 'must'
+         COMMENT '选片分级：must 必选 / maybe 备选 / reject 淘汰'`,
+    },
+    {
+      col: 'note',
+      ddl: `ALTER TABLE cos_share_selection_items ADD COLUMN note VARCHAR(512) NULL
+         COMMENT '访客对该图的备注'`,
+    },
+  ]
+  for (const { col, ddl } of itemColMigrations) {
+    const [cols] = await conn.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_share_selection_items' AND COLUMN_NAME = ?`,
+      [col]
+    )
+    if (!Number(cols[0]?.c)) {
+      await conn.query(ddl)
+      console.info(`[migrate] added cos_share_selection_items.${col}`)
+    }
+  }
+}
+
+async function ensureCosObjectMetaTable(conn: PoolConnection): Promise<void> {
+  const [tables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_object_meta'`
+  )
+  if (Number(tables[0]?.c)) return
+
+  await conn.query(`
+    CREATE TABLE cos_object_meta (
+      id CHAR(36) NOT NULL COMMENT '元数据主键 UUID',
+      owner_user_id CHAR(36) NOT NULL COMMENT '所属用户 ID',
+      cos_key VARCHAR(1024) NOT NULL COMMENT 'COS 对象完整 Key',
+      content_category VARCHAR(32) NULL COMMENT 'AI 内容分类（九大类之一）',
+      quality_pass TINYINT(1) NULL COMMENT '质检是否通过：1 通过 / 0 未通过',
+      quality_issues_json TEXT NULL COMMENT '质检问题列表 JSON',
+      exif_capture_at BIGINT NULL COMMENT '拍摄时间 Unix 毫秒（来自 EXIF）',
+      created_at BIGINT NOT NULL COMMENT '创建时间 Unix 毫秒',
+      updated_at BIGINT NOT NULL COMMENT '更新时间 Unix 毫秒',
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_cos_meta_owner_key (owner_user_id, cos_key(191)),
+      KEY idx_cos_meta_category (owner_user_id, content_category),
+      KEY idx_cos_meta_quality (owner_user_id, quality_pass),
+      CONSTRAINT fk_cos_meta_owner FOREIGN KEY (owner_user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    COMMENT='COS 图片对象元数据（分类、质检等）'
+  `)
+  console.info('[migrate] created cos_object_meta')
 }
 
 /** 列可能已手工添加但 008 未记入 schema_migrations，避免重复 ADD 导致启动失败 */

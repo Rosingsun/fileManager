@@ -13,6 +13,9 @@ function paginationSql(limit: number, offset: number): string {
 export type ShareResourceType = 'file' | 'folder'
 export type SharePermission = 'read' | 'download'
 
+export type ShareAssetVariant = 'original' | 'edited'
+export type SelectionTier = 'must' | 'maybe' | 'reject'
+
 export interface CosShareRow extends RowDataPacket {
   id: string
   token: string
@@ -23,6 +26,10 @@ export interface CosShareRow extends RowDataPacket {
   display_name: string
   permission: SharePermission
   selection_enabled: number
+  selection_round?: number
+  recommended_keys_json?: string | null
+  asset_variant?: string
+  hide_quality_failed?: number
   expires_at: number | null
   revoked_at: number | null
   access_count: number
@@ -36,6 +43,7 @@ export interface SelectionSubmissionRow extends RowDataPacket {
   share_id: string
   picker_client_id: string
   picker_label: string | null
+  selection_round?: number
   item_count: number
   created_at: number
 }
@@ -43,11 +51,25 @@ export interface SelectionSubmissionRow extends RowDataPacket {
 export interface SelectionSummaryRow extends RowDataPacket {
   cos_key: string
   pick_count: number
+  must_count: number
+  maybe_count: number
+  reject_count: number
   last_submitted_at: number
 }
 
-export interface SelectionItemRow extends RowDataPacket {
+export interface SelectionItemDetailRow extends RowDataPacket {
   cos_key: string
+  tier: string
+  note: string | null
+}
+
+export interface PendingSelectionShareRow extends RowDataPacket {
+  share_id: string
+  token: string
+  display_name: string
+  cos_prefix: string | null
+  submission_count: number
+  latest_submission_at: number
 }
 
 export async function insertCosShare(
@@ -62,6 +84,10 @@ export async function insertCosShare(
     display_name: string
     permission: SharePermission
     selection_enabled: boolean
+    selection_round: number
+    recommended_keys_json: string | null
+    asset_variant: ShareAssetVariant
+    hide_quality_failed: boolean
     expires_at: number | null
     created_at: number
     updated_at: number
@@ -70,8 +96,9 @@ export async function insertCosShare(
   await conn.execute(
     `INSERT INTO cos_shares (
       id, token, owner_user_id, resource_type, cos_key, cos_prefix, display_name,
-      permission, selection_enabled, expires_at, revoked_at, access_count, last_accessed_at, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, NULL, ?, ?)`,
+      permission, selection_enabled, selection_round, recommended_keys_json, asset_variant, hide_quality_failed,
+      expires_at, revoked_at, access_count, last_accessed_at, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 0, NULL, ?, ?)`,
     [
       row.id,
       row.token,
@@ -82,11 +109,53 @@ export async function insertCosShare(
       row.display_name,
       row.permission,
       row.selection_enabled ? 1 : 0,
+      row.selection_round,
+      row.recommended_keys_json,
+      row.asset_variant,
+      row.hide_quality_failed ? 1 : 0,
       row.expires_at,
       row.created_at,
       row.updated_at,
     ]
   )
+}
+
+export async function updateCosShareMeta(
+  conn: DbConn,
+  shareId: string,
+  ownerUserId: string,
+  patch: {
+    selection_round?: number
+    recommended_keys_json?: string | null
+    asset_variant?: ShareAssetVariant
+    hide_quality_failed?: boolean
+    updated_at: number
+  }
+): Promise<boolean> {
+  const sets: string[] = ['updated_at = ?']
+  const vals: (string | number | null)[] = [patch.updated_at]
+  if (patch.selection_round != null) {
+    sets.push('selection_round = ?')
+    vals.push(patch.selection_round)
+  }
+  if (patch.recommended_keys_json !== undefined) {
+    sets.push('recommended_keys_json = ?')
+    vals.push(patch.recommended_keys_json)
+  }
+  if (patch.asset_variant != null) {
+    sets.push('asset_variant = ?')
+    vals.push(patch.asset_variant)
+  }
+  if (patch.hide_quality_failed != null) {
+    sets.push('hide_quality_failed = ?')
+    vals.push(patch.hide_quality_failed ? 1 : 0)
+  }
+  vals.push(shareId, ownerUserId)
+  const [result] = await conn.execute(
+    `UPDATE cos_shares SET ${sets.join(', ')} WHERE id = ? AND owner_user_id = ?`,
+    vals
+  )
+  return (result as { affectedRows?: number }).affectedRows === 1
 }
 
 export async function findCosShareByToken(db: DbConn, token: string): Promise<CosShareRow | null> {
@@ -186,26 +255,43 @@ export async function insertSelectionSubmission(
     share_id: string
     picker_client_id: string
     picker_label: string | null
+    selection_round: number
     item_count: number
     created_at: number
   }
 ): Promise<void> {
   await conn.execute(
-    `INSERT INTO cos_share_selection_submissions (id, share_id, picker_client_id, picker_label, item_count, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [row.id, row.share_id, row.picker_client_id, row.picker_label, row.item_count, row.created_at]
+    `INSERT INTO cos_share_selection_submissions (id, share_id, picker_client_id, picker_label, selection_round, item_count, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      row.id,
+      row.share_id,
+      row.picker_client_id,
+      row.picker_label,
+      row.selection_round,
+      row.item_count,
+      row.created_at,
+    ]
   )
 }
 
 export async function insertSelectionItems(
   conn: DbConn,
-  rows: { id: string; submission_id: string; share_id: string; cos_key: string; created_at: number }[]
+  rows: {
+    id: string
+    submission_id: string
+    share_id: string
+    cos_key: string
+    tier: SelectionTier
+    note: string | null
+    created_at: number
+  }[]
 ): Promise<void> {
   for (const row of rows) {
     await conn.execute(
-      `INSERT INTO cos_share_selection_items (id, submission_id, share_id, cos_key, created_at)
-       VALUES (?, ?, ?, ?, ?)`,
-      [row.id, row.submission_id, row.share_id, row.cos_key, row.created_at]
+      `INSERT INTO cos_share_selection_items (id, submission_id, share_id, cos_key, tier, note, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [row.id, row.submission_id, row.share_id, row.cos_key, row.tier, row.note, row.created_at]
     )
   }
 }
@@ -214,6 +300,9 @@ export async function listSelectionSummaryByShareId(db: DbConn, shareId: string)
   const [rows] = await db.execute<SelectionSummaryRow[]>(
     `SELECT cos_key,
             COUNT(DISTINCT submission_id) AS pick_count,
+            SUM(CASE WHEN tier = 'must' THEN 1 ELSE 0 END) AS must_count,
+            SUM(CASE WHEN tier = 'maybe' THEN 1 ELSE 0 END) AS maybe_count,
+            SUM(CASE WHEN tier = 'reject' THEN 1 ELSE 0 END) AS reject_count,
             MAX(created_at) AS last_submitted_at
      FROM cos_share_selection_items
      WHERE share_id = ?
@@ -248,10 +337,91 @@ export async function listSelectionSubmissionsByShareId(
   return rows
 }
 
-export async function listSelectionKeysBySubmissionId(db: DbConn, submissionId: string): Promise<string[]> {
-  const [rows] = await db.execute<SelectionItemRow[]>(
-    'SELECT cos_key FROM cos_share_selection_items WHERE submission_id = ? ORDER BY cos_key',
+export async function listSelectionItemsBySubmissionId(
+  db: DbConn,
+  submissionId: string
+): Promise<SelectionItemDetailRow[]> {
+  const [rows] = await db.execute<SelectionItemDetailRow[]>(
+    'SELECT cos_key, tier, note FROM cos_share_selection_items WHERE submission_id = ? ORDER BY cos_key',
     [submissionId]
   )
+  return rows
+}
+
+export async function listSelectionKeysByRound(
+  db: DbConn,
+  shareId: string,
+  round: number
+): Promise<string[]> {
+  const [rows] = await db.execute<SelectionItemDetailRow[]>(
+    `SELECT i.cos_key FROM cos_share_selection_items i
+     INNER JOIN cos_share_selection_submissions s ON s.id = i.submission_id
+     WHERE i.share_id = ? AND s.selection_round = ?
+     ORDER BY i.cos_key`,
+    [shareId, round]
+  )
   return rows.map((r) => r.cos_key)
+}
+
+export async function listPendingSelectionShares(
+  db: DbConn,
+  ownerUserId: string,
+  sinceMs: number,
+  now: number
+): Promise<PendingSelectionShareRow[]> {
+  const [rows] = await db.execute<PendingSelectionShareRow[]>(
+    `SELECT sh.id AS share_id, sh.token, sh.display_name, sh.cos_prefix,
+            COUNT(sub.id) AS submission_count,
+            MAX(sub.created_at) AS latest_submission_at
+     FROM cos_shares sh
+     INNER JOIN cos_share_selection_submissions sub ON sub.share_id = sh.id
+     WHERE sh.owner_user_id = ?
+       AND sh.selection_enabled = 1
+       AND sh.revoked_at IS NULL
+       AND (sh.expires_at IS NULL OR sh.expires_at > ?)
+       AND sub.created_at >= ?
+     GROUP BY sh.id, sh.token, sh.display_name, sh.cos_prefix
+     ORDER BY latest_submission_at DESC
+     LIMIT 50`,
+    [ownerUserId, now, sinceMs]
+  )
+  return rows
+}
+
+export async function remapSelectionCosKeys(
+  conn: DbConn,
+  shareId: string,
+  mappings: { fromKey: string; toKey: string }[]
+): Promise<number> {
+  let updated = 0
+  for (const { fromKey, toKey } of mappings) {
+    if (!fromKey || !toKey || fromKey === toKey) continue
+    const [result] = await conn.execute(
+      `UPDATE cos_share_selection_items SET cos_key = ? WHERE share_id = ? AND cos_key = ?`,
+      [toKey, shareId, fromKey]
+    )
+    updated += Number((result as { affectedRows?: number }).affectedRows ?? 0)
+  }
+  return updated
+}
+
+export async function listSelectionNotesByShareId(
+  db: DbConn,
+  shareId: string
+): Promise<SelectionItemDetailRow[]> {
+  const [rows] = await db.execute<SelectionItemDetailRow[]>(
+    `SELECT cos_key, tier, note FROM cos_share_selection_items
+     WHERE share_id = ? AND note IS NOT NULL AND TRIM(note) != ''`,
+    [shareId]
+  )
+  return rows
+}
+
+export async function getLatestSubmissionAt(db: DbConn, shareId: string): Promise<number | null> {
+  const [rows] = await db.execute<RowDataPacket[]>(
+    'SELECT MAX(created_at) AS t FROM cos_share_selection_submissions WHERE share_id = ?',
+    [shareId]
+  )
+  const t = rows[0]?.t
+  return t != null ? Number(t) : null
 }

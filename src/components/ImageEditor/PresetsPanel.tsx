@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { Button, Input, Space, message, Popconfirm, Select, Modal, Divider, Dropdown } from 'antd'
 import type { MenuProps } from 'antd'
 import { TbPlus, TbFolderPlus, TbDotsVertical } from '../icons'
@@ -18,7 +18,7 @@ import {
   BorderOuterOutlined,
 } from '@ant-design/icons'
 import { useImageEditorStore, isBuiltinPresetCollectionGroup } from '../../stores'
-import { logSignedInUserAction } from '../../utils'
+import { exportProjectPresetPack, importProjectPresetPack, logSignedInUserAction } from '../../utils'
 import type { ImageEditSettings, ImagePreset, PresetGroup } from '../../types'
 
 interface PresetsPanelProps {
@@ -252,6 +252,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
   const [savePresetGroup, setSavePresetGroup] = useState('')
   const [addGroupModalVisible, setAddGroupModalVisible] = useState(false)
   const [addGroupName, setAddGroupName] = useState('')
+  const importPackInputRef = useRef<HTMLInputElement>(null)
 
   const currentGroup = useMemo(() => 
     groups.find(g => g.id === selectedGroupId), 
@@ -594,8 +595,37 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
       ? BUILTIN_PRESETS_BY_GROUP[selectedGroupId] ?? []
       : []
 
+    const handleImportPackFile = async (file: File) => {
+      try {
+        const pack = await importProjectPresetPack(file)
+        let n = 0
+        for (const p of pack.presets) {
+          const { id: _discard, ...rest } = p
+          addPreset(rest)
+          n += 1
+        }
+        message.success(`已导入 ${n} 个预设`)
+        logSignedInUserAction('editor_preset_import_pack', `导入项目预设包：${pack.name}`)
+      } catch {
+        message.error('预设包格式无效')
+      }
+    }
+
     const manageMenuItems: MenuProps['items'] = [
       { key: 'add-group', label: '新增分组', icon: <TbFolderPlus size={14} />, onClick: () => handleAddGroup() },
+      {
+        key: 'export-pack',
+        label: '导出项目预设包',
+        onClick: () => {
+          exportProjectPresetPack(presets, '工作室预设包')
+          logSignedInUserAction('editor_preset_export_pack', '导出项目预设包')
+        },
+      },
+      {
+        key: 'import-pack',
+        label: '导入项目预设包',
+        onClick: () => importPackInputRef.current?.click(),
+      },
     ]
     if (!isBuiltinPresetCollectionGroup(selectedGroupId) && currentGroup && !currentGroup.isBuiltIn) {
       manageMenuItems.push(
@@ -687,6 +717,17 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
         </div>
 
         {renderPresetGridBody('sidebar')}
+        <input
+          ref={importPackInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) void handleImportPackFile(f)
+            e.target.value = ''
+          }}
+        />
         {presetModals}
       </div>
     )

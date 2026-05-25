@@ -67,6 +67,46 @@ shareRouter.get(
   })
 )
 
+shareRouter.get(
+  '/selections/pending',
+  requireAccess,
+  asyncHandler(async (req, res) => {
+    const userId = req.userId!
+    const data = await shareService.selectionPending(userId, req.query)
+    sendOk(res, data)
+  })
+)
+
+shareRouter.get(
+  '/selections/diff',
+  requireAccess,
+  asyncHandler(async (req, res) => {
+    const userId = req.userId!
+    const data = await shareService.selectionDiff(userId, req.query)
+    sendOk(res, data)
+  })
+)
+
+shareRouter.post(
+  '/update-meta',
+  requireAccess,
+  asyncHandler(async (req, res) => {
+    const userId = req.userId!
+    const data = await shareService.updateMeta(userId, req.body ?? {})
+    sendOk(res, data)
+  })
+)
+
+shareRouter.post(
+  '/selections/remap-keys',
+  requireAccess,
+  asyncHandler(async (req, res) => {
+    const userId = req.userId!
+    const data = await shareService.remapSelectionKeys(userId, req.body ?? {})
+    sendOk(res, data)
+  })
+)
+
 shareRouter.post(
   '/:token/submit-selection',
   asyncHandler(async (req, res) => {
