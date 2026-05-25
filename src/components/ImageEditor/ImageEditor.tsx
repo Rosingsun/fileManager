@@ -3,12 +3,12 @@ import { Button, Space, message } from 'antd'
 import ImageEditorShell from './ImageEditorShell'
 import EditorPreviewCanvas from './EditorPreviewCanvas'
 import EditorSidebar from './EditorSidebar'
+import EditorExportDialog from './EditorExportDialog'
 import { useImageEditor } from './useImageEditor'
 import {
   hasAnyEdit,
   countActiveEdits,
   imageLoader,
-  logSignedInUserAction,
   settingsForComparePreview,
   rgbToWhiteBalance,
 } from '../../utils'
@@ -31,7 +31,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
   const [loadingImage, setLoadingImage] = useState(false)
   const [showCropOverlay, setShowCropOverlay] = useState(false)
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
-  const [saving, setSaving] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [sharpPreviewUrl, setSharpPreviewUrl] = useState<string | null>(null)
   /** 对比视图全画幅 Sharp 预览（不含裁切） */
   const [sharpCompareUrl, setSharpCompareUrl] = useState<string | null>(null)
@@ -200,36 +200,20 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!filePath) {
-      message.error('文件路径不可用，无法保存')
+      message.error('文件路径不可用，无法导出')
       return
     }
+    setExportDialogOpen(true)
+  }
 
-    setSaving(true)
-    try {
-      const api = window.electronAPI
-      if (!api) throw new Error('electronAPI not available')
-      const res = await api.applyEdits(filePath, settings)
-      const first = res?.[0]
-      if (first?.success) {
-        const savedPath = first.newPath || filePath
-        message.success(first.newPath ? `已另存为新文件（原图未修改）` : '已保存')
-        logSignedInUserAction('image_editor_apply', '图片编辑器应用调整', savedPath)
-        imageLoader.clearCache(savedPath)
-        if (filePath !== savedPath) imageLoader.clearCache(filePath)
-        onSaved?.({ success: true, filePath: savedPath })
-      } else {
-        message.error(`保存失败：${first?.error || '返回结果为空'}`)
-        onSaved?.({ success: false, filePath })
-      }
-    } catch (e: unknown) {
-      message.error(`保存出错：${e instanceof Error ? e.message : String(e)}`)
-      onSaved?.({ success: false, filePath })
-    } finally {
-      setSaving(false)
-      onClose()
-    }
+  const handleExportSuccess = (result: { filePath: string }) => {
+    setExportDialogOpen(false)
+    imageLoader.clearCache(result.filePath)
+    if (filePath !== result.filePath) imageLoader.clearCache(filePath)
+    onSaved?.({ success: true, filePath: result.filePath })
+    onClose()
   }
 
   const sizeMeta =
@@ -244,19 +228,18 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
         onClose={onClose}
         toolbarExtra={
           <Space>
-            <Button onClick={handleReset} disabled={saving}>
+            <Button onClick={handleReset} disabled={exportDialogOpen}>
               重置
             </Button>
-            <Button onClick={onClose} disabled={saving}>
+            <Button onClick={onClose} disabled={exportDialogOpen}>
               取消
             </Button>
             <Button
               type="primary"
               onClick={handleSave}
-              disabled={saving || loadingImage || !imageUrl}
-              loading={saving}
+              disabled={exportDialogOpen || loadingImage || !imageUrl}
             >
-              保存
+              导出
             </Button>
           </Space>
         }
@@ -296,6 +279,14 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
           />
         </div>
       </ImageEditorShell>
+
+      <EditorExportDialog
+        open={exportDialogOpen}
+        filePath={filePath}
+        editSettings={settings}
+        onClose={() => setExportDialogOpen(false)}
+        onSuccess={handleExportSuccess}
+      />
     </>
   )
 }

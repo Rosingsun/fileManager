@@ -49,6 +49,10 @@ declare global {
       // image editing operations
       applyEdits: (paths: string[] | string, settings: import('./index').ImageEditSettings) => Promise<import('./index').BatchOperationResult[]>
       previewEdits: (filePath: string, settings: import('./index').ImageEditSettings) => Promise<string>
+      previewExport: (
+        filePath: string,
+        options: import('./index').FormatConversionOptions
+      ) => Promise<import('./index').ExportPreviewResult>
       getImageHistogram: (filePath: string) => Promise<{
         bins: number[]
         total: number
@@ -58,7 +62,11 @@ declare global {
         rgbBins?: { r: number[]; g: number[]; b: number[] }
       }>
       analyzeForEdit: (filePath: string) => Promise<import('./index').ImageEditSettings>
-      convertFormat: (paths: string[] | string, options: import('./index').FormatConversionOptions) => Promise<import('./index').BatchOperationResult[]>
+      convertFormat: (
+        paths: string[] | string,
+        options: import('./index').FormatConversionOptions,
+        outputPath?: string
+      ) => Promise<import('./index').BatchOperationResult[]>
       compressImage: (paths: string[] | string, options: import('./index').CompressionOptions) => Promise<import('./index').BatchOperationResult[]>
       estimateCompressedSize: (path: string, options: import('./index').CompressionOptions) => Promise<number>
       scanSimilarImages: (config: import('./index').SimilarityScanConfig) => Promise<import('./index').SimilarityScanResult>

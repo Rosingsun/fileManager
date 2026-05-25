@@ -1440,4 +1440,150 @@
   flex: 1;
 }
 
+/* —— 导出预览弹窗 —— */
+/* 导出弹窗须高于全屏编辑器壳层 (1100) */
+.editor-export-dialog-root {
+  z-index: 1300 !important;
+}
+
+.editor-export-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.editor-export-dialog__preview-wrap {
+  position: relative;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  background: var(--app-editor-canvas-bg);
+  overflow: hidden;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.editor-export-dialog__preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px;
+}
+
+.editor-export-dialog__preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: min(42vh, 320px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.editor-export-dialog__preview-meta {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  text-align: center;
+  font-size: 11px;
+  background: color-mix(in srgb, var(--app-glass-bg) 88%, transparent);
+  border-top: 1px solid var(--app-border);
+}
+
+.editor-export-dialog__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.editor-export-dialog__format-quality-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.editor-export-dialog__field--inline .ant-select {
+  width: 100%;
+}
+
+.editor-export-dialog__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-glass-bg) 72%, transparent);
+}
+
+.editor-export-dialog__progress-label {
+  font-size: 11px;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.editor-export-dialog__folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.editor-export-dialog__folder-path {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.editor-export-dialog__hint {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.editor-export-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editor-export-dialog__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editor-export-dialog__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-primary);
+}
+
+.editor-export-dialog__warn {
+  display: block;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.editor-export-dialog__footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.editor-export-dialog__batch-hint {
+  font-size: 11px;
+}
+
 

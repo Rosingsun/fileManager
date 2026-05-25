@@ -1604,6 +1604,11 @@ ipcMain.on('image:cancelClassification', () => {
 })
 
 // IPC：编辑预览（降采样 base64）
+ipcHandle('image:previewExport', async (_event, filePath: string, options: any): Promise<any> => {
+  const imageUtils = await import('./utils/imageUtils')
+  return imageUtils.previewExport(filePath, options)
+})
+
 ipcHandle('image:previewEdits', async (_event, filePath: string, settings: any): Promise<string> => {
   const imageUtils = await import('./utils/imageUtils')
   return imageUtils.previewEdits(filePath, settings)

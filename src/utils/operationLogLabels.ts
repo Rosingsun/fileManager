@@ -45,6 +45,7 @@ export const OPERATION_LOG_ACTION_LABELS: Record<string, string> = {
   image_editor_batch_apply: '图片批量编辑',
   image_compress: '图片压缩',
   image_format_convert_editor: '图片格式转换（编辑器）',
+  image_editor_batch_export: '同文件夹批量导出（编辑器）',
   editor_preset_update: '编辑预设更新',
   editor_preset_save: '编辑预设保存',
   editor_preset_delete: '编辑预设删除',

@@ -476,6 +476,16 @@ export interface FormatConversionOptions {
   editSettings?: ImageEditSettings
   /** 导出时叠加水印 */
   watermark?: WatermarkOptions
+  /** true：覆盖原图；若目标扩展名不同则写入新扩展名后删除原文件 */
+  overwrite?: boolean
+}
+
+/** 编辑器导出预览（含编辑+格式+质量） */
+export interface ExportPreviewResult {
+  dataUrl: string
+  byteSize: number
+  width: number
+  height: number
 }
 
 export interface PresetGroup {

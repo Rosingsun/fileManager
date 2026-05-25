@@ -171,6 +171,12 @@ try {
     previewEdits: (filePath: string, settings: import('../../src/types').ImageEditSettings): Promise<string> => {
       return ipcRenderer.invoke('image:previewEdits', filePath, settings)
     },
+    previewExport: (
+      filePath: string,
+      options: import('../../src/types').FormatConversionOptions
+    ): Promise<import('../../src/types').ExportPreviewResult> => {
+      return ipcRenderer.invoke('image:previewExport', filePath, options)
+    },
     getImageHistogram: (filePath: string): Promise<{
       bins: number[]
       total: number
