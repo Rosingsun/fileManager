@@ -400,6 +400,10 @@
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
 }
 
+.editor-panel-body {
+  padding: 6px 0 20px;
+}
+
 .editor-section-title {
   display: flex;
   align-items: center;
@@ -417,36 +421,173 @@
   color: var(--app-primary);
 }
 
-.editor-control-row {
-  margin-bottom: 16px;
-  padding: 0 16px;
+/* —— 专业参数行 —— */
+.editor-param {
+  margin: 0 12px 10px;
+  padding: 10px 12px 8px;
+  border-radius: var(--app-radius-md);
+  background: color-mix(in srgb, var(--app-surface) 55%, var(--app-surface-subtle));
+  border: 1px solid color-mix(in srgb, var(--app-border) 75%, transparent);
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
 }
 
-.editor-control-row__head {
+.editor-param.is-modified {
+  border-color: color-mix(in srgb, var(--app-primary) 38%, var(--app-border));
+  background: color-mix(in srgb, var(--app-primary) 6%, var(--app-surface-subtle));
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--app-primary) 12%, transparent);
+}
+
+.editor-param__head {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.editor-param__label {
   font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--app-text-primary);
 }
 
-.editor-control-row__value {
-  color: var(--app-text-secondary);
-  min-width: 40px;
-  text-align: right;
+.editor-param__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.editor-param__reset {
+  border: none;
+  padding: 0 4px;
+  margin: 0;
+  font-size: 10px;
   font-weight: 500;
+  line-height: 1.2;
+  color: var(--app-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.editor-param__reset:hover {
+  color: var(--app-primary);
+}
+
+.editor-param__value {
+  min-width: 44px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--app-text-secondary);
+  background: color-mix(in srgb, var(--app-surface) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-border) 65%, transparent);
+}
+
+.editor-param__value.is-active {
+  color: var(--app-primary);
+  border-color: color-mix(in srgb, var(--app-primary) 42%, var(--app-border));
+  background: color-mix(in srgb, var(--app-primary) 12%, var(--app-surface));
+}
+
+.editor-param__value.is-default {
+  opacity: 0.82;
+}
+
+.editor-param__value-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.editor-param__rail {
+  position: relative;
+  padding: 2px 4px 0;
+}
+
+.editor-param__center {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 12px;
+  margin-left: -1px;
+  margin-top: -6px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--app-text-primary) 45%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.editor-param__ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding: 0 6px;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: color-mix(in srgb, var(--app-text-secondary) 75%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor-param__ticks--exposure span:nth-child(2) {
+  font-weight: 600;
+  color: var(--app-text-secondary);
+}
+
+.editor-param .editor-controls-slider.ant-slider {
+  margin: 4px 2px 2px;
+}
+
+.editor-param .editor-controls-slider.ant-slider .ant-slider-rail {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--app-border) 50%, transparent) !important;
+}
+
+.editor-param .editor-controls-slider.ant-slider .ant-slider-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.editor-param .editor-controls-slider.ant-slider .ant-slider-handle::after {
+  width: 14px;
+  height: 14px;
+  inset-block-start: -3px;
+  box-shadow:
+    0 1px 4px color-mix(in srgb, var(--app-text-primary) 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--app-border) 50%, transparent);
 }
 
 .editor-effect-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
   border: 1px solid var(--app-border);
-  border-radius: 999px;
-  padding: 6px 14px;
+  border-radius: var(--app-radius-md);
+  padding: 8px 10px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--app-text-primary);
-  background: var(--app-surface);
+  background: color-mix(in srgb, var(--app-surface) 70%, var(--app-surface-subtle));
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.editor-effect-chip__indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--app-border) 90%, transparent);
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
 .editor-effect-chip:hover {
@@ -457,14 +598,19 @@
   border-color: var(--app-primary);
   background: color-mix(in srgb, var(--app-primary) 14%, var(--app-surface));
   color: var(--app-primary);
-  font-weight: 600;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--app-primary) 20%, transparent);
 }
 
-.editor-effects-chips {
-  display: flex;
-  flex-wrap: wrap;
+.editor-effect-chip.is-active .editor-effect-chip__indicator {
+  background: var(--app-primary);
+  transform: scale(1.15);
+}
+
+.editor-effect-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  padding: 0 16px 12px;
+  padding: 0 12px 4px;
 }
 
 .editor-preset-name.is-selected {
@@ -488,15 +634,17 @@
 }
 
 .editor-adjust-hero {
-  padding: 4px 16px 12px;
-  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 60%, transparent);
-  margin-bottom: 8px;
+  margin: 0 12px 12px;
+  padding: 12px;
+  border-radius: var(--app-radius-md);
+  border: 1px solid color-mix(in srgb, var(--app-primary) 28%, var(--app-border));
+  background: color-mix(in srgb, var(--app-primary) 8%, var(--app-surface-subtle));
 }
 
 .editor-adjust-hero__hint {
   margin: 8px 0 0;
   font-size: 11px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--app-text-secondary);
 }
 
@@ -740,86 +888,96 @@
 
 /* —— 面板分区 —— */
 .editor-panel-section {
-  margin-bottom: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 45%, transparent);
+}
+
+.editor-panel-section:last-child {
+  border-bottom: none;
 }
 
 .editor-panel-section__head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 10px 16px 6px;
+  gap: 10px;
+  padding: 12px 14px 8px;
+}
+
+.editor-panel-section__titles {
+  min-width: 0;
+  flex: 1;
 }
 
 .editor-panel-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--app-text-primary);
+}
+
+.editor-panel-section__accent {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--app-primary);
+  flex-shrink: 0;
+}
+
+.editor-panel-section__subtitle {
+  margin: 4px 0 0 11px;
+  font-size: 10px;
+  line-height: 1.4;
   color: var(--app-text-secondary);
 }
 
 .editor-panel-section__reset {
+  flex-shrink: 0;
   font-size: 11px !important;
-  padding: 0 4px !important;
-  height: auto !important;
+  padding: 0 6px !important;
+  height: 24px !important;
   color: var(--app-text-secondary) !important;
+  border-radius: 6px !important;
 }
 
 .editor-panel-section__reset:hover {
   color: var(--app-primary) !important;
+  background: color-mix(in srgb, var(--app-primary) 10%, transparent) !important;
 }
 
-/* —— 专业滑杆 —— */
-.editor-control-row__label {
-  font-weight: 500;
+.editor-panel-section__body {
+  padding-bottom: 6px;
 }
 
-.editor-control-row__value.is-default {
-  color: var(--app-text-secondary);
-  opacity: 0.75;
+.editor-panel-section--nested {
+  margin: 0 12px 8px;
+  border: 1px solid color-mix(in srgb, var(--app-border) 55%, transparent);
+  border-radius: var(--app-radius-md);
+  background: color-mix(in srgb, var(--app-surface) 40%, transparent);
+  overflow: hidden;
 }
 
-.editor-control-row__rail {
-  position: relative;
-  padding: 0 2px;
-}
-
-.editor-control-row.is-bipolar .editor-control-row__rail .ant-slider-rail {
+/* —— 渐变滑轨 —— */
+.editor-param.is-bipolar .editor-param__rail .ant-slider-rail {
   background: color-mix(in srgb, var(--app-border) 55%, transparent) !important;
 }
 
-.editor-control-row__rail[style*='--editor-rail-gradient'] .ant-slider-rail {
+.editor-param.has-gradient-rail .editor-param__rail[style*='--editor-rail-gradient'] .ant-slider-rail {
   background: var(--editor-rail-gradient) !important;
   opacity: 1;
 }
 
-/* 渐变轨：隐藏默认蓝色 track，整段显示 rail 渐变（修复色相等左侧发蓝） */
-.editor-control-row__rail[style*='--editor-rail-gradient'] .editor-controls-slider.ant-slider .ant-slider-track {
+.editor-param.has-gradient-rail .editor-param__rail[style*='--editor-rail-gradient'] .editor-controls-slider.ant-slider .ant-slider-track {
   background: transparent !important;
 }
 
-.editor-control-row__rail[style*='--editor-rail-gradient'] .editor-controls-slider.ant-slider:hover .ant-slider-track {
+.editor-param.has-gradient-rail .editor-param__rail[style*='--editor-rail-gradient'] .editor-controls-slider.ant-slider:hover .ant-slider-track {
   background: transparent !important;
-}
-
-.editor-control-row__center {
-  position: absolute;
-  top: 50%;
-  width: 2px;
-  height: 10px;
-  margin-left: -1px;
-  margin-top: -5px;
-  border-radius: 1px;
-  background: color-mix(in srgb, var(--app-text-secondary) 55%, transparent);
-  pointer-events: none;
-  z-index: 1;
-}
-
-.editor-control-row__value-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
 
 /* —— 直方图 —— */
@@ -829,49 +987,150 @@
   border-radius: var(--app-radius-md);
   background: var(--app-surface-subtle);
   border: 1px solid var(--app-border);
-  overflow: hidden;
+  overflow: visible;
+  touch-action: none;
 }
 
 .editor-histogram.is-loading {
   opacity: 0.7;
 }
 
+.editor-histogram.has-level-handles {
+  margin-bottom: 4px;
+  cursor: crosshair;
+  padding-bottom: 18px;
+}
+
+.editor-histogram.is-dragging-levels {
+  cursor: ew-resize;
+}
+
 .editor-histogram__canvas {
   display: block;
   width: 100%;
   height: 100%;
+  pointer-events: none;
 }
 
-.editor-histogram.has-level-handles {
-  margin-bottom: 10px;
+.editor-histogram__shade {
+  position: absolute;
+  top: 0;
+  bottom: 18px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.editor-histogram__shade--shadow {
+  left: 0;
+  background: color-mix(in srgb, var(--app-text-primary) 22%, transparent);
+}
+
+.editor-histogram__shade--highlight {
+  background: color-mix(in srgb, var(--app-warning) 18%, transparent);
 }
 
 .editor-histogram__handle {
   position: absolute;
-  bottom: -2px;
-  width: 0;
-  height: 0;
-  padding: 0;
-  border: none;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 8px solid var(--app-warning);
-  transform: translateX(-50%);
-  cursor: ew-resize;
-  z-index: 2;
-  background: transparent;
-}
-
-.editor-histogram__handle--white {
-  border-top-color: color-mix(in srgb, var(--app-warning) 55%, #fff);
-}
-
-.editor-curves-auto-row {
+  top: 0;
+  bottom: 0;
+  z-index: 3;
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: flex-end;
+  width: 28px;
+  margin-left: -14px;
+  padding: 0 0 2px;
+  border: none;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.editor-histogram__handle-line {
+  position: absolute;
+  top: 4px;
+  bottom: 26px;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--app-warning);
+  box-shadow: 0 0 0 1px color-mix(in srgb, #000 15%, transparent);
+  pointer-events: none;
+}
+
+.editor-histogram__handle--white .editor-histogram__handle-line {
+  background: color-mix(in srgb, var(--app-warning) 70%, #fff);
+}
+
+.editor-histogram__handle-knob {
+  position: relative;
+  z-index: 1;
+  min-width: 22px;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  background: var(--app-warning);
+  border: 1px solid color-mix(in srgb, #fff 35%, var(--app-warning));
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--app-text-primary) 25%, transparent);
+  pointer-events: none;
+}
+
+.editor-histogram__handle--white .editor-histogram__handle-knob {
+  background: color-mix(in srgb, var(--app-warning) 75%, #fff);
+  color: color-mix(in srgb, var(--app-text-primary) 85%, #000);
+}
+
+.editor-histogram__handle:hover .editor-histogram__handle-knob,
+.editor-histogram.is-dragging-levels .editor-histogram__handle-knob {
+  transform: scale(1.06);
+}
+
+.editor-histogram__scale {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  display: flex;
   justify-content: space-between;
+  font-size: 9px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: color-mix(in srgb, var(--app-text-secondary) 80%, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.editor-levels-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  flex-wrap: wrap;
+  margin: 10px 12px 0;
+  padding: 10px;
+  border-radius: var(--app-radius-md);
+  background: color-mix(in srgb, var(--app-surface) 55%, var(--app-surface-subtle));
+  border: 1px solid color-mix(in srgb, var(--app-border) 60%, transparent);
+}
+
+.editor-levels-inputs__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.editor-levels-inputs__label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+}
+
+.editor-levels-inputs__field .ant-input-number {
+  width: 100%;
 }
 
 .editor-curves-rgb-toggle {
@@ -882,12 +1141,10 @@
   color: var(--app-text-secondary);
 }
 
-.editor-curves-channel-nav {
-  margin-bottom: 8px;
-}
-
 .editor-wb-pick-btn {
-  margin-bottom: 10px;
+  margin: 0 12px 10px;
+  height: 36px;
+  font-weight: 600;
 }
 
 .image-editor-preview-stage.is-wb-pick-mode {
@@ -899,38 +1156,68 @@
 }
 
 .editor-hsl-collapse .ant-collapse-header {
-  padding: 4px 0 !important;
+  padding: 10px 12px !important;
   font-size: 12px;
+  align-items: center !important;
+}
+
+.editor-hsl-collapse .ant-collapse-content-box {
+  padding: 4px 8px 12px !important;
+}
+
+.editor-hsl-collapse__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--app-text-primary);
+}
+
+.editor-hsl-collapse__badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--app-text-secondary);
+  background: color-mix(in srgb, var(--app-border) 40%, transparent);
 }
 
 .editor-hsl-regions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .editor-hsl-region {
-  padding-bottom: 8px;
-  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 50%, transparent);
-}
-
-.editor-hsl-region:last-child {
-  border-bottom: none;
+  padding: 10px 8px 4px;
+  border-radius: var(--app-radius-md);
+  background: color-mix(in srgb, var(--app-surface-subtle) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--app-border) 50%, transparent);
 }
 
 .editor-hsl-region__dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   margin-right: 6px;
   vertical-align: middle;
+  box-shadow: 0 0 0 1px color-mix(in srgb, #fff 40%, var(--app-border));
 }
 
 .editor-hsl-region__label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--app-text);
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--app-text-primary);
+}
+
+.editor-hsl-region .editor-param {
+  margin-left: 0;
+  margin-right: 0;
+  padding: 8px 10px;
 }
 
 .editor-export-option-row {
@@ -947,20 +1234,53 @@
 
 /* —— 曝光块 —— */
 .editor-exposure-block {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 4px;
+  margin: 0 12px 10px;
+  padding: 10px 12px;
+  border-radius: var(--app-radius-md);
+  border: 1px solid color-mix(in srgb, var(--app-border) 70%, transparent);
+  background: color-mix(in srgb, var(--app-surface) 50%, var(--app-surface-subtle));
+}
+
+.editor-exposure-block.is-modified {
+  border-color: color-mix(in srgb, var(--app-primary) 32%, var(--app-border));
+}
+
+.editor-exposure-block__hist {
+  margin-bottom: 10px;
+}
+
+.editor-exposure-block__hist-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--app-text-secondary);
+}
+
+.editor-exposure-block .editor-param {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.editor-exposure-block .editor-param.is-modified {
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 /* —— 色相 —— */
 .editor-hue-control__swatch {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  border: 1px solid color-mix(in srgb, var(--app-border) 80%, transparent);
+  border: 2px solid color-mix(in srgb, #fff 55%, var(--app-border));
   flex-shrink: 0;
-  box-shadow: var(--app-shadow-sm);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--app-text-primary) 18%, transparent);
 }
 
 .editor-hue-control__slider.ant-slider .ant-slider-handle::after {
@@ -969,18 +1289,38 @@
 
 /* —— 曲线 / 色阶 —— */
 .editor-curves-auto-row {
-  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border-radius: var(--app-radius-md);
+  background: color-mix(in srgb, var(--app-surface) 50%, var(--app-surface-subtle));
+  border: 1px solid color-mix(in srgb, var(--app-border) 55%, transparent);
+}
+
+.editor-panel-section__body .editor-histogram {
+  margin: 0 12px 0;
+}
+
+.editor-curves-channel-nav {
+  margin: 0 12px 10px !important;
+  width: calc(100% - 24px);
 }
 
 .editor-curves-hint {
-  margin: 0 0 8px;
-  font-size: 11px;
+  margin: 0 12px 10px;
+  padding: 6px 10px;
+  font-size: 10px;
   color: var(--app-text-secondary);
   line-height: 1.45;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--app-surface-subtle) 90%, transparent);
 }
 
 .editor-curves-chart-wrap {
-  padding: 0 2px;
+  padding: 0 12px;
 }
 
 .editor-curves-chart {
@@ -1014,15 +1354,17 @@
   stroke: var(--app-primary);
   stroke-width: 2;
   cursor: grab;
+  touch-action: none;
 }
 
 .editor-curves-point.is-active {
   fill: var(--app-primary);
   stroke: var(--app-surface);
+  stroke-width: 2.5;
 }
 
 .editor-curves-reset-curve {
-  margin-top: 6px;
+  margin: 6px 12px 0;
   padding: 0 !important;
   font-size: 11px !important;
   color: var(--app-text-secondary) !important;
@@ -1033,13 +1375,14 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  margin-bottom: 10px;
+  margin: 0 12px 10px;
 }
 
 .editor-geometry-flip-row {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 0 12px;
 }
 
 .editor-geometry-flip-item {

@@ -1,20 +1,23 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import type { LuminanceHistogramResult } from '../../utils'
+import {
+  HISTOGRAM_INSET_PX,
+  clampLevel,
+  clientXToLevel,
+  levelToLeftCss,
+  pickLevelsHandle,
+} from './editorLevelsLayout'
 
 interface EditorHistogramProps {
   histogram: LuminanceHistogramResult
   loading?: boolean
   className?: string
   height?: number
-  /** 色阶黑/白点，启用后可拖拽 */
   levels?: { black: number; white: number }
   onLevelsChange?: (patch: { black?: number; white?: number }) => void
   showLevelHandles?: boolean
-  /** RGB 直方图叠层 */
   showRgbOverlay?: boolean
 }
-
-const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max)
 
 const EditorHistogram: React.FC<EditorHistogramProps> = ({
   histogram,
@@ -32,36 +35,75 @@ const EditorHistogram: React.FC<EditorHistogramProps> = ({
 
   const black = levels?.black ?? 0
   const white = levels?.white ?? 255
+  const levelsActive = showLevelHandles && !!onLevelsChange && !!levels
 
-  const clientXToLevel = useCallback(
-    (clientX: number): number => {
+  const applyLevelFromClientX = useCallback(
+    (clientX: number, target: 'black' | 'white') => {
       const wrap = wrapRef.current
-      if (!wrap) return 0
+      if (!wrap || !onLevelsChange) return
       const rect = wrap.getBoundingClientRect()
-      const t = (clientX - rect.left) / rect.width
-      return clamp(Math.round(t * 255), 0, 255)
+      const v = clientXToLevel(clientX, rect)
+      if (target === 'black') {
+        onLevelsChange({ black: clampLevel(v, 0, white - 1) })
+      } else {
+        onLevelsChange({ white: clampLevel(v, black + 1, 255) })
+      }
     },
-    []
+    [onLevelsChange, black, white]
+  )
+
+  const startDrag = useCallback(
+    (target: 'black' | 'white', clientX: number) => {
+      setDragTarget(target)
+      applyLevelFromClientX(clientX, target)
+    },
+    [applyLevelFromClientX]
   )
 
   useEffect(() => {
-    if (!dragTarget || !onLevelsChange) return
-    const onMove = (e: MouseEvent) => {
-      const v = clientXToLevel(e.clientX)
-      if (dragTarget === 'black') {
-        onLevelsChange({ black: clamp(v, 0, white - 1) })
-      } else {
-        onLevelsChange({ white: clamp(v, black + 1, 255) })
-      }
+    if (!dragTarget) return
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const clientX = 'touches' in e ? e.touches[0]?.clientX : e.clientX
+      if (clientX == null) return
+      applyLevelFromClientX(clientX, dragTarget)
     }
     const onUp = () => setDragTarget(null)
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
     }
-  }, [dragTarget, onLevelsChange, clientXToLevel, black, white])
+  }, [dragTarget, applyLevelFromClientX])
+
+  const handleWrapPointerDown = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!levelsActive) return
+    const clientX = 'touches' in e ? e.touches[0]?.clientX : e.clientX
+    if (clientX == null) return
+    const wrap = wrapRef.current
+    if (!wrap) return
+    const rect = wrap.getBoundingClientRect()
+    const picked = pickLevelsHandle(clientX, rect, black, white)
+    if (picked) {
+      e.preventDefault()
+      startDrag(picked, clientX)
+      return
+    }
+    const v = clientXToLevel(clientX, rect)
+    if (Math.abs(v - black) <= Math.abs(v - white)) {
+      e.preventDefault()
+      onLevelsChange?.({ black: clampLevel(v, 0, white - 1) })
+      startDrag('black', clientX)
+    } else {
+      e.preventDefault()
+      onLevelsChange?.({ white: clampLevel(v, black + 1, 255) })
+      startDrag('white', clientX)
+    }
+  }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -88,10 +130,12 @@ const EditorHistogram: React.FC<EditorHistogramProps> = ({
     const green = '#34c759'
     const blue = '#007aff'
 
+    const pad = HISTOGRAM_INSET_PX * dpr
+
     ctx.fillStyle = grid
     ctx.globalAlpha = 0.35
     for (let i = 1; i < 4; i++) {
-      const x = (w * i) / 4
+      const x = pad + ((w - pad * 2) * i) / 4
       ctx.fillRect(x, 0, 1, h)
     }
     ctx.globalAlpha = 1
@@ -107,7 +151,6 @@ const EditorHistogram: React.FC<EditorHistogramProps> = ({
       return
     }
 
-    const pad = 2 * dpr
     const chartH = h - pad * 2
 
     const drawChannel = (channelBins: Uint32Array, color: string, alpha: number) => {
@@ -160,8 +203,8 @@ const EditorHistogram: React.FC<EditorHistogramProps> = ({
       const wx = pad + (white / 255) * (w - pad * 2)
       ctx.strokeStyle = warn
       ctx.globalAlpha = 0.9
-      ctx.lineWidth = 1.5 * dpr
-      ctx.setLineDash([3 * dpr, 2 * dpr])
+      ctx.lineWidth = 2 * dpr
+      ctx.setLineDash([])
       ctx.beginPath()
       ctx.moveTo(bx, pad)
       ctx.lineTo(bx, h - pad)
@@ -170,7 +213,6 @@ const EditorHistogram: React.FC<EditorHistogramProps> = ({
       ctx.moveTo(wx, pad)
       ctx.lineTo(wx, h - pad)
       ctx.stroke()
-      ctx.setLineDash([])
       ctx.globalAlpha = 1
     }
 
@@ -188,40 +230,88 @@ const EditorHistogram: React.FC<EditorHistogramProps> = ({
     }
   }, [histogram, loading, height, showRgbOverlay, showLevelHandles, levels, black, white])
 
-  const blackPct = (black / 255) * 100
-  const whitePct = (white / 255) * 100
+  const blackLeft = levelToLeftCss(black)
+  const whiteLeft = levelToLeftCss(white)
 
   return (
     <div
       ref={wrapRef}
-      className={`editor-histogram${loading ? ' is-loading' : ''}${showLevelHandles ? ' has-level-handles' : ''}${className ? ` ${className}` : ''}`}
+      className={`editor-histogram${loading ? ' is-loading' : ''}${levelsActive ? ' has-level-handles' : ''}${dragTarget ? ' is-dragging-levels' : ''}${className ? ` ${className}` : ''}`}
       style={{ height }}
-      aria-hidden={histogram.total <= 0 && !loading}
+      onMouseDown={levelsActive ? handleWrapPointerDown : undefined}
+      onTouchStart={levelsActive ? handleWrapPointerDown : undefined}
+      role={levelsActive ? 'group' : undefined}
+      aria-label={levelsActive ? '直方图色阶：拖动黑场或白场手柄，或点击直方图调整' : undefined}
     >
+      {levelsActive ? (
+        <>
+          <div
+            className="editor-histogram__shade editor-histogram__shade--shadow"
+            style={{ width: blackLeft }}
+            aria-hidden
+          />
+          <div
+            className="editor-histogram__shade editor-histogram__shade--highlight"
+            style={{ left: whiteLeft, right: 0 }}
+            aria-hidden
+          />
+        </>
+      ) : null}
       <canvas ref={canvasRef} className="editor-histogram__canvas" />
-      {showLevelHandles && onLevelsChange && levels ? (
+      {levelsActive ? (
         <>
           <button
             type="button"
             className="editor-histogram__handle editor-histogram__handle--black"
-            style={{ left: `${blackPct}%` }}
-            aria-label="拖动调整黑点"
+            style={{ left: blackLeft }}
+            aria-label={`黑场 ${black}，拖动调整`}
+            aria-valuenow={black}
+            aria-valuemin={0}
+            aria-valuemax={white - 1}
             onMouseDown={e => {
+              e.stopPropagation()
               e.preventDefault()
-              setDragTarget('black')
+              startDrag('black', e.clientX)
             }}
-          />
+            onTouchStart={e => {
+              e.stopPropagation()
+              const x = e.touches[0]?.clientX
+              if (x != null) startDrag('black', x)
+            }}
+          >
+            <span className="editor-histogram__handle-line" aria-hidden />
+            <span className="editor-histogram__handle-knob">黑</span>
+          </button>
           <button
             type="button"
             className="editor-histogram__handle editor-histogram__handle--white"
-            style={{ left: `${whitePct}%` }}
-            aria-label="拖动调整白点"
+            style={{ left: whiteLeft }}
+            aria-label={`白场 ${white}，拖动调整`}
+            aria-valuenow={white}
+            aria-valuemin={black + 1}
+            aria-valuemax={255}
             onMouseDown={e => {
+              e.stopPropagation()
               e.preventDefault()
-              setDragTarget('white')
+              startDrag('white', e.clientX)
             }}
-          />
+            onTouchStart={e => {
+              e.stopPropagation()
+              const x = e.touches[0]?.clientX
+              if (x != null) startDrag('white', x)
+            }}
+          >
+            <span className="editor-histogram__handle-line" aria-hidden />
+            <span className="editor-histogram__handle-knob">白</span>
+          </button>
         </>
+      ) : null}
+      {levelsActive ? (
+        <div className="editor-histogram__scale" aria-hidden>
+          <span>0</span>
+          <span>128</span>
+          <span>255</span>
+        </div>
       ) : null}
     </div>
   )

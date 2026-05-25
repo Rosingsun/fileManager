@@ -1,11 +1,10 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Modal, Button, Space, message } from 'antd'
 import EditorControls from './EditorControls'
 import PresetsPanel from './PresetsPanel'
-import FormatCompressDialog from './FormatCompressDialog'
 import { useImageEditor } from './useImageEditor'
 import { imageLoader, logSignedInUserAction } from '../../utils'
-import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../types'
+import type { ImageEditSettings } from '../../types'
 
 interface BatchEditModalProps {
   visible: boolean
@@ -21,8 +20,6 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
       updateSetting(key as any, value)
     })
   }
-  const [formatDialog, setFormatDialog] = useState(false)
-
   const handleApplyPreset = (presetSettings: ImageEditSettings) => {
     setSettings(presetSettings)
   }
@@ -56,38 +53,6 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
     onClose()
   }
 
-  const handleBatchConvert = (opts: FormatConversionOptions) => {
-    const api = window.electronAPI
-    if (api) {
-      api.convertFormat(filePaths, opts).then(results => {
-        const failed = results.filter(r => !r.success)
-        if (failed.length) message.error('部分转换失败')
-        else {
-          message.success('格式转换完成')
-          logSignedInUserAction('image_format_convert_editor', '批量格式转换', String(filePaths.length))
-        }
-        setFormatDialog(false)
-        onClose()
-      })
-    }
-  }
-
-  const handleBatchCompress = (opts: CompressionOptions) => {
-    const api = window.electronAPI
-    if (api) {
-      api.compressImage(filePaths, opts).then(results => {
-        const failed = results.filter(r => !r.success)
-        if (failed.length) message.error('部分压缩失败')
-        else {
-          message.success('压缩完成')
-          logSignedInUserAction('image_compress', '批量图片压缩', String(filePaths.length))
-        }
-        setFormatDialog(false)
-        onClose()
-      })
-    }
-  }
-
   return (
     <Modal
       open={visible}
@@ -96,7 +61,6 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
       width={800}
       footer={
         <Space>
-          <Button onClick={() => setFormatDialog(true)}>格式/压缩</Button>
           <Button onClick={onClose}>取消</Button>
           <Button type="primary" onClick={handleBatchApply}>应用到选中项</Button>
         </Space>
@@ -111,13 +75,6 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
           <EditorControls settings={settings} onChange={handleSettingsChange} />
         </div>
       </div>
-      <FormatCompressDialog
-        visible={formatDialog}
-        files={filePaths}
-        onClose={() => setFormatDialog(false)}
-        onConvert={handleBatchConvert}
-        onCompress={handleBatchCompress}
-      />
     </Modal>
   )
 }

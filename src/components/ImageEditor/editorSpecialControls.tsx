@@ -21,22 +21,34 @@ export const HueControlRow: React.FC<HueControlRowProps> = ({ value, onChange })
   const thumbColor = `hsl(${value}, 85%, 52%)`
 
   return (
-    <div className="editor-control-row editor-hue-control">
-      <div className="editor-control-row__head">
-        <span className="editor-control-row__label">色相</span>
-        <span className="editor-control-row__value-group">
-          <span
-            className="editor-hue-control__swatch"
-            style={{ background: thumbColor }}
-            aria-hidden
-          />
-          <span className={`editor-control-row__value${isDefault ? ' is-default' : ''}`}>
-            {value}°
+    <div className={`editor-param editor-hue-control has-gradient-rail${isDefault ? '' : ' is-modified'}`}>
+      <div className="editor-param__head">
+        <span className="editor-param__label">色相</span>
+        <div className="editor-param__meta">
+          {!isDefault ? (
+            <button
+              type="button"
+              className="editor-param__reset"
+              onClick={() => onChange(0)}
+              aria-label="重置色相"
+            >
+              重置
+            </button>
+          ) : null}
+          <span className="editor-param__value-group">
+            <span
+              className="editor-hue-control__swatch"
+              style={{ background: thumbColor }}
+              aria-hidden
+            />
+            <span className={`editor-param__value${isDefault ? ' is-default' : ' is-active'}`}>
+              {value}°
+            </span>
           </span>
-        </span>
+        </div>
       </div>
       <div
-        className="editor-control-row__rail"
+        className="editor-param__rail"
         style={{ ['--editor-rail-gradient' as string]: HUE_RAIL, ['--editor-hue-thumb' as string]: thumbColor }}
       >
         <Slider
@@ -70,17 +82,32 @@ export const ExposureControlRow: React.FC<ExposureControlRowProps> = ({
   const isDefault = value === def
 
   return (
-    <div className="editor-exposure-block">
-      <EditorHistogram histogram={histogram} loading={histogramLoading} height={48} />
-      <div className="editor-control-row">
-        <div className="editor-control-row__head">
-          <span className="editor-control-row__label">曝光</span>
-          <span className={`editor-control-row__value${isDefault ? ' is-default' : ''}`}>
-            {value}%
-          </span>
+    <div className={`editor-exposure-block${isDefault ? '' : ' is-modified'}`}>
+      <div className="editor-exposure-block__hist">
+        <span className="editor-exposure-block__hist-label">亮度分布</span>
+        <EditorHistogram histogram={histogram} loading={histogramLoading} height={52} />
+      </div>
+      <div className={`editor-param has-gradient-rail${isDefault ? '' : ' is-modified'}`}>
+        <div className="editor-param__head">
+          <span className="editor-param__label">曝光</span>
+          <div className="editor-param__meta">
+            {!isDefault ? (
+              <button
+                type="button"
+                className="editor-param__reset"
+                onClick={() => onChange(def)}
+                aria-label="重置曝光"
+              >
+                重置
+              </button>
+            ) : null}
+            <span className={`editor-param__value${isDefault ? ' is-default' : ' is-active'}`}>
+              {value}%
+            </span>
+          </div>
         </div>
         <div
-          className="editor-control-row__rail"
+          className="editor-param__rail"
           style={{ ['--editor-rail-gradient' as string]: EXPOSURE_RAIL }}
         >
           <Slider
@@ -92,6 +119,11 @@ export const ExposureControlRow: React.FC<ExposureControlRowProps> = ({
             onDoubleClick={() => onChange(def)}
             tooltip={{ formatter: v => `${v ?? def}%` }}
           />
+        </div>
+        <div className="editor-param__ticks editor-param__ticks--exposure" aria-hidden>
+          <span>欠曝</span>
+          <span>标准</span>
+          <span>过曝</span>
         </div>
       </div>
     </div>

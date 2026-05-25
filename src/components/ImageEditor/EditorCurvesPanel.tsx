@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { Button, Segmented, Switch } from 'antd'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Button, InputNumber, Segmented, Switch } from 'antd'
 import { ControlRow, PanelSection } from './editorControlPrimitives'
 import EditorHistogram from './EditorHistogram'
 import {
@@ -114,27 +114,49 @@ const EditorCurvesPanel: React.FC<EditorCurvesPanelProps> = ({
     setDragIndex(index)
   }
 
-  const handleChartMouseMove = (e: React.MouseEvent) => {
-    if (dragIndex == null) return
-    const norm = clientToNorm(e.clientX, e.clientY)
-    if (!norm) return
-    const next = [...points]
-    if (dragIndex === 0) {
-      next[0] = { x: 0, y: norm.y }
-    } else if (dragIndex === next.length - 1) {
-      next[next.length - 1] = { x: 1, y: norm.y }
-    } else {
-      const prev = next[dragIndex - 1].x + 0.02
-      const follow = next[dragIndex + 1].x - 0.02
-      next[dragIndex] = {
-        x: Math.min(follow, Math.max(prev, norm.x)),
-        y: norm.y,
+  const applyCurveDrag = useCallback(
+    (clientX: number, clientY: number) => {
+      if (dragIndex == null) return
+      const norm = clientToNorm(clientX, clientY)
+      if (!norm) return
+      const next = [...points]
+      if (dragIndex === 0) {
+        next[0] = { x: 0, y: norm.y }
+      } else if (dragIndex === next.length - 1) {
+        next[next.length - 1] = { x: 1, y: norm.y }
+      } else {
+        const prev = next[dragIndex - 1].x + 0.02
+        const follow = next[dragIndex + 1].x - 0.02
+        next[dragIndex] = {
+          x: Math.min(follow, Math.max(prev, norm.x)),
+          y: norm.y,
+        }
       }
-    }
-    setCurvePoints(next)
-  }
+      setCurvePoints(next)
+    },
+    [dragIndex, points, setCurvePoints]
+  )
 
-  const handleChartMouseUp = () => setDragIndex(null)
+  useEffect(() => {
+    if (dragIndex == null) return
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const clientX = 'touches' in e ? e.touches[0]?.clientX : e.clientX
+      const clientY = 'touches' in e ? e.touches[0]?.clientY : e.clientY
+      if (clientX == null || clientY == null) return
+      applyCurveDrag(clientX, clientY)
+    }
+    const onUp = () => setDragIndex(null)
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+    }
+  }, [dragIndex, applyCurveDrag])
 
   const handleChartDoubleClick = (e: React.MouseEvent) => {
     const norm = clientToNorm(e.clientX, e.clientY)
@@ -176,16 +198,11 @@ const EditorCurvesPanel: React.FC<EditorCurvesPanelProps> = ({
 
   return (
     <div className="image-editor-controls-panel editor-panel-body">
-      <PanelSection title="直方图" onReset={() => onChange(resetEditPanel('curves'))}>
-        <EditorHistogram
-          histogram={histogram}
-          loading={histLoading}
-          height={56}
-          levels={levels}
-          onLevelsChange={handleLevelsFromHist}
-          showLevelHandles
-          showRgbOverlay={showRgbHist}
-        />
+      <PanelSection
+        title="直方图与色阶"
+        subtitle="拖动手柄或点击直方图；下方可精确输入"
+        onReset={() => onChange(resetEditPanel('curves'))}
+      >
         <div className="editor-curves-auto-row">
           <Button size="small" type="default" onClick={handleAutoLevels} disabled={histogram.total <= 0}>
             自动色阶
@@ -195,16 +212,58 @@ const EditorCurvesPanel: React.FC<EditorCurvesPanelProps> = ({
             <Switch size="small" checked={showRgbHist} onChange={setShowRgbHist} />
           </label>
         </div>
-        <p className="editor-curves-hint">拖动直方图下沿三角可调整黑场/白场</p>
+        <EditorHistogram
+          histogram={histogram}
+          loading={histLoading}
+          height={88}
+          levels={levels}
+          onLevelsChange={handleLevelsFromHist}
+          showLevelHandles
+          showRgbOverlay={showRgbHist}
+        />
+        <div className="editor-levels-inputs">
+          <div className="editor-levels-inputs__field">
+            <span className="editor-levels-inputs__label">黑点</span>
+            <InputNumber
+              size="small"
+              min={0}
+              max={Math.max(0, levels.white - 1)}
+              value={levels.black}
+              onChange={v => v != null && handleLevels('black')(v)}
+            />
+          </div>
+          <div className="editor-levels-inputs__field">
+            <span className="editor-levels-inputs__label">中间调</span>
+            <InputNumber
+              size="small"
+              min={50}
+              max={200}
+              value={levels.gamma}
+              formatter={v => `${v}%`}
+              parser={v => Number.parseInt(String(v).replace('%', ''), 10) || DEFAULT_LEVELS.gamma}
+              onChange={v => v != null && handleLevels('gamma')(v)}
+            />
+          </div>
+          <div className="editor-levels-inputs__field">
+            <span className="editor-levels-inputs__label">白点</span>
+            <InputNumber
+              size="small"
+              min={Math.min(255, levels.black + 1)}
+              max={255}
+              value={levels.white}
+              onChange={v => v != null && handleLevels('white')(v)}
+            />
+          </div>
+        </div>
       </PanelSection>
 
-      <PanelSection title="色阶">
+      <PanelSection title="色阶滑杆" subtitle="与直方图联动，可微调">
         <ControlRow
           label="黑点"
           value={levels.black}
           defaultValue={DEFAULT_LEVELS.black}
           min={0}
-          max={254}
+          max={Math.max(0, levels.white - 1)}
           onChange={handleLevels('black')}
           railGradient={LEVELS_RAIL}
         />
@@ -221,30 +280,28 @@ const EditorCurvesPanel: React.FC<EditorCurvesPanelProps> = ({
           label="白点"
           value={levels.white}
           defaultValue={DEFAULT_LEVELS.white}
-          min={1}
+          min={Math.min(255, levels.black + 1)}
           max={255}
           onChange={handleLevels('white')}
           railGradient={LEVELS_RAIL}
         />
       </PanelSection>
 
-      <PanelSection title="曲线">
+      <PanelSection title="色调曲线" subtitle="分通道微调响应曲线">
         <Segmented
           size="small"
           className="editor-curves-channel-nav"
           value={curveChannel}
           onChange={v => setCurveChannel(v as ToneCurveChannelKey)}
           options={CHANNEL_OPTIONS}
+          block
         />
-        <p className="editor-curves-hint">拖动控制点；空白处双击添加；双击中间点可删除</p>
+        <p className="editor-curves-hint">拖动控制点 · 空白双击添加 · 双击中间点删除</p>
         <div className="editor-curves-chart-wrap">
           <svg
             ref={chartRef}
             className="editor-curves-chart"
             viewBox={`0 0 ${CHART_SIZE} ${CHART_SIZE}`}
-            onMouseMove={handleChartMouseMove}
-            onMouseUp={handleChartMouseUp}
-            onMouseLeave={handleChartMouseUp}
             onDoubleClick={handleChartDoubleClick}
           >
             <defs>
@@ -284,7 +341,7 @@ const EditorCurvesPanel: React.FC<EditorCurvesPanelProps> = ({
                 key={`${curveChannel}-${i}-${p.x}-${p.y}`}
                 cx={p.x * CHART_SIZE}
                 cy={CHART_SIZE * (1 - p.y)}
-                r={POINT_R}
+                r={dragIndex === i ? 8 : POINT_R}
                 className={`editor-curves-point${dragIndex === i ? ' is-active' : ''}`}
                 style={{ stroke: CHANNEL_STROKE[curveChannel] }}
                 onMouseDown={handlePointMouseDown(i)}

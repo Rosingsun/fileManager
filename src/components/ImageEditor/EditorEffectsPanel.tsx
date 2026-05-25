@@ -24,8 +24,12 @@ const EditorEffectsPanel: React.FC<EditorEffectsPanelProps> = ({ settings, onCha
 
   return (
     <div className="image-editor-controls-panel editor-panel-body">
-      <PanelSection title="风格滤镜" onReset={() => onChange(resetEditPanel('effects'))}>
-        <div className="editor-effects-chips">
+      <PanelSection
+        title="风格滤镜"
+        subtitle="一键开关，可再细调强度"
+        onReset={() => onChange(resetEditPanel('effects'))}
+      >
+        <div className="editor-effect-grid">
           <FilterButton active={!!settings.grayscale} onClick={handleToggleFilter('grayscale', true)}>
             灰度
           </FilterButton>
@@ -71,7 +75,7 @@ const EditorEffectsPanel: React.FC<EditorEffectsPanelProps> = ({ settings, onCha
         )}
       </PanelSection>
 
-      <PanelSection title="胶片质感">
+      <PanelSection title="胶片质感" subtitle="暗角、褪色与颗粒">
         <ControlRow
           label="暗角"
           value={numSetting(settings, 'vignette', 0)}

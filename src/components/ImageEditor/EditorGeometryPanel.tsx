@@ -24,7 +24,11 @@ const EditorGeometryPanel: React.FC<EditorGeometryPanelProps> = ({ settings, onC
 
   return (
     <div className="image-editor-controls-panel editor-panel-body">
-      <PanelSection title="旋转" onReset={() => onChange(resetEditPanel('transform'))}>
+      <PanelSection
+        title="旋转"
+        subtitle="快捷旋转与精确角度"
+        onReset={() => onChange(resetEditPanel('transform'))}
+      >
         <div className="editor-geometry-actions">
           <Button
             type="default"
@@ -59,7 +63,7 @@ const EditorGeometryPanel: React.FC<EditorGeometryPanelProps> = ({ settings, onC
         />
       </PanelSection>
 
-      <PanelSection title="翻转">
+      <PanelSection title="翻转" subtitle="水平 / 垂直镜像">
         <div className="editor-geometry-flip-row">
           <div className="editor-geometry-flip-item">
             <TbFlipHorizontal size={18} aria-hidden />

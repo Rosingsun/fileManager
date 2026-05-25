@@ -64,7 +64,11 @@ const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
         </div>
       )}
 
-      <PanelSection title="光效" onReset={() => onChange(resetEditPanel('adjust'))}>
+      <PanelSection
+        title="光效"
+        subtitle="曝光与基础明暗色彩"
+        onReset={() => onChange(resetEditPanel('adjust'))}
+      >
         <ExposureControlRow
           value={numSetting(settings, 'exposure', 100)}
           onChange={handleSlider('exposure')}
@@ -107,7 +111,7 @@ const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
         />
       </PanelSection>
 
-      <PanelSection title="细节">
+      <PanelSection title="细节" subtitle="降噪与纹理">
         <ControlRow
           label="降噪"
           value={numSetting(settings, 'denoise', 0)}

@@ -59,7 +59,11 @@ const EditorColorPanel: React.FC<EditorColorPanelProps> = ({
 
   return (
     <div className="image-editor-controls-panel editor-panel-body">
-      <PanelSection title="白平衡" onReset={() => onChange(resetEditPanel('color'))}>
+      <PanelSection
+        title="白平衡"
+        subtitle="色温、色调与伽马"
+        onReset={() => onChange(resetEditPanel('color'))}
+      >
         {onPickWhiteBalance ? (
           <Button
             type={pickWhiteBalanceActive ? 'primary' : 'default'}
@@ -103,7 +107,7 @@ const EditorColorPanel: React.FC<EditorColorPanelProps> = ({
         />
       </PanelSection>
 
-      <PanelSection title="氛围">
+      <PanelSection title="氛围" subtitle="去雾与色彩鲜明度">
         <ControlRow
           label="去雾"
           value={numSetting(settings, 'dehaze', 0)}
@@ -124,7 +128,7 @@ const EditorColorPanel: React.FC<EditorColorPanelProps> = ({
         />
       </PanelSection>
 
-      <PanelSection title="明暗分离">
+      <PanelSection title="明暗分离" subtitle="阴影、高光与局部对比">
         <ControlRow
           label="阴影"
           value={numSetting(settings, 'shadows', 0)}
@@ -156,13 +160,19 @@ const EditorColorPanel: React.FC<EditorColorPanelProps> = ({
 
       <Collapse
         ghost
-        className="editor-hsl-collapse"
+        className="editor-hsl-collapse editor-panel-section--nested"
         activeKey={hslOpen ? ['hsl'] : []}
         onChange={keys => setHslOpen(keys.includes('hsl'))}
         items={[
           {
             key: 'hsl',
-            label: 'HSL 分色相（8 色）',
+            label: (
+              <span className="editor-hsl-collapse__label">
+                <span className="editor-panel-section__accent" aria-hidden />
+                HSL 分色相
+                <span className="editor-hsl-collapse__badge">8 色</span>
+              </span>
+            ),
             children: (
               <div className="editor-hsl-regions">
                 {HSL_HUE_REGIONS.map(region => (

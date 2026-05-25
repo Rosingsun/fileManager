@@ -3,15 +3,22 @@ import { Slider, Button } from 'antd'
 
 export const PanelSection: React.FC<{
   title: string
+  subtitle?: string
   onReset?: () => void
   children: React.ReactNode
-}> = ({ title, onReset, children }) => (
+}> = ({ title, subtitle, onReset, children }) => (
   <section className="editor-panel-section">
     <div className="editor-panel-section__head">
-      <h4 className="editor-panel-section__title">{title}</h4>
+      <div className="editor-panel-section__titles">
+        <h4 className="editor-panel-section__title">
+          <span className="editor-panel-section__accent" aria-hidden />
+          {title}
+        </h4>
+        {subtitle ? <p className="editor-panel-section__subtitle">{subtitle}</p> : null}
+      </div>
       {onReset ? (
         <Button type="text" size="small" className="editor-panel-section__reset" onClick={onReset}>
-          重置
+          重置本节
         </Button>
       ) : null}
     </div>
@@ -60,21 +67,37 @@ export const ControlRow: React.FC<{
     return `${value}`
   }
 
+  const showBipolarTicks = bipolar && min < 0 && max > 0
+
   return (
-    <div className={`editor-control-row${bipolar ? ' is-bipolar' : ''}`}>
-      <div className="editor-control-row__head">
-        <span className="editor-control-row__label">{label}</span>
-        <span className={`editor-control-row__value${isDefault ? ' is-default' : ''}`}>
-          {formatDisplay()}
-          {unit}
-        </span>
+    <div
+      className={`editor-param${bipolar ? ' is-bipolar' : ''}${!isDefault ? ' is-modified' : ''}${railGradient ? ' has-gradient-rail' : ''}`}
+    >
+      <div className="editor-param__head">
+        <span className="editor-param__label">{label}</span>
+        <div className="editor-param__meta">
+          {!isDefault ? (
+            <button
+              type="button"
+              className="editor-param__reset"
+              onClick={() => onChange(def)}
+              aria-label={`重置${label}`}
+            >
+              重置
+            </button>
+          ) : null}
+          <span className={`editor-param__value${isDefault ? ' is-default' : ' is-active'}`}>
+            {formatDisplay()}
+            {unit}
+          </span>
+        </div>
       </div>
       <div
-        className="editor-control-row__rail"
+        className="editor-param__rail"
         style={railGradient ? { ['--editor-rail-gradient' as string]: railGradient } : undefined}
       >
         {bipolar && center != null ? (
-          <span className="editor-control-row__center" style={{ left: '50%' }} aria-hidden />
+          <span className="editor-param__center" style={{ left: '50%' }} aria-hidden />
         ) : null}
         <Slider
           className="editor-controls-slider"
@@ -86,6 +109,13 @@ export const ControlRow: React.FC<{
           tooltip={{ formatter: v => `${v ?? def}${unit}` }}
         />
       </div>
+      {showBipolarTicks ? (
+        <div className="editor-param__ticks" aria-hidden>
+          <span>{min}</span>
+          <span>0</span>
+          <span>+{max}</span>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -99,7 +129,9 @@ export const FilterButton: React.FC<{
     type="button"
     className={`editor-effect-chip${active ? ' is-active' : ''}`}
     onClick={onClick}
+    aria-pressed={active}
   >
+    <span className="editor-effect-chip__indicator" aria-hidden />
     {children}
   </button>
 )

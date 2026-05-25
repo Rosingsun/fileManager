@@ -3,7 +3,6 @@ import { Button, Space, message } from 'antd'
 import ImageEditorShell from './ImageEditorShell'
 import EditorPreviewCanvas from './EditorPreviewCanvas'
 import EditorSidebar from './EditorSidebar'
-import FormatCompressDialog from './FormatCompressDialog'
 import { useImageEditor } from './useImageEditor'
 import {
   hasAnyEdit,
@@ -30,7 +29,6 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
   /** 始终为未编辑的原始 base64，供「对比原图」使用 */
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null)
   const [loadingImage, setLoadingImage] = useState(false)
-  const [openFormatDialog, setOpenFormatDialog] = useState(false)
   const [showCropOverlay, setShowCropOverlay] = useState(false)
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
   const [saving, setSaving] = useState(false)
@@ -246,9 +244,6 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
         onClose={onClose}
         toolbarExtra={
           <Space>
-            <Button onClick={() => setOpenFormatDialog(true)} disabled={saving}>
-              格式/压缩
-            </Button>
             <Button onClick={handleReset} disabled={saving}>
               重置
             </Button>
@@ -301,35 +296,6 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
           />
         </div>
       </ImageEditorShell>
-
-      <FormatCompressDialog
-        visible={openFormatDialog}
-        files={[filePath]}
-        editSettings={settings}
-        onClose={() => setOpenFormatDialog(false)}
-        onConvert={opts => {
-          const api = window.electronAPI
-          if (api) {
-            void api.convertFormat(filePath, opts).then(results => {
-              if (results?.every(r => r.success)) {
-                logSignedInUserAction('image_format_convert_editor', '编辑器内格式转换', filePath)
-              }
-              setOpenFormatDialog(false)
-            })
-          }
-        }}
-        onCompress={opts => {
-          const api = window.electronAPI
-          if (api) {
-            void api.compressImage(filePath, opts).then(results => {
-              if (results?.every(r => r.success)) {
-                logSignedInUserAction('image_compress', '编辑器内图片压缩', filePath)
-              }
-              setOpenFormatDialog(false)
-            })
-          }
-        }}
-      />
     </>
   )
 }
