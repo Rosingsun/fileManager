@@ -65,7 +65,7 @@ function normalizeRelativeDir(input: string): string {
   return parts.length ? `${parts.join('/')}/` : ''
 }
 
-function assertFullKeyUnderUser(userId: string, key: string): void {
+export function assertFullKeyUnderUser(userId: string, key: string): void {
   const root = userRoot(userId)
   const normalized = key.trim().replace(/^\/+/, '')
   if (!normalized.startsWith(root)) {
@@ -521,14 +521,10 @@ function cosThumbImageQuery(key: string): Record<string, string> {
   return { 'imageMogr2/thumbnail/320x/format/jpg/quality/80': '' }
 }
 
-export async function presignGet(
-  userId: string,
-  body: { key: string; variant?: CosPresignGetVariant }
-) {
+export async function presignGetForKey(body: { key: string; variant?: CosPresignGetVariant }) {
   await prepareCos()
   const key = typeof body.key === 'string' ? body.key.trim() : ''
   if (!key) throw new AppError(400, 'BAD_INPUT', '缺少 key')
-  assertFullKeyUnderUser(userId, key)
 
   const variant: CosPresignGetVariant = body.variant === 'thumb' ? 'thumb' : 'full'
   const query = variant === 'thumb' ? cosThumbImageQuery(key) : undefined
@@ -558,6 +554,82 @@ export async function presignGet(
   return { previewUrl, expiresAt: Date.now() + expires * 1000 }
 }
 
+export async function presignGet(
+  userId: string,
+  body: { key: string; variant?: CosPresignGetVariant }
+) {
+  const key = typeof body.key === 'string' ? body.key.trim() : ''
+  if (!key) throw new AppError(400, 'BAD_INPUT', '缺少 key')
+  assertFullKeyUnderUser(userId, key)
+  return presignGetForKey(body)
+}
+
+/** 列出 boundaryPrefix 范围内的对象（用于分享浏览；listPrefix 须在 boundary 内） */
+export async function browseAbsolutePrefix(
+  listPrefix: string,
+  boundaryPrefix: string,
+  delimiterRaw?: string
+) {
+  await prepareCos()
+  const boundary = boundaryPrefix.trim().replace(/^\/+/, '')
+  const list = listPrefix.trim().replace(/^\/+/, '')
+  if (!list.startsWith(boundary)) {
+    throw new AppError(403, 'FORBIDDEN', '路径超出分享范围')
+  }
+  if (list.includes('/../') || list.endsWith('/..') || list.startsWith('../')) {
+    throw new AppError(403, 'FORBIDDEN', '路径超出分享范围')
+  }
+
+  const rel = list.startsWith(boundary) ? list.slice(boundary.length) : ''
+  const delimiter = (delimiterRaw ?? '/').trim() || '/'
+
+  type ListResult = {
+    CommonPrefixes?: { Prefix?: string }[]
+    Contents?: { Key?: string; Size?: string | number; LastModified?: string }[]
+    IsTruncated?: boolean
+    NextMarker?: string
+  }
+
+  let data: ListResult
+  try {
+    data = await cosCall<ListResult>('getBucket', {
+      Bucket: getCosConfig().bucket,
+      Region: getCosConfig().region,
+      Prefix: list,
+      Delimiter: delimiter,
+      MaxKeys: 1000,
+    })
+  } catch (e) {
+    mapCosError(e, '列出对象失败')
+  }
+
+  const stripBoundary = (p: string) => (p.startsWith(boundary) ? p.slice(boundary.length) : p)
+
+  const commonPrefixes = (data.CommonPrefixes ?? [])
+    .map((x) => (typeof x.Prefix === 'string' ? stripBoundary(x.Prefix) : ''))
+    .filter(Boolean)
+
+  const objects: { key: string; size: number; lastModified: string | null }[] = []
+  for (const c of data.Contents ?? []) {
+    const key = typeof c.Key === 'string' ? c.Key : ''
+    if (!key || key === list) continue
+    if (key.endsWith('/')) continue
+    const size = typeof c.Size === 'number' ? c.Size : Number(c.Size || 0)
+    const lastModified = typeof c.LastModified === 'string' ? c.LastModified : null
+    objects.push({ key, size, lastModified })
+  }
+
+  return {
+    scopePrefix: boundary,
+    currentPrefix: rel,
+    delimiter,
+    commonPrefixes,
+    objects,
+    isTruncated: Boolean(data.IsTruncated),
+    nextMarker: data.NextMarker ?? null,
+  }
+}
+
 export async function mkdir(userId: string, body: { parentPrefix?: string; name: string }) {
   await prepareCos()
   const name = typeof body.name === 'string' ? body.name.trim() : ''
@@ -581,7 +653,7 @@ export async function mkdir(userId: string, body: { parentPrefix?: string; name:
   return { key: folderKey }
 }
 
-async function headExists(key: string): Promise<boolean> {
+export async function objectExists(key: string): Promise<boolean> {
   try {
     await cosCall('headObject', {
       Bucket: getCosConfig().bucket,
@@ -606,7 +678,7 @@ export async function moveObject(userId: string, body: { fromKey: string; toKey:
   assertFullKeyUnderUser(userId, toKey)
   if (fromKey === toKey) throw new AppError(400, 'BAD_INPUT', '源与目标相同')
 
-  if (await headExists(toKey)) {
+  if (await objectExists(toKey)) {
     throw new AppError(409, 'ALREADY_EXISTS', '目标路径已存在对象')
   }
 

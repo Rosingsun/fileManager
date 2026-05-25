@@ -23,6 +23,18 @@ todos:
   - id: editor-css-docs
     content: editor.css、resetEditPanel 分组、image-editor-design.md、DEVELOPMENT IPC 摘要
     status: completed
+  - id: phase2-histogram-drag
+    content: 直方图拖拽黑/白场与色阶双向绑定
+    status: completed
+  - id: phase2-rgb-curve
+    content: RGB 分通道曲线 + RGB 直方图叠层
+    status: completed
+  - id: phase2-hsl-wb
+    content: HSL 8 色、灰点白平衡、去雾/鲜明度
+    status: completed
+  - id: phase2-export-histogram-ipc
+    content: FormatCompressDialog 导出尺寸/水印；image:getHistogram IPC
+    status: completed
 isProject: false
 ---
 
@@ -198,17 +210,20 @@ if (settings.levels || settings.toneCurve) {
 
 ---
 
-## 二期路线图（写入文档，本期不做）
+## 二期（已完成，2026-05-20）
 
 | 功能                        | 说明                                                                                  |
 | --------------------------- | ------------------------------------------------------------------------------------- |
 | 直方图拖拽黑/白场           | 与色阶滑杆双向绑定                                                                    |
 | RGB 分通道曲线              | R/G/B 独立 LUT                                                                        |
-| HSL 分色相 8 色             | 专业调色常见能力                                                                      |
+| RGB 直方图叠层              | 曲线页开关                                                                            |
+| HSL 分色相 8 色             | 色彩页折叠面板                                                                        |
 | 画布取色 / 灰点白平衡       | 点击预览设 `temperature`/`tint`                                                       |
-| 去雾 / 鲜明度               | 新参数 + Sharp 近似                                                                   |
-| 水印 / 导出尺寸             | 与 [`FormatCompressDialog`](src/components/ImageEditor/FormatCompressDialog.tsx) 整合 |
-| 主进程 `image:getHistogram` | 仅弱机 4K+ Canvas 卡顿时                                                              |
+| 去雾 / 鲜明度               | 新参数 + Sharp 像素近似                                                               |
+| 水印 / 导出尺寸             | [`FormatCompressDialog`](src/components/ImageEditor/FormatCompressDialog.tsx)         |
+| 主进程 `image:getHistogram` | ≥4K 像素回退                                                                          |
+
+**合并提交**：`1897be1` feat: Enhance image editing features and introduce media local protocol
 
 ---
 
@@ -216,7 +231,6 @@ if (settings.levels || settings.toneCurve) {
 
 - 局部画笔、修复笔、AI 抠图
 - 引入新 npm 包（曲线/直方图均 Canvas + SVG）
-- RGB 直方图叠层（可做二期开关）
 
 ---
 

@@ -9,6 +9,7 @@ import { authRouter } from './modules/auth/auth.routes.js'
 import { usersRouter } from './modules/users/users.routes.js'
 import { inviteRouter } from './modules/invite/invite.routes.js'
 import { cosRouter } from './modules/cos/cos.routes.js'
+import { shareRouter } from './modules/share/share.routes.js'
 import { adminRouter } from './modules/admin/admin.routes.js'
 import { requireAdmin } from './middleware/requireAdmin.js'
 import { sendOk } from './utils/response.js'
@@ -36,6 +37,7 @@ export function createApp(): express.Application {
   app.use('/users', requireAccess, usersRouter)
   app.use('/invites', requireAccess, inviteRouter)
   app.use('/cos', requireAccess, cosRouter)
+  app.use('/share', shareRouter)
   app.use('/admin', requireAccess, requireAdmin, adminRouter)
 
   app.use(errorHandler)

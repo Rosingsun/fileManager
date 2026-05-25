@@ -4,8 +4,13 @@ import { UserOutlined } from '@ant-design/icons'
 import { useAuthStore } from '../stores'
 import { formatAuthApiError, getPasswordResetUrl, isAuthApiConfigured } from '../utils'
 import EmailAutoComplete from './EmailAutoComplete'
+import ShareOpenModal from './ShareOpenModal'
 
-const UserAuthPanel: React.FC = () => {
+export interface UserAuthPanelProps {
+  onOpenShareView?: (token: string) => void
+}
+
+const UserAuthPanel: React.FC<UserAuthPanelProps> = ({ onOpenShareView }) => {
   const { message } = App.useApp()
   const resetUrl = getPasswordResetUrl()
 
@@ -18,6 +23,7 @@ const UserAuthPanel: React.FC = () => {
   const [bootForm] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+  const [shareOpenInputVisible, setShareOpenInputVisible] = useState(false)
 
   const onLogin = async () => {
     if (loading) return
@@ -100,6 +106,11 @@ const UserAuthPanel: React.FC = () => {
             <div className="user-center-auth-header-text">
               <h1 className="user-center-auth-title">用户中心</h1>
               <p className="user-center-auth-lead">登录或注册，以使用账号与文件整理等功能</p>
+              {onOpenShareView && (
+                <Button type="link" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => setShareOpenInputVisible(true)}>
+                  打开分享链接（无需登录）
+                </Button>
+              )}
             </div>
           </header>
 
@@ -244,6 +255,13 @@ const UserAuthPanel: React.FC = () => {
           )}
         </div>
       </div>
+      {onOpenShareView && (
+        <ShareOpenModal
+          open={shareOpenInputVisible}
+          onClose={() => setShareOpenInputVisible(false)}
+          onOpenShare={onOpenShareView}
+        />
+      )}
     </div>
   )
 }

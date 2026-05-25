@@ -6,12 +6,14 @@ import {
   Button,
   Card,
   Dropdown,
+  Drawer,
   Empty,
   Form,
   Input,
   List,
   Modal,
   Progress,
+  Select,
   Space,
   Spin,
   Switch,
@@ -26,6 +28,7 @@ import {
   FolderAddOutlined,
   FolderOutlined,
   FormOutlined,
+  LinkOutlined,
   PictureOutlined,
   DeleteOutlined,
   SwapOutlined,
@@ -44,14 +47,60 @@ import {
   formatAuthApiError,
   formatFileSize,
   AuthApiError,
+  shareCreate,
+  copyShareLink,
+  buildShareDeepLink,
+  shareSelectionsByFolderPrefix,
+  shareSelectionSummary,
+  shareSelectionSubmissions,
+  formatDateTime,
   type CosBrowseResult,
+  type SharePermission,
+  type ShareSelectionSubmission,
+  type ShareWithSelectionMeta,
 } from '../utils'
 import {
   useCosImageUpload,
   formatCosImageUploadSpeed,
 } from '../hooks'
+import ShareOpenModal from './ShareOpenModal'
 
 type FolderMoveTreeNode = DataNode & { value?: string }
+
+const SelectionThumb: React.FC<{ cosKey: string; title: string }> = ({ cosKey, title }) => {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { previewUrl } = await cosPresignGet({ key: cosKey, variant: 'thumb' })
+        setUrl(previewUrl)
+      } catch {
+        setUrl(null)
+      }
+    })()
+  }, [cosKey])
+  return (
+    <div
+      title={title}
+      style={{
+        width: 48,
+        height: 48,
+        borderRadius: 6,
+        overflow: 'hidden',
+        background: 'rgba(0,0,0,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {url ? (
+        <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      ) : (
+        <PictureOutlined style={{ opacity: 0.4 }} />
+      )}
+    </div>
+  )
+}
 
 const COS_PREVIEW_MODAL_IMG_STYLE: React.CSSProperties = {
   maxWidth: '100%',
@@ -270,9 +319,10 @@ function updateFolderTreeChildren<T extends FolderMoveTreeNode>(list: T[], key: 
 export interface CosImageLibraryTabProps {
   embedded?: boolean
   onBackToLocalFiles?: () => void
+  onOpenShareView?: (token: string) => void
 }
 
-const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBackToLocalFiles }) => {
+const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBackToLocalFiles, onOpenShareView }) => {
   const { message } = App.useApp()
   const [loading, setLoading] = useState(false)
   const [browse, setBrowse] = useState<CosBrowseResult | null>(null)
@@ -296,6 +346,23 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
   const folderMoveSourceRelRef = useRef<string>('')
   const folderMoveTreeLoadedKeysRef = useRef<Set<string>>(new Set())
   const [moveForm] = Form.useForm<{ parentPrefix: string; newFileName: string }>()
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareSubmitting, setShareSubmitting] = useState(false)
+  const [shareResultToken, setShareResultToken] = useState<string | null>(null)
+  const [shareTarget, setShareTarget] = useState<
+    | { resourceType: 'file'; key: string; name: string }
+    | { resourceType: 'folder'; prefix: string; name: string }
+    | null
+  >(null)
+  const [shareForm] = Form.useForm<{ permission: SharePermission; expiresInHours: number; selectionEnabled: boolean }>()
+  const [shareOpenInputVisible, setShareOpenInputVisible] = useState(false)
+  const [activeSelectionShare, setActiveSelectionShare] = useState<ShareWithSelectionMeta | null>(null)
+  const [pickCountByKey, setPickCountByKey] = useState<Record<string, number>>({})
+  const [showPickedOnly, setShowPickedOnly] = useState(false)
+  const [selectionDrawerOpen, setSelectionDrawerOpen] = useState(false)
+  const [selectionSubmissions, setSelectionSubmissions] = useState<ShareSelectionSubmission[]>([])
+  const [selectionSubmissionsTotal, setSelectionSubmissionsTotal] = useState(0)
+  const [selectionDrawerLoading, setSelectionDrawerLoading] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -355,6 +422,53 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
 
   const scopePrefix = browse?.scopePrefix ?? ''
 
+  const loadSelectionFeedback = useCallback(async () => {
+    const folderKey = `${scopePrefix}${currentPrefix || ''}`
+    if (!scopePrefix || !folderKey.endsWith('/')) {
+      setActiveSelectionShare(null)
+      setPickCountByKey({})
+      return
+    }
+    try {
+      const { shares } = await shareSelectionsByFolderPrefix(folderKey)
+      const share = shares[0] ?? null
+      setActiveSelectionShare(share)
+      if (!share) {
+        setPickCountByKey({})
+        return
+      }
+      const summary = await shareSelectionSummary(share.id)
+      const map: Record<string, number> = {}
+      for (const p of summary.picks) {
+        map[p.cosKey] = p.pickCount
+      }
+      setPickCountByKey(map)
+    } catch {
+      setActiveSelectionShare(null)
+      setPickCountByKey({})
+    }
+  }, [scopePrefix, currentPrefix])
+
+  useEffect(() => {
+    if (cosDisabled || !scopePrefix) return
+    void loadSelectionFeedback()
+  }, [loadSelectionFeedback, cosDisabled, scopePrefix, browse])
+
+  const openSelectionDrawer = useCallback(async () => {
+    if (!activeSelectionShare) return
+    setSelectionDrawerOpen(true)
+    setSelectionDrawerLoading(true)
+    try {
+      const data = await shareSelectionSubmissions(activeSelectionShare.id, { page: 1, pageSize: 50 })
+      setSelectionSubmissions(data.items)
+      setSelectionSubmissionsTotal(data.total)
+    } catch (e: unknown) {
+      message.error(formatAuthApiError(e))
+    } finally {
+      setSelectionDrawerLoading(false)
+    }
+  }, [activeSelectionShare, message])
+
   const folderRows = useMemo(() => {
     const pfxs = browse?.commonPrefixes ?? []
     return pfxs.map((p) => ({
@@ -376,8 +490,10 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
         size: o.size,
         lastModified: o.lastModified,
         cosKey: o.key,
+        pickCount: pickCountByKey[o.key] ?? 0,
       }))
-  }, [browse?.objects])
+      .filter((row) => !showPickedOnly || row.pickCount > 0)
+  }, [browse?.objects, pickCountByKey, showPickedOnly])
 
   const openPreview = async (key: string, title: string) => {
     try {
@@ -403,6 +519,43 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
         }
       },
     })
+  }
+
+  const openShareFile = (key: string, name: string) => {
+    setShareTarget({ resourceType: 'file', key, name })
+    setShareResultToken(null)
+    shareForm.setFieldsValue({ permission: 'read', expiresInHours: 168, selectionEnabled: false })
+    setShareOpen(true)
+  }
+
+  const openShareFolder = (fullKey: string, displayName: string) => {
+    setShareTarget({ resourceType: 'folder', prefix: fullKey, name: displayName })
+    setShareResultToken(null)
+    shareForm.setFieldsValue({ permission: 'read', expiresInHours: 168, selectionEnabled: false })
+    setShareOpen(true)
+  }
+
+  const submitShare = async () => {
+    if (!shareTarget) return
+    setShareSubmitting(true)
+    try {
+      const values = await shareForm.validateFields()
+      const expiresInHours = values.expiresInHours === 0 ? null : values.expiresInHours
+      const result = await shareCreate({
+        resourceType: shareTarget.resourceType,
+        key: shareTarget.resourceType === 'file' ? shareTarget.key : undefined,
+        prefix: shareTarget.resourceType === 'folder' ? shareTarget.prefix : undefined,
+        permission: values.permission,
+        expiresInHours,
+        selectionEnabled: shareTarget.resourceType === 'folder' ? values.selectionEnabled : false,
+      })
+      setShareResultToken(result.token)
+      message.success('分享链接已创建')
+    } catch (e) {
+      message.error(formatAuthApiError(e))
+    } finally {
+      setShareSubmitting(false)
+    }
   }
 
   const relParentOfFolderPrefix = (relFolderPrefix: string): string => {
@@ -811,6 +964,24 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
           <Button onClick={() => void load()} loading={loading}>
             刷新
           </Button>
+          {onOpenShareView && (
+            <Button icon={<LinkOutlined />} onClick={() => setShareOpenInputVisible(true)}>
+              打开分享
+            </Button>
+          )}
+          {activeSelectionShare && (
+            <>
+              <Switch
+                checked={showPickedOnly}
+                onChange={setShowPickedOnly}
+                checkedChildren="仅选中"
+                unCheckedChildren="全部"
+              />
+              <Button onClick={() => void openSelectionDrawer()}>
+                选片反馈 ({activeSelectionShare.submissionCount})
+              </Button>
+            </>
+          )}
         </Space>
         <Breadcrumb items={breadcrumbItems} style={{ marginBottom: 12 }} />
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -848,6 +1019,12 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                     disabled: !scopePrefix,
                     icon: <FormOutlined />,
                     onClick: () => openRenameFolder(`${scopePrefix}${row.prefix}`, row.prefix, row.label),
+                  },
+                  {
+                    key: 'share',
+                    label: '创建分享',
+                    icon: <LinkOutlined />,
+                    onClick: () => openShareFolder(`${scopePrefix}${row.prefix}`, row.label),
                   },
                   {
                     key: 'delete',
@@ -908,6 +1085,12 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                     onClick: () => openMove(row.cosKey),
                   },
                   {
+                    key: 'share',
+                    label: '创建分享',
+                    icon: <LinkOutlined />,
+                    onClick: () => openShareFile(row.cosKey, row.name),
+                  },
+                  {
                     key: 'delete',
                     label: '删除',
                     danger: true,
@@ -917,6 +1100,11 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
                 ]
                 return (
                   <div key={row.key} style={COS_GRID_ITEM_STYLE}>
+                    {row.pickCount > 0 && (
+                      <Tag color="blue" style={{ position: 'absolute', top: 4, left: 4, zIndex: 2, margin: 0 }}>
+                        {row.pickCount} 次选中
+                      </Tag>
+                    )}
                     <CosBrowseThumb
                       cosKey={row.cosKey}
                       title={row.name}
@@ -1223,6 +1411,128 @@ const CosImageLibraryTab: React.FC<CosImageLibraryTabProps> = ({ embedded, onBac
           </Form.Item>
         </Form>
       </Modal>
+
+      <Modal
+        title={shareResultToken ? '分享链接已创建' : '创建分享链接'}
+        open={shareOpen}
+        onOk={() => (shareResultToken ? setShareOpen(false) : void submitShare())}
+        okText={shareResultToken ? '完成' : '创建'}
+        confirmLoading={shareSubmitting}
+        onCancel={() => {
+          setShareOpen(false)
+          setShareTarget(null)
+          setShareResultToken(null)
+          shareForm.resetFields()
+        }}
+        destroyOnClose
+      >
+        {shareResultToken ? (
+          <Space direction="vertical" style={{ width: '100%' }}>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 8 }}>
+              复制链接后在应用内打开，或粘贴到地址栏 hash（#share/令牌）。
+              {shareTarget?.resourceType === 'folder' && shareForm.getFieldValue('selectionEnabled') && (
+                <> 已开启选片反馈，访客提交后可在本文件夹查看反馈。</>
+              )}
+            </Typography.Paragraph>
+            <Input readOnly value={buildShareDeepLink(shareResultToken)} />
+            <Space wrap>
+              <Button
+                onClick={() => {
+                  void copyShareLink(shareResultToken).then(() => message.success('已复制分享链接'))
+                }}
+              >
+                复制链接
+              </Button>
+              {onOpenShareView && (
+                <Button
+                  type="primary"
+                  onClick={() => {
+                    onOpenShareView(shareResultToken)
+                    setShareOpen(false)
+                  }}
+                >
+                  应用内预览
+                </Button>
+              )}
+            </Space>
+          </Space>
+        ) : (
+          <Form form={shareForm} layout="vertical" initialValues={{ permission: 'read', expiresInHours: 168, selectionEnabled: false }}>
+            <Typography.Paragraph style={{ marginBottom: 12 }}>
+              分享「{shareTarget?.name ?? ''}」
+            </Typography.Paragraph>
+            {shareTarget?.resourceType === 'folder' && (
+              <Form.Item name="selectionEnabled" label="选片反馈" valuePropName="checked">
+                <Switch checkedChildren="开启" unCheckedChildren="关闭" />
+              </Form.Item>
+            )}
+            <Form.Item name="permission" label="权限">
+              <Select
+                options={[
+                  { value: 'read', label: '仅预览' },
+                  { value: 'download', label: '预览与下载' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="expiresInHours" label="有效期">
+              <Select
+                options={[
+                  { value: 24, label: '1 天' },
+                  { value: 168, label: '7 天（默认）' },
+                  { value: 720, label: '30 天' },
+                  { value: 0, label: '永不过期' },
+                ]}
+              />
+            </Form.Item>
+          </Form>
+        )}
+      </Modal>
+
+      {onOpenShareView && (
+        <ShareOpenModal
+          open={shareOpenInputVisible}
+          onClose={() => setShareOpenInputVisible(false)}
+          onOpenShare={onOpenShareView}
+        />
+      )}
+
+      <Drawer
+        title={`选片反馈 · ${activeSelectionShare?.displayName ?? ''}`}
+        open={selectionDrawerOpen}
+        onClose={() => setSelectionDrawerOpen(false)}
+        width={420}
+      >
+        {selectionDrawerLoading ? (
+          <div style={{ textAlign: 'center', padding: 24 }}>
+            <Spin />
+          </div>
+        ) : selectionSubmissions.length === 0 ? (
+          <Empty description="暂无访客提交" />
+        ) : (
+          <List
+            dataSource={selectionSubmissions}
+            renderItem={(item) => (
+              <List.Item>
+                <List.Item.Meta
+                  title={item.pickerLabel?.trim() || '匿名访客'}
+                  description={`${formatDateTime(item.createdAt)} · ${item.itemCount} 张`}
+                />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  {item.keys.slice(0, 12).map((key) => (
+                    <SelectionThumb key={key} cosKey={key} title={basename(key)} />
+                  ))}
+                  {item.keys.length > 12 && (
+                    <Typography.Text type="secondary">+{item.keys.length - 12} 张</Typography.Text>
+                  )}
+                </div>
+              </List.Item>
+            )}
+          />
+        )}
+        {selectionSubmissionsTotal > selectionSubmissions.length && (
+          <Typography.Text type="secondary">仅显示最近 {selectionSubmissions.length} 条</Typography.Text>
+        )}
+      </Drawer>
 
       <Modal
         title="移动 / 重命名"

@@ -40,6 +40,12 @@ export async function runMigrations(pool: Pool): Promise<void> {
       if (filename === '011_user_cos_quota_adjustments.sql') {
         await ensureUserCosQuotaAdjustmentsTable(conn)
       }
+      if (filename === '012_cos_shares.sql') {
+        await ensureCosSharesTable(conn)
+      }
+      if (filename === '013_cos_share_selections.sql') {
+        await ensureCosShareSelectionTables(conn)
+      }
 
       const sql = await readFile(join(migrationsDir, filename), 'utf8')
       await conn.beginTransaction()
@@ -64,9 +70,110 @@ export async function runMigrations(pool: Pool): Promise<void> {
     await ensureUsersInvitedByColumn(conn)
     await ensureUsersCosStorageQuotaColumn(conn)
     await ensureUserCosQuotaAdjustmentsTable(conn)
+    await ensureCosSharesTable(conn)
+    await ensureCosShareSelectionTables(conn)
   } finally {
     conn.release()
   }
+}
+
+async function ensureCosSharesTable(conn: PoolConnection): Promise<void> {
+  const [tables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_shares'`
+  )
+  if (Number(tables[0]?.c)) return
+
+  await conn.query(`
+    CREATE TABLE cos_shares (
+      id CHAR(36) NOT NULL COMMENT '分享主键 UUID',
+      token CHAR(32) NOT NULL COMMENT '对外分享令牌（URL 安全字符）',
+      owner_user_id CHAR(36) NOT NULL COMMENT '资源所有者用户 ID',
+      resource_type ENUM('file','folder') NOT NULL COMMENT '分享资源类型：单文件或文件夹前缀',
+      cos_key VARCHAR(1024) NULL COMMENT '单文件 COS 完整 Key；folder 时为 NULL',
+      cos_prefix VARCHAR(1024) NULL COMMENT '文件夹 COS 前缀（须以 / 结尾）；file 时为 NULL',
+      display_name VARCHAR(255) NOT NULL COMMENT '展示名（文件名或文件夹名）',
+      permission ENUM('read','download') NOT NULL DEFAULT 'read' COMMENT 'read=仅预览；download=允许下载',
+      expires_at BIGINT NULL COMMENT '过期时间 Unix 毫秒；NULL 表示永不过期',
+      revoked_at BIGINT NULL COMMENT '撤销时间 Unix 毫秒；非 NULL 即失效',
+      access_count INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '累计访问次数',
+      last_accessed_at BIGINT NULL COMMENT '最近访问时间 Unix 毫秒',
+      created_at BIGINT NOT NULL COMMENT '创建时间 Unix 毫秒',
+      updated_at BIGINT NOT NULL COMMENT '更新时间 Unix 毫秒',
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_cos_shares_token (token),
+      KEY idx_cos_shares_owner (owner_user_id, created_at),
+      KEY idx_cos_shares_expires (expires_at),
+      CONSTRAINT fk_cos_shares_owner FOREIGN KEY (owner_user_id) REFERENCES users (id) ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    COMMENT='COS 云图库分享链接'
+  `)
+  console.info('[migrate] created cos_shares')
+}
+
+async function ensureCosShareSelectionTables(conn: PoolConnection): Promise<void> {
+  const [shareTables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_shares'`
+  )
+  if (Number(shareTables[0]?.c)) {
+    const [cols] = await conn.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_shares' AND COLUMN_NAME = 'selection_enabled'`
+    )
+    if (!Number(cols[0]?.c)) {
+      await conn.query(
+        `ALTER TABLE cos_shares ADD COLUMN selection_enabled TINYINT(1) NOT NULL DEFAULT 0
+         COMMENT '是否允许访客选片并提交反馈（仅文件夹分享）'`
+      )
+      console.info('[migrate] added cos_shares.selection_enabled')
+    }
+  }
+
+  const [subTables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_share_selection_submissions'`
+  )
+  if (!Number(subTables[0]?.c)) {
+    await conn.query(`
+      CREATE TABLE cos_share_selection_submissions (
+        id CHAR(36) NOT NULL COMMENT '选片提交主键 UUID',
+        share_id CHAR(36) NOT NULL COMMENT '关联分享 ID',
+        picker_client_id CHAR(36) NOT NULL COMMENT '访客客户端匿名 ID',
+        picker_label VARCHAR(64) NULL COMMENT '访客自填昵称',
+        item_count INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '本次选中图片张数',
+        created_at BIGINT NOT NULL COMMENT '提交时间 Unix 毫秒',
+        PRIMARY KEY (id),
+        KEY idx_share_sel_sub_share_created (share_id, created_at),
+        CONSTRAINT fk_share_sel_sub_share FOREIGN KEY (share_id) REFERENCES cos_shares (id) ON DELETE CASCADE ON UPDATE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      COMMENT='分享选片提交记录（追加模式，每次提交一条）'
+    `)
+    console.info('[migrate] created cos_share_selection_submissions')
+  }
+
+  const [itemTables] = await conn.query<RowDataPacket[]>(
+    `SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'cos_share_selection_items'`
+  )
+  if (Number(itemTables[0]?.c)) return
+
+  await conn.query(`
+    CREATE TABLE cos_share_selection_items (
+      id CHAR(36) NOT NULL COMMENT '选片项主键 UUID',
+      submission_id CHAR(36) NOT NULL COMMENT '所属提交 ID',
+      share_id CHAR(36) NOT NULL COMMENT '冗余分享 ID，便于按 share 聚合',
+      cos_key VARCHAR(1024) NOT NULL COMMENT '被选中的 COS 对象完整 Key',
+      created_at BIGINT NOT NULL COMMENT '创建时间 Unix 毫秒',
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_sel_item_sub_key (submission_id, cos_key(191)),
+      KEY idx_sel_item_share_key (share_id, cos_key(191)),
+      CONSTRAINT fk_share_sel_item_sub FOREIGN KEY (submission_id) REFERENCES cos_share_selection_submissions (id) ON DELETE CASCADE ON UPDATE CASCADE,
+      CONSTRAINT fk_share_sel_item_share FOREIGN KEY (share_id) REFERENCES cos_shares (id) ON DELETE CASCADE ON UPDATE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    COMMENT='分享选片提交内的单张图片'
+  `)
+  console.info('[migrate] created cos_share_selection_items')
 }
 
 /** 列可能已手工添加但 008 未记入 schema_migrations，避免重复 ADD 导致启动失败 */

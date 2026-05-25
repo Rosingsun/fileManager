@@ -7,9 +7,9 @@ import AppHeader from './components/AppHeader'
 import SimilarityDetection from './components/SimilarityDetection/SimilarityDetection'
 import ImageClassification from './components/ImageClassification/ImageClassification'
 import ToolsEntry from './components/Tools/ToolsEntry'
-import { QuickFilter, UserCenter, UserAuthPanel, CosLibrarySummaryCard, CosImageLibraryTab } from './components'
+import { QuickFilter, UserCenter, UserAuthPanel, CosLibrarySummaryCard, CosImageLibraryTab, CosShareViewTab } from './components'
 import { useAuthStore, useFileStore } from './stores'
-import { isAuthApiConfigured } from './utils'
+import { isAuthApiConfigured, parseShareTokenFromHash } from './utils'
 import type { UserCenterAppNavigate } from './components/UserCenter/userCenterShared'
 
 const { Content } = Layout
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [organizeCenterMode, setOrganizeCenterMode] = useState<'local' | 'cloud'>('local')
   const [cosStatsNonce, setCosStatsNonce] = useState(0)
   const [userCenterFocusTab, setUserCenterFocusTab] = useState<string | null>(null)
+  const [shareViewToken, setShareViewToken] = useState<string | null>(null)
 
   const hydrateFromRefresh = useAuthStore((s) => s.hydrateFromRefresh)
   const isHydrating = useAuthStore((s) => s.isHydrating)
@@ -84,6 +85,28 @@ const App: React.FC = () => {
       void window.electronAPI?.setCurrentUserId?.(null)
     }
   }, [user?.id])
+
+  useEffect(() => {
+    const syncShareFromHash = () => {
+      const token = parseShareTokenFromHash(window.location.hash)
+      setShareViewToken(token)
+    }
+    syncShareFromHash()
+    window.addEventListener('hashchange', syncShareFromHash)
+    return () => window.removeEventListener('hashchange', syncShareFromHash)
+  }, [])
+
+  const openShareView = useCallback((token: string) => {
+    setShareViewToken(token)
+    window.location.hash = `share/${token}`
+  }, [])
+
+  const closeShareView = useCallback(() => {
+    setShareViewToken(null)
+    if (window.location.hash.match(/^#share\/[a-f0-9]{32}$/i)) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }, [])
 
   const loadHistoryFromStorage = useFileStore((s) => s.loadHistoryFromStorage)
   const loadOrganizeHistoryFromStorage = useFileStore((s) => s.loadOrganizeHistoryFromStorage)
@@ -173,8 +196,9 @@ const App: React.FC = () => {
           />
         )}
         <Content className="app-content">
-          <UserAuthPanel />
+          <UserAuthPanel onOpenShareView={openShareView} />
         </Content>
+        {shareViewToken && <CosShareViewTab token={shareViewToken} onClose={closeShareView} />}
       </Layout>
     )
   }
@@ -224,6 +248,7 @@ const App: React.FC = () => {
                       setOrganizeCenterMode('local')
                       setCosStatsNonce((n) => n + 1)
                     }}
+                    onOpenShareView={openShareView}
                   />
                 )}
               </div>
@@ -262,6 +287,7 @@ const App: React.FC = () => {
           />
         )}
       </Content>
+      {shareViewToken && <CosShareViewTab token={shareViewToken} onClose={closeShareView} />}
     </Layout>
   )
 }
