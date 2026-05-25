@@ -195,9 +195,47 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding: 10px 0 8px;
+  padding: 0 0 8px;
   border-bottom: 1px solid var(--app-border);
   background: color-mix(in srgb, var(--app-surface) 40%, transparent);
+  transition: max-height 0.22s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.image-editor-sidebar__presets-zone.is-presets-collapsed {
+  min-height: 0;
+  max-height: 40px;
+  padding-bottom: 0;
+}
+
+.image-editor-sidebar__presets-head {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--app-border) 45%, transparent);
+}
+
+.image-editor-sidebar__presets-zone.is-presets-collapsed .image-editor-sidebar__presets-head {
+  border-bottom: none;
+  padding-bottom: 8px;
+}
+
+.image-editor-sidebar__presets-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--app-text-secondary);
+}
+
+.image-editor-sidebar__presets-toggle {
+  color: var(--app-text-secondary) !important;
+}
+
+.image-editor-sidebar__presets-toggle:hover {
+  color: var(--app-primary) !important;
 }
 
 .editor-presets-bar--sidebar {
@@ -206,6 +244,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding-top: 6px;
 }
 
 .editor-presets-bar__meta {

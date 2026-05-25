@@ -30,6 +30,8 @@ interface PresetsPanelProps {
   currentSettings: ImageEditSettings
   /** sidebar：侧栏顶部横向胶片条；modal：批量编辑等弹窗内网格 */
   layout?: 'sidebar' | 'modal'
+  /** 侧栏由 EditorSidebar 提供标题栏时隐藏内部「预设」标题 */
+  hideHeading?: boolean
 }
 
 /** 通用系统预设（非富士胶片模拟） */
@@ -210,6 +212,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
   onApply,
   currentSettings,
   layout = 'modal',
+  hideHeading = false,
 }) => {
   const {
     presets,
@@ -664,7 +667,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
 
     return (
       <div className="editor-presets-bar editor-presets-bar--sidebar">
-        <h3 className="editor-presets-bar__heading">预设</h3>
+        {!hideHeading ? <h3 className="editor-presets-bar__heading">预设</h3> : null}
         <div className="editor-presets-bar__toolbar">
           <Select
             className="editor-presets-bar__group-select"

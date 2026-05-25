@@ -1,6 +1,11 @@
-import React, { useState } from 'react'
+import React, { useCallback, useState } from 'react'
 import { Button, Tooltip } from 'antd'
-import { TbLayoutSidebarRightCollapse, TbLayoutSidebarRightExpand } from '../icons'
+import {
+  TbLayoutSidebarRightCollapse,
+  TbLayoutSidebarRightExpand,
+  TbChevronDown,
+  TbChevronUp,
+} from '../icons'
 import EditorSegmentNav, { type EditorToolKey } from './EditorSegmentNav'
 import EditorAdjustPanel from './EditorAdjustPanel'
 import EditorColorPanel from './EditorColorPanel'
@@ -12,6 +17,16 @@ import PresetsPanel from './PresetsPanel'
 import { resetEditPanel, countActiveEdits } from '../../utils'
 import type { EditPanelGroup } from '../../utils'
 import type { ImageEditSettings } from '../../types'
+
+const PRESETS_COLLAPSED_KEY = 'filedeal_editor_presets_collapsed'
+
+function readPresetsCollapsed(): boolean {
+  try {
+    return localStorage.getItem(PRESETS_COLLAPSED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
 
 const TOOL_RESET_GROUP: Record<EditorToolKey, EditPanelGroup> = {
   adjust: 'adjust',
@@ -57,7 +72,20 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
 }) => {
   const imagePixelCount = (imageWidth ?? 0) * (imageHeight ?? 0)
   const [collapsed, setCollapsed] = useState(false)
+  const [presetsCollapsed, setPresetsCollapsed] = useState(readPresetsCollapsed)
   const [activeTool, setActiveTool] = useState<EditorToolKey>('adjust')
+
+  const togglePresetsCollapsed = useCallback(() => {
+    setPresetsCollapsed(prev => {
+      const next = !prev
+      try {
+        localStorage.setItem(PRESETS_COLLAPSED_KEY, String(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }, [])
 
   const handleToolChange = (key: EditorToolKey) => {
     setActiveTool(key)
@@ -151,12 +179,32 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
 
       {!collapsed && (
         <>
-          <section className="image-editor-sidebar__presets-zone" aria-label="预设">
-            <PresetsPanel
-              layout="sidebar"
-              onApply={onApplyPreset}
-              currentSettings={settings}
-            />
+          <section
+            className={`image-editor-sidebar__presets-zone${presetsCollapsed ? ' is-presets-collapsed' : ''}`}
+            aria-label="预设"
+          >
+            <div className="image-editor-sidebar__presets-head">
+              <span className="image-editor-sidebar__presets-title">预设</span>
+              <Tooltip title={presetsCollapsed ? '展开预设' : '收起预设'}>
+                <Button
+                  type="text"
+                  size="small"
+                  className="image-editor-sidebar__presets-toggle"
+                  icon={presetsCollapsed ? <TbChevronDown size={16} /> : <TbChevronUp size={16} />}
+                  onClick={togglePresetsCollapsed}
+                  aria-label={presetsCollapsed ? '展开预设区' : '收起预设区'}
+                  aria-expanded={!presetsCollapsed}
+                />
+              </Tooltip>
+            </div>
+            {!presetsCollapsed ? (
+              <PresetsPanel
+                layout="sidebar"
+                onApply={onApplyPreset}
+                currentSettings={settings}
+                hideHeading
+              />
+            ) : null}
           </section>
 
           <section className="image-editor-sidebar__tools-zone" aria-label="编辑工具">
