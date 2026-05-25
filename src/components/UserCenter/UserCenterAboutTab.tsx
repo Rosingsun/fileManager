@@ -89,7 +89,7 @@ const FAQ_ITEMS = [
     children: (
       <Paragraph type="secondary" style={{ marginBottom: 0 }}>
         确认本机或内网可访问上方显示的 API 地址；开发环境默认{' '}
-        <Text code>http://localhost:3847</Text>，需先执行 <Text code>npm run dev:auth-api</Text>。生产构建请在{' '}
+        <Text code>http://localhost:3999</Text>，需先执行 <Text code>npm run dev:auth-api</Text>。生产构建请在{' '}
         <Text code>.env.production</Text> 中设置 <Text code>VITE_AUTH_API_BASE_URL</Text>（无尾部斜杠）。
       </Paragraph>
     ),

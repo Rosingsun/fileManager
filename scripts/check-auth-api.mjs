@@ -2,7 +2,7 @@
  * 探测认证 API 是否可达：GET /health
  * 用法：先启动 backend（npm run dev:auth-api），再在根目录执行 node scripts/check-auth-api.mjs
  */
-const base = (process.env.AUTH_API_URL || 'http://localhost:3847').replace(/\/$/, '')
+const base = (process.env.AUTH_API_URL || 'http://localhost:3999').replace(/\/$/, '')
 
 try {
   const res = await fetch(`${base}/health`)

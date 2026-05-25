@@ -17,7 +17,11 @@ import {
   ScanOutlined,
   BorderOuterOutlined,
 } from '@ant-design/icons'
-import { useImageEditorStore, isBuiltinPresetCollectionGroup } from '../../stores'
+import {
+  useImageEditorStore,
+  isBuiltinPresetCollectionGroup,
+  isBuiltinPresetSelectionId,
+} from '../../stores'
 import { exportProjectPresetPack, importProjectPresetPack, logSignedInUserAction } from '../../utils'
 import type { ImageEditSettings, ImagePreset, PresetGroup } from '../../types'
 
@@ -258,12 +262,18 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
     groups.find(g => g.id === selectedGroupId), 
   [groups, selectedGroupId])
 
-  const handleUpdatePreset = () => {
-    if (!selectedPresetId) {
-      message.warning('请先选择一个预设')
+  const handleUpdatePreset = (presetId: string) => {
+    if (isBuiltinPresetSelectionId(presetId)) {
+      message.warning('内置预设不可修改，请保存为自定义预设')
       return
     }
-    updatePreset(selectedPresetId, { settings: currentSettings })
+    const preset = presets.find(p => p.id === presetId)
+    if (!preset) {
+      message.warning('预设不存在或已被删除')
+      setSelectedPreset(null)
+      return
+    }
+    updatePreset(presetId, { settings: currentSettings })
     message.success('预设已更新')
     logSignedInUserAction('editor_preset_update', '编辑预设：更新当前预设参数')
   }
@@ -437,7 +447,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
             </>
           ) : isSelected ? (
             <>
-              <Button type="link" size="small" onClick={e => { e.stopPropagation(); handleUpdatePreset(); }} style={{ padding: '0 4px', fontSize: 11 }}>更新</Button>
+              <Button type="link" size="small" onClick={e => { e.stopPropagation(); handleUpdatePreset(item.id); }} style={{ padding: '0 4px', fontSize: 11 }}>更新</Button>
               <Button type="link" size="small" icon={<EditOutlined />} onClick={e => { e.stopPropagation(); handleStartEdit(item.id, item.name); }} style={{ padding: '0 2px' }} />
               <Popconfirm title="确认删除？" onConfirm={e => { e?.stopPropagation(); handleDeletePreset(item.id); }} okText="删除" cancelText="取消">
                 <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={e => e.stopPropagation()} style={{ padding: '0 2px' }} />

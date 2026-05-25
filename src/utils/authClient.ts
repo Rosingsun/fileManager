@@ -4,7 +4,7 @@ import { xhrPostWithProgress, XhrHttpError } from './xhrUpload'
  * 开发默认直连认证服务；后端已统一返回 Access-Control-Allow-Private-Network，避免 Chromium 跨端口预检卡死。
  * 若需经 Vite 同源代理，可在 .env.development 将 VITE_AUTH_API_BASE_URL 置空并在 electron.vite.config 的 renderer.server 配置 proxy。
  */
-const DEV_AUTH_API_DEFAULT = 'http://127.0.0.1:3847'
+const DEV_AUTH_API_DEFAULT = 'http://127.0.0.1:3999'
 
 export function getAuthApiBaseUrl(): string {
   const raw = import.meta.env.VITE_AUTH_API_BASE_URL

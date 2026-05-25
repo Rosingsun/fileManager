@@ -1,6 +1,6 @@
 import React from 'react'
-import { StopOutlined } from '@ant-design/icons'
-import { Button } from '../ui/button'
+import { TbPlayerStop } from '../icons'
+import { SimilarityButton } from './SimilarityButton'
 import type { SimilarityScanProgress } from '../../types'
 import CircularProgress from '../CircularProgress'
 import { SCAN_STAGE_PIPELINE, statusMeta } from './similarityShared'
@@ -79,10 +79,14 @@ const SimilarityScanProgressPanel: React.FC<SimilarityScanProgressPanelProps> = 
       ) : null}
 
       <div className="sim-scan__actions">
-        <Button type="button" variant="destructive" onClick={onCancel}>
-          <StopOutlined />
+        <SimilarityButton
+          variant="danger"
+          size="md"
+          icon={<TbPlayerStop size={16} />}
+          onClick={onCancel}
+        >
           取消扫描
-        </Button>
+        </SimilarityButton>
       </div>
     </section>
   )

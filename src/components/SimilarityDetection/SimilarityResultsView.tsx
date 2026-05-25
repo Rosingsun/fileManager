@@ -1,28 +1,23 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { message } from 'antd'
-import {
-  DeleteOutlined,
-  ReloadOutlined,
-  CheckCircleOutlined,
-  PictureOutlined,
-} from '@ant-design/icons'
+import { PictureOutlined } from '@ant-design/icons'
+import { TbCheck, TbRefresh, TbTrash } from '../icons'
 import type { SimilarityScanResult, SimilarityScanConfig, SimilarityGroup } from '../../types'
 import { formatFileSize, formatDateTime, logSignedInUserAction, imageLoader } from '../../utils'
 import ImagePreview, { type ImageSource } from '../ImagePreview/ImagePreview'
 import { AppEmptyState } from '../UnifiedUI'
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
 } from '../ui/alert-dialog'
 import { Badge } from '../ui/badge'
-import { Button } from '../ui/button'
 import { Checkbox } from '../ui/checkbox'
+import { FeatureActionDialogFooter } from '../FeatureAction'
+import { SimilarityButton, SimilarityButtonGroup } from './SimilarityButton'
 import SimilarityGroupStrip from './SimilarityGroupStrip'
 import { basename, getAlgorithmLabel } from './similarityShared'
 
@@ -345,10 +340,14 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
           title="未发现相似照片"
           description="可尝试放宽阈值或更换目录后重新扫描。"
           actions={
-            <Button type="button" size="sm" onClick={onReset}>
-              <ReloadOutlined />
+            <SimilarityButton
+              variant="secondary"
+              size="md"
+              icon={<TbRefresh size={16} />}
+              onClick={onReset}
+            >
               重新扫描
-            </Button>
+            </SimilarityButton>
           }
         />
       ) : (
@@ -357,33 +356,41 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
 
       <footer className="sim-dock">
         <div className="sim-dock__summary">
-          已选 {selectedGroups.size} / {result.groups.length} 组
+          已选 <strong>{selectedGroups.size}</strong> / {result.groups.length} 组
           <span>预计释放 {formatFileSize(saved)}</span>
         </div>
         <div className="sim-dock__actions">
-          <div className="sim-dock__group" role="group" aria-label="批量操作">
-            <Button type="button" variant="outline" onClick={handleSelectAllGroups}>
+          <SimilarityButtonGroup aria-label="批量选择">
+            <SimilarityButton variant="secondary" size="sm" onClick={handleSelectAllGroups}>
               {selectedGroups.size === result.groups.length ? '取消全选' : '全选'}
-            </Button>
-            <Button type="button" variant="outline" onClick={handleMarkAllBest}>
-              <CheckCircleOutlined />
+            </SimilarityButton>
+            <SimilarityButton
+              variant="emphasis"
+              size="sm"
+              icon={<TbCheck size={15} />}
+              onClick={handleMarkAllBest}
+            >
               推荐保留
-            </Button>
-          </div>
-          <Button
-            type="button"
+            </SimilarityButton>
+          </SimilarityButtonGroup>
+          <SimilarityButton
             className="sim-dock__cta"
-            variant="destructive"
+            variant="danger"
+            size="md"
+            icon={<TbTrash size={16} />}
             disabled={!selectedGroups.size || deleting}
             onClick={handleDeleteSelected}
           >
-            <DeleteOutlined />
             删除冗余
-          </Button>
-          <Button type="button" variant="outline" onClick={onReset}>
-            <ReloadOutlined />
+          </SimilarityButton>
+          <SimilarityButton
+            variant="ghost"
+            size="md"
+            icon={<TbRefresh size={16} />}
+            onClick={onReset}
+          >
             重新扫描
-          </Button>
+          </SimilarityButton>
         </div>
       </footer>
 
@@ -396,26 +403,32 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
           }
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent className="sim-dialog-content">
           <AlertDialogHeader>
+            <AlertDialogMedia className="sim-dialog-media">
+              <TbTrash aria-hidden />
+            </AlertDialogMedia>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>
-              将永久删除 {pendingDelete.length} 张照片，是否继续？
+            <AlertDialogDescription asChild>
+              <p className="sim-dialog-desc">
+                将永久删除 <strong className="sim-dialog-count">{pendingDelete.length}</strong>{' '}
+                张照片，此操作不可撤销。
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleting}
-              onClick={(e) => {
-                e.preventDefault()
-                void handleConfirmDelete()
-              }}
-            >
-              {deleting ? '删除中…' : '删除'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
+          <FeatureActionDialogFooter
+            confirmLabel={deleting ? '删除中…' : '确定删除'}
+            confirmVariant="danger"
+            cancelDisabled={deleting}
+            confirmDisabled={deleting}
+            onCancel={() => {
+              if (!deleting) {
+                setDeleteDialogOpen(false)
+                setPendingDelete([])
+              }
+            }}
+            onConfirm={() => void handleConfirmDelete()}
+          />
         </AlertDialogContent>
       </AlertDialog>
 

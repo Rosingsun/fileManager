@@ -88,7 +88,7 @@ const UserAuthPanel: React.FC<UserAuthPanelProps> = ({ onOpenShareView }) => {
           <>
             当前为生产或未注入环境变量：请在根目录 <Typography.Text code>.env.production</Typography.Text> / 构建流水线中设置{' '}
             <Typography.Text code>VITE_AUTH_API_BASE_URL</Typography.Text>（与后端一致、无尾部斜杠）。开发环境通常使用仓库内{' '}
-            <Typography.Text code>.env.development</Typography.Text>，默认 <Typography.Text code>http://localhost:3847</Typography.Text>。
+            <Typography.Text code>.env.development</Typography.Text>，默认 <Typography.Text code>http://localhost:3999</Typography.Text>。
           </>
         }
       />

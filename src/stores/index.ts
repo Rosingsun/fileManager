@@ -3,6 +3,7 @@ export { useImageClassificationStore } from './useImageClassificationStore'
 export {
   useImageEditorStore,
   isBuiltinPresetCollectionGroup,
+  isBuiltinPresetSelectionId,
   BUILTIN_PRESET_COLLECTION_IDS,
 } from './useImageEditorStore'
 export { useToolOutputPathStore } from './toolOutputPathStore'

@@ -87,6 +87,8 @@ interface InviteQuota {
   redeemedCount: number
   maxGenerationsPerDay: number
   generationsToday: number
+  /** 管理员不受邀请总人数上限约束 */
+  unlimitedInvitees?: boolean
 }
 
 const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, onNavigateApp }) => {
@@ -289,7 +291,7 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
           <>
             当前为生产或未注入环境变量：请在根目录 <Typography.Text code>.env.production</Typography.Text> / 构建流水线中设置{' '}
             <Typography.Text code>VITE_AUTH_API_BASE_URL</Typography.Text>（与后端一致、无尾部斜杠）。开发环境通常使用仓库内{' '}
-            <Typography.Text code>.env.development</Typography.Text>，默认 <Typography.Text code>http://localhost:3847</Typography.Text>。
+            <Typography.Text code>.env.development</Typography.Text>，默认 <Typography.Text code>http://localhost:3999</Typography.Text>。
           </>
         }
       />
@@ -468,7 +470,9 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                             description={`今日已生成 ${inviteQuota.generationsToday} / ${inviteQuota.maxGenerationsPerDay} 次（按 UTC 日切分），请明日再试或联系运维调整参数表。`}
                           />
                         ) : null}
-                        {inviteQuota && inviteQuota.redeemedCount >= inviteQuota.maxInvitees ? (
+                        {inviteQuota &&
+                        !inviteQuota.unlimitedInvitees &&
+                        inviteQuota.redeemedCount >= inviteQuota.maxInvitees ? (
                           <Alert
                             type="warning"
                             showIcon
@@ -481,7 +485,11 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                             type="info"
                             showIcon
                             style={{ marginBottom: 16 }}
-                            message={`还可邀请 ${Math.max(0, inviteQuota.maxInvitees - inviteQuota.redeemedCount)} 人（已成功 ${inviteQuota.redeemedCount} / ${inviteQuota.maxInvitees}）；今日还可生成 ${Math.max(0, inviteQuota.maxGenerationsPerDay - inviteQuota.generationsToday)} 次邀请码（已生成 ${inviteQuota.generationsToday} / ${inviteQuota.maxGenerationsPerDay}）`}
+                            message={
+                              inviteQuota.unlimitedInvitees
+                                ? `管理员账号：邀请总人数无上限（已成功 ${inviteQuota.redeemedCount} 人）；今日还可生成 ${Math.max(0, inviteQuota.maxGenerationsPerDay - inviteQuota.generationsToday)} 次邀请码（已生成 ${inviteQuota.generationsToday} / ${inviteQuota.maxGenerationsPerDay}）`
+                                : `还可邀请 ${Math.max(0, inviteQuota.maxInvitees - inviteQuota.redeemedCount)} 人（已成功 ${inviteQuota.redeemedCount} / ${inviteQuota.maxInvitees}）；今日还可生成 ${Math.max(0, inviteQuota.maxGenerationsPerDay - inviteQuota.generationsToday)} 次邀请码（已生成 ${inviteQuota.generationsToday} / ${inviteQuota.maxGenerationsPerDay}）`
+                            }
                           />
                         ) : null}
                         <div className="user-center-actions-row">
@@ -491,7 +499,8 @@ const UserCenter: React.FC<UserCenterProps> = ({ focusTab, onFocusTabConsumed, o
                             loading={inviteLoading}
                             disabled={
                               !!inviteQuota &&
-                              (inviteQuota.redeemedCount >= inviteQuota.maxInvitees ||
+                              ((!inviteQuota.unlimitedInvitees &&
+                                inviteQuota.redeemedCount >= inviteQuota.maxInvitees) ||
                                 inviteQuota.generationsToday >= inviteQuota.maxGenerationsPerDay)
                             }
                             onClick={() => void onCreateInvite()}

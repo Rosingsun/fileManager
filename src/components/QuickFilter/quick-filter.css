@@ -1,22 +1,23 @@
 /* 快速筛选 — macOS 风格工作区 */
 
 .quick-filter {
+  --qf-inset-x: 20px;
   height: 100%;
   min-height: 0;
-  padding: 10px 0;
+  padding: 12px var(--qf-inset-x) 16px;
   box-sizing: border-box;
 }
 
 .qf-page {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 12px;
   min-height: 100%;
 }
 
 .qf-hero {
   position: relative;
-  padding: 12px 14px 10px;
+  padding: 14px 18px 12px;
   border-radius: var(--app-radius-lg);
   background:
     radial-gradient(ellipse 80% 60% at 100% 0%, color-mix(in srgb, var(--app-warning) 18%, transparent), transparent 55%),
@@ -92,7 +93,7 @@
 }
 
 .qf-body {
-  padding: 0 0 12px;
+  padding: 0 2px 12px;
 }
 
 .qf-intro {
@@ -353,7 +354,7 @@
   flex-direction: column;
   align-items: center;
   gap: 1px;
-  padding: 7px 6px;
+  padding: 10px 8px;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-lg);
   background: var(--app-surface-subtle);
@@ -496,10 +497,12 @@
 .qf-setup-bar {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 16px 20px;
   border-radius: var(--app-radius-lg);
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--app-glass-border);
   background: var(--app-glass-bg);
   backdrop-filter: blur(12px);
   position: sticky;
@@ -509,15 +512,19 @@
 
 .qf-setup-bar__row {
   display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+  justify-content: center;
+  width: 100%;
+  padding: 0 12px;
 }
 
 .qf-setup-bar__note {
   margin: 0;
+  max-width: 520px;
+  padding: 0 8px;
   font-size: 11px;
   color: var(--app-text-tertiary);
   text-align: center;
+  line-height: 1.45;
 }
 
 /* —— 扫描进度 —— */
@@ -747,36 +754,58 @@
   color: var(--app-warning);
 }
 
-.qf-toolbar {
+/* 结果页操作坞 */
+.qf-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 14px 18px;
   border-radius: var(--app-radius-lg);
-  border: 1px solid var(--app-border);
-  background: var(--app-surface-elevated);
+  border: 1px solid var(--app-glass-border);
+  background: color-mix(in srgb, var(--app-glass-bg) 96%, transparent);
+  backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: var(--app-shadow-md);
 }
 
-.qf-toolbar__group {
+.qf-dock__summary {
+  flex: 1;
+  min-width: 160px;
+  padding-right: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text-primary);
+  line-height: 1.35;
+}
+
+.qf-dock__summary span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--app-text-secondary);
+}
+
+.qf-dock__summary strong {
+  color: var(--app-warning);
+  font-weight: 700;
+}
+
+.qf-dock__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
-.qf-toolbar__group+.qf-toolbar__group::before {
-  content: '';
-  width: 1px;
-  height: 20px;
-  margin: 0 4px;
-  background: var(--app-border);
-}
-
-.qf-toolbar__meta {
-  font-size: 12px;
-  color: var(--app-text-secondary);
-  margin-right: 4px;
+.qf-dock__cta.feat-btn--danger {
+  min-width: 112px;
+  font-weight: 700;
 }
 
 .qf-table-wrap {
@@ -815,17 +844,183 @@
 .qf-results-footer {
   display: flex;
   justify-content: flex-end;
-  padding-top: 4px;
+  padding: 8px 4px 0;
+}
+
+/* —— 弹出框 —— */
+.qf-dialog-content {
+  max-width: 440px !important;
+  width: calc(100vw - 40px);
+  padding: 18px 22px 0 !important;
+  border-radius: var(--app-radius-lg) !important;
+  border: 1px solid var(--app-glass-border) !important;
+  background: var(--app-glass-bg) !important;
+  backdrop-filter: blur(24px) saturate(1.15);
+  box-shadow: var(--app-shadow-lg) !important;
+  ring: none !important;
+}
+
+.qf-dialog-content .alert-dialog-header,
+.qf-dialog-content [data-slot='alert-dialog-header'] {
+  place-items: start !important;
+  text-align: left !important;
+  gap: 6px !important;
+}
+
+.qf-dialog-media {
+  margin-bottom: 4px !important;
+  border-radius: 12px !important;
+  border: 1px solid var(--app-border);
+}
+
+.qf-dialog-media--primary {
+  background: color-mix(in srgb, var(--app-primary) 14%, var(--app-surface)) !important;
+  color: var(--app-primary) !important;
+}
+
+.qf-dialog-media--warning {
+  background: color-mix(in srgb, var(--app-warning) 14%, var(--app-surface)) !important;
+  color: var(--app-warning) !important;
+}
+
+.qf-dialog-media--danger {
+  background: color-mix(in srgb, var(--app-danger) 14%, var(--app-surface)) !important;
+  color: var(--app-danger) !important;
+}
+
+.qf-dialog-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--app-text-secondary);
+}
+
+.qf-dialog-count {
+  font-weight: 700;
+  color: var(--app-danger);
+}
+
+.qf-dialog-path {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  margin: 4px 0 2px;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-subtle);
+}
+
+.qf-dialog-path__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--app-text-tertiary);
+  letter-spacing: 0.02em;
+}
+
+.qf-dialog-path__value {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-all;
+  color: var(--app-text-primary);
+  background: transparent;
+  border: none;
+  padding: 0;
 }
 
 .qf-dialog-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin: 8px 0 4px;
+}
+
+.qf-dialog-field__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+}
+
+.qf-dialog-segment {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 5px;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-text-primary) 4%, transparent);
+}
+
+.qf-dialog-segment .feat-btn--segment {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.qf-dialog-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0 4px;
+  padding: 10px 12px;
+  border-radius: var(--app-radius-md);
+  border: 1px solid var(--app-border);
+  background: var(--app-surface-subtle);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--app-text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.qf-dialog-check:hover {
+  border-color: var(--app-border-strong);
+}
+
+
+.qf-scan__actions {
   margin-top: 8px;
+  padding: 0 12px;
+}
+
+/* antd 下拉菜单（整理 / 更多） */
+.qf-dropdown.ant-dropdown .ant-dropdown-menu {
+  padding: 6px;
+  border-radius: var(--app-radius-lg);
+  border: 1px solid var(--app-glass-border);
+  background: var(--app-glass-bg);
+  backdrop-filter: blur(20px) saturate(1.15);
+  box-shadow: var(--app-shadow-md);
+}
+
+.qf-dropdown.ant-dropdown .ant-dropdown-menu-item {
+  border-radius: var(--app-radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 12px;
+  gap: 10px;
+}
+
+.qf-dropdown.ant-dropdown .ant-dropdown-menu-item:hover {
+  background: var(--app-selected-bg);
+}
+
+.qf-dropdown.ant-dropdown .ant-dropdown-menu-item-icon {
+  font-size: 15px;
+  color: var(--app-text-secondary);
+}
+
+.qf-path__actions {
+  display: flex;
+  justify-content: center;
+  padding: 4px 12px 0;
 }
 
 @media (max-width: 900px) {
+  .quick-filter {
+    --qf-inset-x: 14px;
+  }
   .qf-setup-grid {
     grid-template-columns: 1fr;
   }
@@ -834,7 +1029,26 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .qf-toolbar__group+.qf-toolbar__group::before {
-    display: none;
+  .qf-dock {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px 14px;
+  }
+
+  .qf-dock__actions {
+    justify-content: stretch;
+  }
+
+  .feat-btn-group {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .feat-btn-group .feat-btn {
+    flex: 1;
+  }
+
+  .qf-dock__cta.feat-btn--danger {
+    width: 100%;
   }
 }

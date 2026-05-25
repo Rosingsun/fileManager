@@ -1,6 +1,6 @@
 import React from 'react'
-import { StopOutlined } from '@ant-design/icons'
-import { Button } from '../ui/button'
+import { TbPlayerStop } from '../icons'
+import { QuickFilterButton } from './QuickFilterButton'
 import type { ImageQualityScanProgress } from '../../types'
 import CircularProgress from '../CircularProgress'
 import { SCAN_STAGE_PIPELINE, statusMeta } from './quickFilterShared'
@@ -72,10 +72,16 @@ const QuickFilterScanProgress: React.FC<QuickFilterScanProgressProps> = ({ progr
         </div>
       ) : null}
 
-      <Button type="button" variant="destructive" size="sm" onClick={onCancel}>
-        <StopOutlined />
-        取消分析
-      </Button>
+      <div className="qf-scan__actions">
+        <QuickFilterButton
+          variant="danger"
+          size="md"
+          icon={<TbPlayerStop size={16} />}
+          onClick={onCancel}
+        >
+          取消分析
+        </QuickFilterButton>
+      </div>
     </section>
   )
 }

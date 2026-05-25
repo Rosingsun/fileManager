@@ -16,7 +16,7 @@
 2. **（可选）用户中心自建 API（前后端联调）**
    - 在 MySQL 中建库并执行 `backend/migrations/` 下 SQL（或按 `backend/README.md` 迁移）。
    - 后端环境：`npm run init:backend-env`（若无 `backend/.env` 则从示例复制），再编辑 `JWT_SECRET`（≥16 字符）、`MYSQL_*`。
-   - 前端 API 地址：仓库已含根目录 `.env.development`，默认 `VITE_AUTH_API_BASE_URL=http://localhost:3847`（与 Vite 默认 `localhost` 页面一致，避免 Chromium 对 `127.0.0.1` 的本地网络预检拦截）；若需改端口可编辑该文件或自建根目录 `.env`。
+   - 前端 API 地址：仓库已含根目录 `.env.development`，默认 `VITE_AUTH_API_BASE_URL=http://localhost:3999`（与 Vite 默认 `localhost` 页面一致，避免 Chromium 对 `127.0.0.1` 的本地网络预检拦截）；若需改端口可编辑该文件或自建根目录 `.env`。
    - 终端一：`npm run dev:auth-api`；自检：`npm run check:auth-api`（需后端已监听）。终端二：`npm run dev`。
    - 功能说明见 [docs/user-center-features.md](docs/user-center-features.md)。生产环境注册需**邀请码**；数据库尚无用户时可用 `POST /auth/bootstrap-first-user`（在 `backend/.env` 配置 `BOOTSTRAP_INVITE_SECRET`）创建首个账号以便后续发码。
 
@@ -128,6 +128,7 @@ npm install
 | 2026-05-25 | 迁移 `012_cos_shares.sql`；`POST /share/create`、`POST /share/revoke`、`GET /share/mine`；匿名 `GET /share/:token`、`GET /share/:token/browse`、`POST /share/:token/presign-get` | 云图库分享：MySQL `cos_shares` 表存 token、资源类型（file/folder）、COS key/prefix、权限（read/download）、过期与撤销。登录用户可创建/撤销/列出分享；匿名凭 token 读元数据、浏览文件夹、获取短时预签名预览 URL（**不**复用 `/cos/presign-get` 所有权校验）。禁止分享 `avatars/` 路径。前端 `shareClient.ts`、云图库「创建分享」、应用内 `#share/{token}` 预览页 `CosShareViewTab`。 |
 | 2026-05-20 | `GET /admin/users/cos-quota/list` | 需管理员。分页列出全部用户云图库配额；query：`keyword`（邮箱/昵称模糊）、`minQuotaGb`/`maxQuotaGb`、`page`/`pageSize`、`sortBy`（`email` \| `displayName` \| `quotaBytes` \| `createdAt`）、`sortOrder`、`withUsage`（为 true 时拉取 COS 用量）、`usageLevel`（`high`≥90% \| `over`≥100%，需 `withUsage`）。`data`：`{ items, total, page, pageSize, defaultQuotaBytesForNewUsers, cosConfigured }`。前端「云库配额管理」默认展示用户列表与筛选。 |
 | 2026-05-19 | Electron `tools:previewFocusAdjust`、`tools:applyFocusAdjust` | 实用工具「对焦调整」。`invoke(filePath, FocusAdjustOptions)`：预览返回 JPEG base64；导出返回输出路径。`FocusAdjustOptions`：`mode`（`subjectRecover` \| `regionSharpen`）、`focusX`/`focusY`（0–1）、`radius`、`sharpenStrength`、`backgroundBlur`、`feather`、可选 `outputPath`。前端 `electronAPI.previewFocusAdjust` / `applyFocusAdjust`。 |
+| 2026-05-25 | `POST /invites`、`GET /invites/quota` | 需 Bearer。`users.is_admin = 1` 的管理员生成邀请码时**不校验** `invite_max_redemptions_per_inviter`（不受邀请总人数上限，`403 INVITE_QUOTA_EXCEEDED` 不适用于管理员）。`GET /invites/quota` 的 `data` 增加 `unlimitedInvitees`（boolean）。每日生成次数上限仍适用。 |
 | 2026-05-19 | 迁移 `011_user_cos_quota_adjustments.sql`；`GET/POST /admin/users/cos-quota`、`GET /admin/users/cos-quota/history` | 需管理员。按用户查询云图库配额与 COS 用量；`POST` body 二选一：`quotaBytes`（设为绝对上限）或 `addQuotaBytes`（充值增量）；写入 `user_cos_quota_adjustments` 审计。`GET/POST /admin/parameters/cos` 的视图增加/可更新 `defaultUserStorageQuotaBytes`（新用户默认，不改已有用户）。登录/刷新/`GET /users/me` 的 `user` 增加 `cosStorageQuotaBytes`。前端管理员「云库配额管理」页。 |
 | 2026-05-19 | 迁移 `010_users_cos_storage_quota.sql`；`GET /cos/image-stats`；`POST /cos/upload` | `users` 新增 `cos_storage_quota_bytes`（默认 5GB）；`app_parameters` 新增 `cos_user_storage_quota_bytes`（新注册用户默认配额）。`image-stats` 的 `data` 增加 `quotaBytes`；上传前校验总用量，超限 `413`、`STORAGE_QUOTA_EXCEEDED`。前端 `cosImageStats` 类型 `CosImageStats`；云图库摘要卡与个人中心展示「已用 / 上限」与进度条。 |
 | 2026-05-19 | 迁移 `009_app_parameters_remark.sql` | `app_parameters` 新增可空列 `remark`（VARCHAR(512)），并为现有邀请/COS 共 10 个参数键写入中文维护说明；运维可直接在库中查阅或修改备注，不影响业务读取逻辑。 |

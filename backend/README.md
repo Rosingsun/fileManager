@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-默认监听 `0.0.0.0:3847`（本机可用 `http://localhost:3847` 或 `http://127.0.0.1:3847`）。在仓库根目录配置 `VITE_AUTH_API_BASE_URL=http://localhost:3847` 供 Electron 渲染进程连接（与 Vite 默认 `localhost` 一致，避免浏览器本地网络预检问题）。
+默认监听 `0.0.0.0:3999`（本机可用 `http://localhost:3999` 或 `http://127.0.0.1:3999`）。在仓库根目录配置 `VITE_AUTH_API_BASE_URL=http://localhost:3999` 供 Electron 渲染进程连接（与 Vite 默认 `localhost` 一致，避免浏览器本地网络预检问题）。
 
 ## 构建生产包
 

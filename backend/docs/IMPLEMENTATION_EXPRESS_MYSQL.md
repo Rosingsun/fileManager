@@ -20,7 +20,7 @@ npm install -D @types/express @types/cors
 建议在仓库中维护 `backend/.env.example`（勿含真实密码），示例内容：
 
 ```
-PORT=3847
+PORT=3999
 JWT_SECRET=change-me-at-least-16-chars
 
 MYSQL_HOST=127.0.0.1
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 
 ## 7. 桌面端
 
-根目录 `.env` 中 `VITE_AUTH_API_BASE_URL` 指向本服务（如 `http://127.0.0.1:3847`）。若前端尚未接统一 `ok/data` 外壳，可在 axios/fetch 封装层做一次解包，或临时在 auth 路由里同时兼容旧扁平结构（不推荐长期）。
+根目录 `.env` 中 `VITE_AUTH_API_BASE_URL` 指向本服务（如 `http://127.0.0.1:3999`）。若前端尚未接统一 `ok/data` 外壳，可在 axios/fetch 封装层做一次解包，或临时在 auth 路由里同时兼容旧扁平结构（不推荐长期）。
 
 ---
 

@@ -1,18 +1,63 @@
 import React from 'react'
-import { Radio, Checkbox, Typography } from 'antd'
 import type { FileConflictAction } from '../../types'
+import { TbCopy, TbFolderSymlink, TbTrash } from '../icons'
+import { Checkbox } from '../ui/checkbox'
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
 } from '../ui/alert-dialog'
+import { FeatureActionButton } from '../FeatureAction'
+import { FeatureActionDialogFooter } from '../FeatureAction'
 
-const { Paragraph } = Typography
+const CONFLICT_OPTIONS: { value: FileConflictAction; label: string }[] = [
+  { value: 'rename', label: '自动重命名' },
+  { value: 'skip', label: '跳过' },
+  { value: 'overwrite', label: '覆盖' },
+]
+
+function ConflictOptionGroup({
+  value,
+  onChange,
+}: {
+  value: FileConflictAction
+  onChange: (v: FileConflictAction) => void
+}) {
+  return (
+    <div className="qf-dialog-segment" role="radiogroup" aria-label="重名时">
+      {CONFLICT_OPTIONS.map((opt) => (
+        <FeatureActionButton
+          key={opt.value}
+          type="button"
+          variant="segment"
+          size="sm"
+          active={value === opt.value}
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </FeatureActionButton>
+      ))}
+    </div>
+  )
+}
+
+function DialogField({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="qf-dialog-field">
+      <span className="qf-dialog-field__label">{label}</span>
+      {children}
+    </div>
+  )
+}
 
 interface CopyDialogProps {
   open: boolean
@@ -36,30 +81,34 @@ export const QuickFilterCopyDialog: React.FC<CopyDialogProps> = ({
   onConfirm,
 }) => (
   <AlertDialog open={open} onOpenChange={(v) => !v && onCancel()}>
-    <AlertDialogContent>
+    <AlertDialogContent className="qf-dialog-content">
       <AlertDialogHeader>
+        <AlertDialogMedia className="qf-dialog-media qf-dialog-media--primary">
+          <TbCopy aria-hidden />
+        </AlertDialogMedia>
         <AlertDialogTitle>复制到文件夹</AlertDialogTitle>
         <AlertDialogDescription asChild>
-          <Paragraph ellipsis={{ rows: 2 }} type="secondary" style={{ marginBottom: 0 }}>
-            目标：{destDir}
-          </Paragraph>
+          <p className="qf-dialog-desc">
+            将把选中文件复制到下方目标目录，原文件保留不变。
+          </p>
         </AlertDialogDescription>
       </AlertDialogHeader>
-      <div className="qf-dialog-field">
-        <span>重名时</span>
-        <Radio.Group value={conflict} onChange={(e) => onConflictChange(e.target.value)}>
-          <Radio value="rename">自动重命名</Radio>
-          <Radio value="skip">跳过</Radio>
-          <Radio value="overwrite">覆盖</Radio>
-        </Radio.Group>
-        <Checkbox checked={removeAfter} onChange={(e) => onRemoveAfterChange(e.target.checked)}>
-          成功后从当前结果列表移除
-        </Checkbox>
+      <div className="qf-dialog-path" title={destDir}>
+        <span className="qf-dialog-path__label">目标目录</span>
+        <code className="qf-dialog-path__value">{destDir}</code>
       </div>
-      <AlertDialogFooter>
-        <AlertDialogCancel onClick={onCancel}>取消</AlertDialogCancel>
-        <AlertDialogAction onClick={onConfirm}>开始复制</AlertDialogAction>
-      </AlertDialogFooter>
+      <DialogField label="重名时">
+        <ConflictOptionGroup value={conflict} onChange={onConflictChange} />
+      </DialogField>
+      <label className="qf-dialog-check">
+        <Checkbox checked={removeAfter} onCheckedChange={(v) => onRemoveAfterChange(v === true)} />
+        <span>复制成功后从当前结果列表移除</span>
+      </label>
+      <FeatureActionDialogFooter
+        confirmLabel="开始复制"
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+      />
     </AlertDialogContent>
   </AlertDialog>
 )
@@ -86,23 +135,24 @@ export const QuickFilterOrganizeDialog: React.FC<OrganizeDialogProps> = ({
   onConfirm,
 }) => (
   <AlertDialog open={open} onOpenChange={(v) => !v && onCancel()}>
-    <AlertDialogContent>
+    <AlertDialogContent className="qf-dialog-content">
       <AlertDialogHeader>
+        <AlertDialogMedia className="qf-dialog-media qf-dialog-media--warning">
+          <TbFolderSymlink aria-hidden />
+        </AlertDialogMedia>
         <AlertDialogTitle>{title}</AlertDialogTitle>
-        <AlertDialogDescription>{description}</AlertDialogDescription>
+        <AlertDialogDescription asChild>
+          <p className="qf-dialog-desc">{description}</p>
+        </AlertDialogDescription>
       </AlertDialogHeader>
-      <div className="qf-dialog-field">
-        <span>重名时</span>
-        <Radio.Group value={conflict} onChange={(e) => onConflictChange(e.target.value)}>
-          <Radio value="rename">自动重命名</Radio>
-          <Radio value="skip">跳过</Radio>
-          <Radio value="overwrite">覆盖</Radio>
-        </Radio.Group>
-      </div>
-      <AlertDialogFooter>
-        <AlertDialogCancel onClick={onCancel}>取消</AlertDialogCancel>
-        <AlertDialogAction onClick={onConfirm}>{confirmLabel}</AlertDialogAction>
-      </AlertDialogFooter>
+      <DialogField label="重名时">
+        <ConflictOptionGroup value={conflict} onChange={onConflictChange} />
+      </DialogField>
+      <FeatureActionDialogFooter
+        confirmLabel={confirmLabel}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+      />
     </AlertDialogContent>
   </AlertDialog>
 )
@@ -123,25 +173,26 @@ export const QuickFilterDeleteDialog: React.FC<DeleteDialogProps> = ({
   onConfirm,
 }) => (
   <AlertDialog open={open} onOpenChange={(v) => !v && !deleting && onCancel()}>
-    <AlertDialogContent>
+    <AlertDialogContent className="qf-dialog-content qf-dialog-content--danger">
       <AlertDialogHeader>
+        <AlertDialogMedia className="qf-dialog-media qf-dialog-media--danger">
+          <TbTrash aria-hidden />
+        </AlertDialogMedia>
         <AlertDialogTitle>确认删除</AlertDialogTitle>
-        <AlertDialogDescription>
-          将永久删除选中的 {count} 个文件，此操作不可撤销。
+        <AlertDialogDescription asChild>
+          <p className="qf-dialog-desc">
+            将永久删除选中的 <strong className="qf-dialog-count">{count}</strong> 个文件，此操作不可撤销。
+          </p>
         </AlertDialogDescription>
       </AlertDialogHeader>
-      <AlertDialogFooter>
-        <AlertDialogCancel onClick={onCancel} disabled={deleting}>
-          取消
-        </AlertDialogCancel>
-        <AlertDialogAction
-          onClick={onConfirm}
-          disabled={deleting}
-          className="bg-destructive text-white hover:bg-destructive/90"
-        >
-          {deleting ? '删除中…' : '确定删除'}
-        </AlertDialogAction>
-      </AlertDialogFooter>
+      <FeatureActionDialogFooter
+        confirmLabel={deleting ? '删除中…' : '确定删除'}
+        confirmVariant="danger"
+        cancelDisabled={deleting}
+        confirmDisabled={deleting}
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+      />
     </AlertDialogContent>
   </AlertDialog>
 )

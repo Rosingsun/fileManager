@@ -45,7 +45,7 @@ function resolveLogRoot(): string {
 
 export const env = {
   NODE_ENV: raw.NODE_ENV || 'development',
-  PORT: Number(raw.PORT || 3847),
+  PORT: Number(raw.PORT || 3999),
   JWT_SECRET: (raw.JWT_SECRET || '').trim(),
 
   /** 运行日志根目录；其下为 年/月/YYYY-MM-DD.log */

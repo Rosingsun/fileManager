@@ -117,7 +117,7 @@ const UserCenterPreferencesTab: React.FC<Pick<UserCenterPanelProps, 'onNavigateA
         </Text>
         <Text>
           预设 <Text strong>{presets.length}</Text> 个 · 自定义分组{' '}
-          <Text strong>{groups.filter((g) => !g.isBuiltIn).length}</Text> 个
+          <Text strong>{groups.filter((g) => !g.isBuiltIn && g.id !== 'ungrouped').length}</Text> 个
         </Text>
       </PageSection>
 

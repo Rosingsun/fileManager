@@ -3,7 +3,6 @@ import React, { useState } from "react";
 import {
   Form,
   Input,
-  Button,
   Switch,
   Slider,
   Collapse,
@@ -12,14 +11,11 @@ import {
 } from "antd";
 
 import {
-  FolderOpenOutlined,
-  EyeOutlined,
   FolderOutlined,
-  ThunderboltOutlined,
-  ScanOutlined,
-  DeploymentUnitOutlined,
   QuestionCircleOutlined,
 } from "@ant-design/icons";
+import { TbBolt, TbEye, TbFolderOpen, TbLayersLinked, TbRadar, TbScan } from "../icons";
+import { SimilarityButton } from "./SimilarityButton";
 
 import type { SimilarityScanConfig } from "../../types";
 
@@ -36,11 +32,9 @@ interface SimilarityScanSetupProps {
 }
 
 const ALGO_ICONS = {
-  hash: ThunderboltOutlined,
-
-  phash: ScanOutlined,
-
-  both: DeploymentUnitOutlined,
+  hash: TbBolt,
+  phash: TbScan,
+  both: TbLayersLinked,
 } as const;
 
 const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
@@ -185,13 +179,16 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
               <>
                 <code className="sim-path__code">{scanPath}</code>
 
-                <Button
-                  type="default"
-                  icon={<FolderOpenOutlined />}
-                  onClick={handleSelectPath}
-                >
-                  更换目录
-                </Button>
+                <div className="sim-path__actions">
+                  <SimilarityButton
+                    variant="secondary"
+                    size="md"
+                    icon={<TbFolderOpen size={16} />}
+                    onClick={handleSelectPath}
+                  >
+                    更换目录
+                  </SimilarityButton>
+                </div>
               </>
             )}
           </div>
@@ -337,7 +334,7 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
                   onClick={() => form.setFieldsValue({ algorithm: opt.value })}
                 >
                   <span className="sim-algo__icon">
-                    <Icon />
+                    <Icon size={15} />
                   </span>
 
                   <span className="sim-algo__name">{opt.name}</span>
@@ -352,22 +349,23 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
 
       <div className="sim-setup-bar">
         <div className="sim-setup-bar__row">
-          <Button
-            className="sim-setup-bar__preview"
-            icon={<EyeOutlined />}
+          <SimilarityButton
+            variant="ghost"
+            size="md"
+            icon={<TbEye size={16} />}
             onClick={() => setPreviewVisible(true)}
           >
             预览配置
-          </Button>
-          <Button
-            type="primary"
-            size="large"
-            htmlType="submit"
-            icon={<ScanOutlined />}
+          </SimilarityButton>
+          <SimilarityButton
+            type="submit"
+            variant="primary"
+            size="lg"
+            icon={<TbRadar size={17} />}
             disabled={!scanPath}
           >
             开始扫描
-          </Button>
+          </SimilarityButton>
         </div>
       </div>
 

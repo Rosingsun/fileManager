@@ -20,17 +20,20 @@ export const inviteService = {
     redeemedCount: number
     maxGenerationsPerDay: number
     generationsToday: number
+    unlimitedInvitees: boolean
   }> {
     const pool = getPool()
     const now = Date.now()
     const dayStart = utcDayStartMs(now)
-    const [maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday] = await Promise.all([
-      paramsRepo.getInviteMaxRedemptionsPerInviter(pool),
-      repo.countRedemptionsByInviter(pool, inviterUserId),
-      paramsRepo.getInviteMaxGenerationsPerDay(pool),
-      repo.countInviteCodesCreatedSince(pool, inviterUserId, dayStart),
-    ])
-    return { maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday }
+    const [maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday, unlimitedInvitees] =
+      await Promise.all([
+        paramsRepo.getInviteMaxRedemptionsPerInviter(pool),
+        repo.countRedemptionsByInviter(pool, inviterUserId),
+        paramsRepo.getInviteMaxGenerationsPerDay(pool),
+        repo.countInviteCodesCreatedSince(pool, inviterUserId, dayStart),
+        authRepo.isUserAdmin(pool, inviterUserId),
+      ])
+    return { maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday, unlimitedInvitees }
   },
 
   async createInvite(inviterUserId: string, body: unknown): Promise<{
@@ -57,10 +60,13 @@ export const inviteService = {
       if (!locked) {
         throw new AppError(404, 'USER_NOT_FOUND', '用户不存在')
       }
-      const maxInvitees = await paramsRepo.getInviteMaxRedemptionsPerInviter(conn)
-      const redeemedCount = await repo.countRedemptionsByInviter(conn, inviterUserId)
-      if (redeemedCount >= maxInvitees) {
-        throw new AppError(403, 'INVITE_QUOTA_EXCEEDED', '已达邀请人数上限')
+      const isAdmin = await authRepo.isUserAdmin(conn, inviterUserId)
+      if (!isAdmin) {
+        const maxInvitees = await paramsRepo.getInviteMaxRedemptionsPerInviter(conn)
+        const redeemedCount = await repo.countRedemptionsByInviter(conn, inviterUserId)
+        if (redeemedCount >= maxInvitees) {
+          throw new AppError(403, 'INVITE_QUOTA_EXCEEDED', '已达邀请人数上限')
+        }
       }
       const maxPerDay = await paramsRepo.getInviteMaxGenerationsPerDay(conn)
       const dayStart = utcDayStartMs(now)

@@ -252,11 +252,10 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
           style={{ width: layoutW, height: layoutH }}
         >
           <img
-            className="editor-compare-frame__img editor-compare-frame__img--base"
+            className={`editor-compare-frame__img editor-compare-frame__img--base${pickWhiteBalanceMode ? ' is-wb-pick' : ''}`}
             src={pristineSrc}
             alt="原图"
             draggable={false}
-            className={pickWhiteBalanceMode ? 'is-wb-pick' : undefined}
             onClick={handlePickClick}
             onLoad={e => {
               const img = e.currentTarget
@@ -268,11 +267,10 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
             style={{ clipPath: `inset(0 ${100 - wipePos}% 0 0)` }}
           >
             <img
-              className="editor-compare-frame__img editor-compare-frame__img--edited"
+              className={`editor-compare-frame__img editor-compare-frame__img--edited${pickWhiteBalanceMode ? ' is-wb-pick' : ''}`}
               src={compareEditedSrc}
               alt="效果"
               draggable={false}
-              className={pickWhiteBalanceMode ? 'is-wb-pick' : undefined}
               onClick={handlePickClick}
               style={{
                 filter: compareEditedFilter,
@@ -280,6 +278,16 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
               }}
             />
           </div>
+          <div
+            className="editor-compare-frame__region-veil editor-compare-frame__region-veil--effect"
+            style={{ clipPath: `inset(0 ${100 - wipePos}% 0 0)` }}
+            aria-hidden
+          />
+          <div
+            className="editor-compare-frame__region-veil editor-compare-frame__region-veil--original"
+            style={{ clipPath: `inset(0 0 0 ${wipePos}%)` }}
+            aria-hidden
+          />
           <div
             className="editor-compare-frame__divider"
             style={{ left: `${wipePos}%` }}
@@ -296,8 +304,8 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
           >
             <span className="editor-compare-frame__handle" />
           </div>
-          <span className="editor-compare-frame__badge editor-compare-frame__badge--left">效果</span>
-          <span className="editor-compare-frame__badge editor-compare-frame__badge--right">原图</span>
+          <span className="editor-compare-frame__badge editor-compare-frame__badge--effect">效果</span>
+          <span className="editor-compare-frame__badge editor-compare-frame__badge--original">原图</span>
         </div>
       )
     }

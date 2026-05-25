@@ -12,15 +12,8 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { MenuProps } from 'antd'
-import {
-  CopyOutlined,
-  DeleteOutlined,
-  DownOutlined,
-  ExportOutlined,
-  InboxOutlined,
-  ReloadOutlined,
-  TagsOutlined,
-} from '@ant-design/icons'
+import { DownOutlined } from '@ant-design/icons'
+import { TbCopy, TbDownload, TbInbox, TbRefresh, TbSparkles, TbTags, TbTrash } from '../icons'
 import type {
   FileConflictAction,
   ImageQualityItemResult,
@@ -29,7 +22,7 @@ import type {
   QuickFilterTier,
 } from '../../types'
 import { ImageViewer } from '../'
-import { Button } from '../ui/button'
+import { QuickFilterButton, QuickFilterButtonGroup } from './QuickFilterButton'
 import {
   getElectronApiIssueMessage,
   getFileExtension,
@@ -357,13 +350,28 @@ const QuickFilterResultsView: React.FC<QuickFilterResultsViewProps> = ({
   }
 
   const organizeMenuItems: MenuProps['items'] = [
-    { key: 'copy', icon: <CopyOutlined />, label: '复制到…', onClick: () => void handleOpenCopyModal() },
-    { key: 'flag', icon: <TagsOutlined />, label: '按标记整理…', onClick: () => setFlagOrgModalOpen(true) },
-    { key: 'tier', icon: <InboxOutlined />, label: '按评级整理…', onClick: () => setTierOrgModalOpen(true) },
+    {
+      key: 'copy',
+      icon: <TbCopy size={16} />,
+      label: '复制到文件夹…',
+      onClick: () => void handleOpenCopyModal(),
+    },
+    {
+      key: 'flag',
+      icon: <TbTags size={16} />,
+      label: '按分析标记整理…',
+      onClick: () => setFlagOrgModalOpen(true),
+    },
+    {
+      key: 'tier',
+      icon: <TbInbox size={16} />,
+      label: '按评级整理…',
+      onClick: () => setTierOrgModalOpen(true),
+    },
   ]
 
   const moreMenuItems: MenuProps['items'] = [
-    { key: 'export', icon: <ExportOutlined />, label: '导出 CSV', onClick: handleExportCsv },
+    { key: 'export', icon: <TbDownload size={16} />, label: '导出 CSV', onClick: handleExportCsv },
   ]
 
   const columns: ColumnsType<ImageQualityItemResult> = useMemo(
@@ -448,9 +456,9 @@ const QuickFilterResultsView: React.FC<QuickFilterResultsViewProps> = ({
         key: 'act',
         width: 80,
         render: (_, r) => (
-          <Button type="button" variant="link" size="sm" onClick={() => handleOpenPreview(r)}>
+          <QuickFilterButton variant="ghost" size="sm" onClick={() => handleOpenPreview(r)}>
             预览
-          </Button>
+          </QuickFilterButton>
         ),
       },
     ],
@@ -503,44 +511,6 @@ const QuickFilterResultsView: React.FC<QuickFilterResultsViewProps> = ({
         />
       ) : null}
 
-      <div className="qf-toolbar">
-        <div className="qf-toolbar__group">
-          <span className="qf-toolbar__meta">已选 {selectedRowKeys.length} 项</span>
-          <Button type="button" variant="outline" size="sm" onClick={() => setSelectedRowKeys(filteredItems.map((i) => i.filePath))}>
-            全选当前列表
-          </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedRowKeys([])}>
-            取消选择
-          </Button>
-        </div>
-        <div className="qf-toolbar__group">
-          <Tooltip title="根据曝光/对比/构图启发式写入「高/中/低」，仅供参考">
-            <Button type="button" variant="default" size="sm" onClick={handleSuggestTiers}>
-              按分析初分评级
-            </Button>
-          </Tooltip>
-          <Dropdown menu={{ items: organizeMenuItems }} trigger={['click']}>
-            <Button type="button" variant="outline" size="sm">
-              整理 <DownOutlined style={{ fontSize: 10 }} />
-            </Button>
-          </Dropdown>
-          <Dropdown menu={{ items: moreMenuItems }} trigger={['click']}>
-            <Button type="button" variant="outline" size="sm">
-              更多 <DownOutlined style={{ fontSize: 10 }} />
-            </Button>
-          </Dropdown>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            disabled={selectedRowKeys.length === 0}
-            onClick={() => setDeleteDialogOpen(true)}
-          >
-            <DeleteOutlined /> 删除所选
-          </Button>
-        </div>
-      </div>
-
       <div className="qf-table-wrap">
         <Table<ImageQualityItemResult>
           rowKey="filePath"
@@ -575,11 +545,78 @@ const QuickFilterResultsView: React.FC<QuickFilterResultsViewProps> = ({
         />
       </div>
 
-      <div className="qf-results-footer">
-        <Button type="button" variant="outline" size="sm" onClick={onReset}>
-          <ReloadOutlined /> 重新扫描
-        </Button>
-      </div>
+      <footer className="qf-dock">
+        <div className="qf-dock__summary">
+          已选 <strong>{selectedRowKeys.length}</strong> 项
+          <span>
+            {filteredItems.length > 0
+              ? `当前列表 ${filteredItems.length} 项 · 扫描共 ${result.items.length} 项`
+              : '当前列表为空'}
+          </span>
+        </div>
+        <div className="qf-dock__actions">
+          <QuickFilterButtonGroup aria-label="选择">
+            <QuickFilterButton
+              variant="secondary"
+              size="sm"
+              onClick={() => setSelectedRowKeys(filteredItems.map((i) => i.filePath))}
+            >
+              全选
+            </QuickFilterButton>
+            <QuickFilterButton variant="ghost" size="sm" onClick={() => setSelectedRowKeys([])}>
+              取消
+            </QuickFilterButton>
+          </QuickFilterButtonGroup>
+          <Tooltip title="根据曝光/对比/构图启发式写入「高/中/低」，仅供参考">
+            <QuickFilterButton
+              variant="emphasis"
+              size="md"
+              icon={<TbSparkles size={16} />}
+              onClick={handleSuggestTiers}
+            >
+              初分评级
+            </QuickFilterButton>
+          </Tooltip>
+          <Dropdown
+            menu={{ items: organizeMenuItems }}
+            trigger={['click']}
+            overlayClassName="qf-dropdown"
+          >
+            <QuickFilterButton
+              variant="secondary"
+              size="md"
+              icon={<TbInbox size={16} />}
+            >
+              整理
+              <DownOutlined style={{ fontSize: 10, opacity: 0.65 }} />
+            </QuickFilterButton>
+          </Dropdown>
+          <Dropdown menu={{ items: moreMenuItems }} trigger={['click']} overlayClassName="qf-dropdown">
+            <QuickFilterButton variant="secondary" size="md">
+              更多
+              <DownOutlined style={{ fontSize: 10, opacity: 0.65 }} />
+            </QuickFilterButton>
+          </Dropdown>
+          <QuickFilterButton
+            className="qf-dock__cta"
+            variant="danger"
+            size="md"
+            icon={<TbTrash size={16} />}
+            disabled={selectedRowKeys.length === 0}
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            删除所选
+          </QuickFilterButton>
+          <QuickFilterButton
+            variant="ghost"
+            size="md"
+            icon={<TbRefresh size={16} />}
+            onClick={onReset}
+          >
+            重新扫描
+          </QuickFilterButton>
+        </div>
+      </footer>
 
       <QuickFilterCopyDialog
         open={copyModalOpen}

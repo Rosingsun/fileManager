@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
-import { Form, Input, Button, Switch, Slider, Collapse, InputNumber, Row, Col, Tooltip } from 'antd'
-import { FolderOpenOutlined, FolderOutlined, FundProjectionScreenOutlined } from '@ant-design/icons'
+import { Form, Input, Switch, Slider, Collapse, InputNumber, Row, Col, Tooltip } from 'antd'
+import { FolderOutlined } from '@ant-design/icons'
+import { TbFolderOpen, TbPlayerPlay } from '../icons'
+import { QuickFilterButton } from './QuickFilterButton'
 import type { ImageQualityScanConfig } from '../../types'
 import {
   buildImageQualityConfig,
@@ -106,9 +108,16 @@ const QuickFilterScanSetup: React.FC<QuickFilterScanSetupProps> = ({ apiHint, on
             ) : (
               <>
                 <code className="qf-path__code">{scanPath}</code>
-                <Button type="default" icon={<FolderOpenOutlined />} onClick={() => void handleSelectPath()}>
-                  更换目录
-                </Button>
+                <div className="qf-path__actions">
+                  <QuickFilterButton
+                    variant="secondary"
+                    size="md"
+                    icon={<TbFolderOpen size={16} />}
+                    onClick={() => void handleSelectPath()}
+                  >
+                    更换目录
+                  </QuickFilterButton>
+                </div>
               </>
             )}
           </div>
@@ -350,15 +359,15 @@ const QuickFilterScanSetup: React.FC<QuickFilterScanSetupProps> = ({ apiHint, on
 
       <div className="qf-setup-bar">
         <div className="qf-setup-bar__row">
-          <Button
-            type="primary"
-            htmlType="submit"
-            icon={<FundProjectionScreenOutlined />}
+          <QuickFilterButton
+            type="submit"
+            variant="primary"
+            size="lg"
+            icon={<TbPlayerPlay size={17} />}
             disabled={!scanPath || Boolean(apiHint)}
-            size="large"
           >
             开始分析
-          </Button>
+          </QuickFilterButton>
         </div>
         <p className="qf-setup-bar__note">
           曝光、对比、构图与画质检测均为算法启发式，不代表审美结论，请结合人工判断
