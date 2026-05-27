@@ -35,3 +35,4 @@
 - **开放注册**：后端 `ALLOW_OPEN_REGISTRATION=true` 时可不传邀请码（仅建议开发环境）。
 - **冷启动**：无用户时可调用 `POST /auth/bootstrap-first-user`（需配置 `BOOTSTRAP_INVITE_SECRET`），或手工执行迁移种子 SQL。
 - **前端**：注册表单填写邀请码；已登录用户「我的邀请」可生成码、查看发出的码与邀请成功列表。
+- **每日生成上限**（UTC 自然日）：普通用户默认每天 1 次（`app_parameters.invite_max_generations_per_day`）；管理员默认每天 5 次（`invite_max_generations_per_day_admin`），可由运维在参数表调整。管理员不受「成功邀请总人数」上限约束。

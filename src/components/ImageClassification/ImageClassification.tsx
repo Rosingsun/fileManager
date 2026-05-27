@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { Card, Button, Progress, Table, Tag, Space, message, Alert, Modal, Typography, Select, Radio, Collapse } from 'antd'
+import { Card, Button, Progress, Table, Space, message, Alert, Modal, Typography, Radio } from 'antd'
 import {
   ApiOutlined,
   DeleteOutlined,
@@ -23,7 +23,9 @@ import {
   migrateLegacyImageCategory,
   DEFAULT_CLASSIFICATION_PRESET_ID as DEFAULT_PRESET,
   CLASSIFICATION_PRESET_STORAGE_KEY as PRESET_STORAGE_KEY,
-  CLASSIFICATION_PRESET_UI_OPTIONS
+  CLASSIFICATION_PRESET_UI_OPTIONS,
+  getClassificationDisplayLabel,
+  normalizeClassificationPresetId
 } from '../../types'
 import { useFileStore, useImageClassificationStore } from '../../stores'
 import ImageViewer from '../ImageViewer/ImageViewer'
@@ -37,15 +39,9 @@ import {
   logSignedInUserAction,
 } from '../../utils'
 import CategoryImageSelector from './CategoryImageSelector'
+import './classification.css'
 
 const { Text } = Typography
-
-interface ClassificationModel {
-  id: string
-  name: string
-  description: string
-  sizeMB: number
-}
 
 const ManualDownloadModal: React.FC<{
   visible: boolean
@@ -216,6 +212,7 @@ interface ClassificationResult {
   fileName: string
   category: ImageContentCategory
   confidence: number
+  classificationStatus?: ImageClassificationResult['classificationStatus']
 }
 
 const ImageClassification: React.FC = () => {
@@ -253,25 +250,21 @@ const ImageClassification: React.FC = () => {
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'completed' | 'error'>('idle')
-  const [availableModels, setAvailableModels] = useState<ClassificationModel[]>([])
   const [availablePresets, setAvailablePresets] = useState<ClassificationPresetInfo[]>([])
   const [selectedPreset, setSelectedPreset] = useState<ClassificationPresetId>(() => {
     try {
       const saved = localStorage.getItem(PRESET_STORAGE_KEY)
-      if (saved === 'accuracy_light' || saved === 'accuracy_balanced' || saved === 'accuracy_max') {
-        return saved
-      }
+      return normalizeClassificationPresetId(saved)
     } catch {
       /* ignore */
     }
     return DEFAULT_PRESET
   })
-  const [selectedModel, setSelectedModel] = useState<string>('clip_vit_b32_quant')
   const [presetExistsMap, setPresetExistsMap] = useState<Record<string, boolean>>({})
-  const [modelExistsMap, setModelExistsMap] = useState<Record<string, boolean>>({})
   const modelExists = presetExistsMap[selectedPreset] ?? false
   const presetsForUi =
     availablePresets.length > 0 ? availablePresets : CLASSIFICATION_PRESET_UI_OPTIONS
+  const activePreset = presetsForUi.find(p => p.id === selectedPreset)
   const abortControllerRef = useRef<AbortController | null>(null)
   const [manualDownloadModalVisible, setManualDownloadModalVisible] = useState(false)
   const [failedDownloadUrls, setFailedDownloadUrls] = useState<string[]>([])
@@ -298,7 +291,42 @@ const ImageClassification: React.FC = () => {
     if (window.electronAPI && window.electronAPI.onImageClassificationProgress) {
       const unsubscribe = window.electronAPI.onImageClassificationProgress((prog) => {
         setProgress(prog)
-        if (prog.status === 'completed' || prog.status === 'error') {
+
+        if (prog.latestResult) {
+          const result = prog.latestResult
+          setResults(prev => {
+            const next = new Map(prev)
+            next.set(result.filePath, result)
+            return next
+          })
+          useImageClassificationStore.getState().addResult(result)
+        }
+
+        if (prog.status === 'completed' && prog.results) {
+          const finalResults = new Map<string, ImageClassificationResult>()
+          for (const r of prog.results) {
+            finalResults.set(r.filePath, r)
+          }
+          setResults(finalResults)
+          useImageClassificationStore.getState().setResults(prog.results)
+          useFileStore.getState().setImageClassificationResults(prog.results)
+
+          try {
+            localStorage.setItem(
+              IMAGE_CLASSIFICATION_RESULTS_KEY,
+              JSON.stringify(Array.from(finalResults.entries()))
+            )
+          } catch (e) {
+            console.warn('保存分类结果失败:', e)
+          }
+
+          const successCount = prog.results.filter(r => r.confidence > 0).length
+          const errorCount = prog.results.length - successCount
+          message.success(`分类完成：成功 ${successCount} 张，失败 ${errorCount} 张`)
+          setIsClassifying(false)
+        }
+
+        if (prog.status === 'error') {
           setIsClassifying(false)
         }
       })
@@ -309,31 +337,19 @@ const ImageClassification: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    const loadPresetsAndModels = async () => {
-      if (!window.electronAPI) return
+    const loadPresets = async () => {
+      if (!window.electronAPI?.getAvailablePresets) return
 
-      if (window.electronAPI.getAvailablePresets) {
-        const presets = await window.electronAPI.getAvailablePresets()
-        setAvailablePresets(presets)
-        const existsMap: Record<string, boolean> = {}
-        for (const preset of presets) {
-          existsMap[preset.id] = await window.electronAPI.checkModelExists(preset.id)
-        }
-        setPresetExistsMap(existsMap)
+      const presets = await window.electronAPI.getAvailablePresets()
+      setAvailablePresets(presets)
+      const existsMap: Record<string, boolean> = {}
+      for (const preset of presets) {
+        existsMap[preset.id] = await window.electronAPI.checkModelExists(preset.id)
       }
-
-      if (window.electronAPI.getAvailableModels) {
-        const models = await window.electronAPI.getAvailableModels()
-        setAvailableModels(models)
-        const existsMap: Record<string, boolean> = {}
-        for (const model of models) {
-          existsMap[model.id] = await window.electronAPI.checkModelExists(model.id)
-        }
-        setModelExistsMap(existsMap)
-      }
+      setPresetExistsMap(existsMap)
     }
 
-    loadPresetsAndModels()
+    loadPresets()
 
     try {
       const saved = localStorage.getItem(IMAGE_CLASSIFICATION_RESULTS_KEY)
@@ -354,8 +370,9 @@ const ImageClassification: React.FC = () => {
   }, [selectedPreset])
 
   const handlePresetChange = (presetId: ClassificationPresetId) => {
-    setSelectedPreset(presetId)
-    localStorage.setItem(PRESET_STORAGE_KEY, presetId)
+    const normalized = normalizeClassificationPresetId(presetId)
+    setSelectedPreset(normalized)
+    localStorage.setItem(PRESET_STORAGE_KEY, normalized)
   }
 
   const handleDownloadModel = () => {
@@ -479,6 +496,9 @@ const ImageClassification: React.FC = () => {
     try {
       setIsClassifying(true)
       setProgress({ current: 0, total: 0, status: 'loading' })
+      setResults(new Map())
+      useImageClassificationStore.getState().clearResults()
+      useFileStore.getState().clearImageClassificationResults()
 
       const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
       
@@ -521,28 +541,11 @@ const ImageClassification: React.FC = () => {
       })
       console.log('[分类] classifyImagesBatch 返回:', result)
 
-      const newResults = new Map<string, ImageClassificationResult>()
-      for (const r of result.results) {
-        newResults.set(r.filePath, r)
-      }
-      setResults(newResults)
-      useImageClassificationStore.getState().setResults(Array.from(newResults.values()))
-      console.log('[分类] 结果已设置，共', newResults.size, '条')
-
-      try {
-        const resultsArray = Array.from(newResults.entries())
-        localStorage.setItem(IMAGE_CLASSIFICATION_RESULTS_KEY, JSON.stringify(resultsArray))
-      } catch (e) {
-        console.warn('保存分类结果失败:', e)
-      }
-
-      message.success(`分类完成：成功 ${result.successCount} 张，失败 ${result.errorCount} 张`)
       logSignedInUserAction(
         'image_classify_batch',
         `图片分类批量完成（成功 ${result.successCount}，失败 ${result.errorCount}）`,
         classificationPath ?? ''
       )
-      setIsClassifying(false)
     } catch (error) {
       console.error('[分类] 分类失败:', error)
       message.error('分类失败: ' + (error instanceof Error ? error.message : String(error)))
@@ -722,12 +725,13 @@ const ImageClassification: React.FC = () => {
      setViewerVisible(true)
    }
 
-  const tableData: ClassificationResult[] = Array.from(results.values()).map((r, i) => ({
-    key: i,
+  const tableData: ClassificationResult[] = Array.from(results.values()).map((r) => ({
+    key: r.filePath,
     filePath: r.filePath,
     fileName: r.filePath.split(/[/\\]/).pop() || r.filePath,
     category: r.category,
-    confidence: r.confidence
+    confidence: r.confidence,
+    classificationStatus: r.classificationStatus
   }))
 
   const columns = [
@@ -744,10 +748,19 @@ const ImageClassification: React.FC = () => {
       title: '分类',
       dataIndex: 'category',
       key: 'category',
-      render: (category: ImageContentCategory) => (
+      render: (category: ImageContentCategory, record: ClassificationResult) => (
         <CategoryTag
-          color={getCategoryTagColor(category)}
-          label={IMAGE_CATEGORY_LABELS[category] || category}
+          color={
+            record.classificationStatus === 'failed'
+              ? 'red'
+              : record.classificationStatus === 'uncertain'
+                ? 'orange'
+                : getCategoryTagColor(category)
+          }
+          label={getClassificationDisplayLabel({
+            category,
+            classificationStatus: record.classificationStatus
+          })}
         />
       )
     },
@@ -781,21 +794,96 @@ const ImageClassification: React.FC = () => {
   const avgConfidence = results.size > 0 ? 
     Array.from(results.values()).reduce((sum, r) => sum + r.confidence, 0) / results.size : 0
 
-  // Render model download status tag
-  const renderModelStatusTag = () => {
+  const renderModelStatusBadge = () => {
     switch (downloadStatus) {
       case 'downloading':
-        return <Tag color="blue" style={{ marginLeft: 8 }} icon={<DownloadOutlined />}>下载中</Tag>
+        return (
+          <span className="classification-status classification-status--downloading">
+            <DownloadOutlined /> 下载中
+          </span>
+        )
       case 'completed':
-        return <Tag color="green" style={{ marginLeft: 8 }} icon={<CheckCircleOutlined />}>已就绪</Tag>
+        return (
+          <span className="classification-status classification-status--ready">
+            <CheckCircleOutlined /> 已就绪
+          </span>
+        )
       case 'error':
-        return <Tag color="red" style={{ marginLeft: 8 }} icon={<FrownOutlined />}>下载失败</Tag>
+        return (
+          <span className="classification-status classification-status--error">
+            <FrownOutlined /> 下载失败
+          </span>
+        )
       default:
-        return modelExists
-          ? <Tag color="green" style={{ marginLeft: 8 }} icon={<CheckCircleOutlined />}>已就绪</Tag>
-          : <Tag color="orange" style={{ marginLeft: 8 }} icon={<InboxOutlined />}>未下载</Tag>
+        return modelExists ? (
+          <span className="classification-status classification-status--ready">
+            <CheckCircleOutlined /> 模型已就绪
+          </span>
+        ) : (
+          <span className="classification-status classification-status--missing">
+            <InboxOutlined /> 模型未下载
+          </span>
+        )
     }
   }
+
+  const renderControlBar = () => (
+    <div className="classification-bar">
+      <Radio.Group
+        size="small"
+        value={selectedPreset}
+        onChange={(e) => handlePresetChange(e.target.value)}
+        disabled={isDownloading || isClassifying}
+        optionType="button"
+        buttonStyle="solid"
+      >
+        {presetsForUi.map(preset => (
+          <Radio.Button
+            key={preset.id}
+            value={preset.id}
+            title={`${preset.description} · 约 ${preset.totalSizeMB} MB · ${
+              preset.estimatedSpeedFactor > 1
+                ? `约 ${preset.estimatedSpeedFactor}× 耗时`
+                : '速度最快'
+            }`}
+          >
+            {preset.name}
+            {presetExistsMap[preset.id] ? ' ✓' : ''}
+          </Radio.Button>
+        ))}
+      </Radio.Group>
+      {renderModelStatusBadge()}
+      {results.size > 0 && (
+        <Button size="small" icon={<DeleteOutlined />} onClick={handleClearResults}>
+          清除结果
+        </Button>
+      )}
+      {!modelExists && (
+        <Button
+          size="small"
+          type="primary"
+          icon={<DownloadOutlined />}
+          onClick={handleDownloadModel}
+          loading={isDownloading}
+        >
+          {isDownloading ? '下载中' : '下载模型'}
+        </Button>
+      )}
+      <Button
+        size="small"
+        type="primary"
+        icon={<ApiOutlined />}
+        onClick={handleClassify}
+        loading={isClassifying}
+        disabled={!modelExists}
+      >
+        {isClassifying ? '分类中' : '开始分类'}
+      </Button>
+      {!classificationPath && (
+        <span className="classification-bar__hint">请先选择目录</span>
+      )}
+    </div>
+  )
 
   return (
     <>
@@ -804,88 +892,15 @@ const ImageClassification: React.FC = () => {
         <Space>
           <ApiOutlined />
           <span>图片内容分类</span>
-          {modelExists && (
-            <Tag color="success" icon={<CheckCircleOutlined />}>模型已就绪</Tag>
-          )}
-          {!modelExists && (
-            <Tag color="warning">模型未下载</Tag>
-          )}
         </Space>
       }
-      extra={
-        <div className="classification-toolbar__actions">
-          <Radio.Group
-            value={selectedPreset}
-            onChange={(e) => handlePresetChange(e.target.value)}
-            disabled={isDownloading || isClassifying}
-            optionType="button"
-            buttonStyle="solid"
-          >
-            {presetsForUi.map(preset => (
-              <Radio.Button key={preset.id} value={preset.id}>
-                {preset.name}
-                {presetExistsMap[preset.id] ? ' ✓' : ''}
-              </Radio.Button>
-            ))}
-          </Radio.Group>
-          <Collapse
-            ghost
-            items={[{
-              key: 'advanced',
-              label: '进阶模型',
-              children: (
-                <Select
-                  value={selectedModel}
-                  onChange={setSelectedModel}
-                  style={{ width: 220 }}
-                  disabled={isDownloading || isClassifying}
-                >
-                  {availableModels.map(model => (
-                    <Select.Option key={model.id} value={model.id}>
-                      {model.name}
-                      {modelExistsMap[model.id] ? ' ✓' : ''}
-                    </Select.Option>
-                  ))}
-                </Select>
-              )
-            }]}
-          />
-          {renderModelStatusTag()}
-          {results.size > 0 && (
-            <Button icon={<DeleteOutlined />} onClick={handleClearResults}>
-              清除结果
-            </Button>
-          )}
-          {!modelExists && (
-            <Button
-              type="primary"
-              icon={<DownloadOutlined />}
-              onClick={handleDownloadModel}
-              loading={isDownloading}
-            >
-              {isDownloading ? '下载中...' : '下载模型'}
-            </Button>
-          )}
-          <Button
-            type="primary"
-            icon={<ApiOutlined />}
-            onClick={handleClassify}
-            loading={isClassifying}
-            disabled={!modelExists}
-          >
-            {isClassifying ? '分类中...' : '开始分类'}
-          </Button>
-          {!classificationPath && (
-            <span style={{ color: '#999', fontSize: 12, marginLeft: 8 }}>
-              (请先选择目录)
-            </span>
-          )}
-        </div>
-      }
+      extra={renderControlBar()}
       className="app-surface-card"
       style={{ height: '100%', overflow: 'auto' }}
       bodyStyle={{ padding: '16px' }}
     >
+      <div className="classification-page">
+
       {!classificationPath ? (
         <div className="app-empty-state is-panel">
           <FolderOpenOutlined className="app-empty-state__icon" />
@@ -901,35 +916,7 @@ const ImageClassification: React.FC = () => {
           </Button>
         </div>
       ) : (
-        <div className="classification-page">
-          {!modelExists && downloadStatus !== 'downloading' && (
-            <Alert
-              message="模型未下载"
-              description={
-                <Space direction="vertical" size="small">
-                  <Text>分类功能需要下载「{presetsForUi.find(p => p.id === selectedPreset)?.name || '精准度预设'}」所需模型才能正常工作。</Text>
-                  <Text type="secondary">
-                    约 {presetsForUi.find(p => p.id === selectedPreset)?.totalSizeMB || 104}MB，
-                    预估耗时 {presetsForUi.find(p => p.id === selectedPreset)?.estimatedSpeedFactor ?? 1}x（相对轻量档）。
-                  </Text>
-                </Space>
-              }
-              type="info"
-              showIcon
-              action={
-                <Button
-                  size="small"
-                  type="primary"
-                  icon={<DownloadOutlined />}
-                  onClick={handleDownloadModel}
-                >
-                  下载模型
-                </Button>
-              }
-              style={{ marginBottom: 16 }}
-            />
-          )}
-
+        <>
           {isDownloading && downloadProgress !== null && (
             <PageSection title="正在下载模型" subtitle="模型会保存在本地 models 目录中">
               <Progress
@@ -938,7 +925,9 @@ const ImageClassification: React.FC = () => {
                 format={(percent) => `${percent?.toFixed(1)}%`}
               />
               <div style={{ marginTop: 8 }}>
-                <Text type="secondary">下载约 14MB 的模型文件...</Text>
+                <Text type="secondary">
+                  正在下载约 {activePreset?.totalSizeMB ?? 90} MB 的模型文件…
+                </Text>
               </div>
               <div style={{ marginTop: 12 }}>
                 <Button size="small" danger onClick={handleCancelDownload}>
@@ -981,9 +970,16 @@ const ImageClassification: React.FC = () => {
             </div>
           )}
 
-          {stats.total > 0 && !isClassifying && (
+          {stats.total > 0 && (
             <>
-              <PageSection title="分类概览" subtitle="以统一统计卡展示识别总量与主要类型分布">
+              <PageSection
+                title="分类概览"
+                subtitle={
+                  isClassifying
+                    ? `识别中… 已识别 ${stats.total}${progress?.total ? ` / ${progress.total}` : ''} 张`
+                    : '以统一统计卡展示识别总量与主要类型分布'
+                }
+              >
                 <div className="classification-stats-grid">
                   <StatCard title="总计" value={stats.total} icon={<CheckCircleOutlined />} accent="var(--app-success)" subtle />
                   <StatCard title="成功" value={stats.success} icon={<ApiOutlined />} accent="var(--app-primary)" subtle />
@@ -1003,7 +999,14 @@ const ImageClassification: React.FC = () => {
                 </div>
               </PageSection>
 
-              <PageSection title="分类结果" subtitle={`共 ${tableData.length} 项结果，可点击文件名查看图片`}>
+              <PageSection
+                title="分类结果"
+                subtitle={
+                  isClassifying
+                    ? `已识别 ${stats.total}${progress?.total ? ` / ${progress.total}` : ''} 张，识别完成后可点击文件名查看图片`
+                    : `共 ${tableData.length} 项结果，可点击文件名查看图片`
+                }
+              >
                 <Table
                   columns={columns}
                   dataSource={tableData}
@@ -1032,13 +1035,16 @@ const ImageClassification: React.FC = () => {
               ) : (
                 <>
                   <p className="app-empty-state__title">请先下载分类模型，然后再开始识别</p>
-                  <p className="app-empty-state__description">模型文件约 14MB，下载后保存在本地。</p>
+                  <p className="app-empty-state__description">
+                    模型文件约 {activePreset?.totalSizeMB ?? 90} MB，下载后保存在本地。
+                  </p>
                 </>
               )}
             </div>
           )}
-        </div>
+        </>
       )}
+      </div>
     </Card>
 
       {viewerVisible && viewerImages.length > 0 && (

@@ -11,7 +11,8 @@ import { fileURLToPath, pathToFileURL } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = join(__dirname, '..')
 
-const PRESETS = ['accuracy_light', 'accuracy_balanced', 'accuracy_max']
+const PRESETS = ['accuracy_fast', 'accuracy_max']
+const PRESET_ALIASES = { accuracy_light: 'accuracy_fast', accuracy_balanced: 'accuracy_max' }
 const expectedCats = [
   'person', 'animal', 'landscape', 'urban', 'indoor', 'food', 'vehicle', 'document', 'other'
 ]
@@ -20,7 +21,8 @@ const exts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'])
 function parseArgs() {
   const presetArg = process.argv.find(a => a.startsWith('--preset='))?.split('=')[1]
     ?? process.argv[process.argv.indexOf('--preset') + 1]
-  const presets = presetArg ? [presetArg] : PRESETS
+  const normalized = presetArg ? PRESET_ALIASES[presetArg] || presetArg : null
+  const presets = normalized ? [normalized] : PRESETS
   return { presets }
 }
 

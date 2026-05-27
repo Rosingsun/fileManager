@@ -20,6 +20,7 @@ import {
 } from '../../utils'
 import type { MediaPreviewKind } from '../../utils'
 import type { MediaAssetInfo, ClassificationPresetId } from '../../types'
+import { normalizeClassificationPresetId } from '../../types'
 import {
   CLASSIFICATION_PRESET_STORAGE_KEY,
   DEFAULT_CLASSIFICATION_PRESET_ID
@@ -514,9 +515,7 @@ const FileList: React.FC = () => {
     let presetId: ClassificationPresetId = DEFAULT_CLASSIFICATION_PRESET_ID
     try {
       const saved = localStorage.getItem(CLASSIFICATION_PRESET_STORAGE_KEY)
-      if (saved === 'accuracy_light' || saved === 'accuracy_balanced' || saved === 'accuracy_max') {
-        presetId = saved
-      }
+      presetId = normalizeClassificationPresetId(saved)
     } catch {
       /* ignore */
     }

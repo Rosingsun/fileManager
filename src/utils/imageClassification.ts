@@ -13,8 +13,12 @@ import {
   IMAGE_CATEGORY_LABELS,
   IMAGE_CATEGORY_COLORS,
   CLASSIFICATION_PRESET_STORAGE_KEY,
-  DEFAULT_CLASSIFICATION_PRESET_ID
+  DEFAULT_CLASSIFICATION_PRESET_ID,
+  normalizeClassificationPresetId,
+  getClassificationDisplayLabel
 } from '../types'
+
+export { getClassificationDisplayLabel }
 
 export const categoryLabels = IMAGE_CATEGORY_LABELS
 export const categoryColors = IMAGE_CATEGORY_COLORS
@@ -54,9 +58,7 @@ export function getCategoryColor(category: ImageContentCategory): string {
 export function getStoredClassificationPreset(): ClassificationPresetId {
   try {
     const saved = localStorage.getItem(CLASSIFICATION_PRESET_STORAGE_KEY)
-    if (saved === 'accuracy_light' || saved === 'accuracy_balanced' || saved === 'accuracy_max') {
-      return saved
-    }
+    return normalizeClassificationPresetId(saved)
   } catch {
     /* ignore */
   }
@@ -68,7 +70,12 @@ export async function classifyImages(
   options?: {
     batchSize?: number
     presetId?: ClassificationPresetId
-    onProgress?: (current: number, total: number, currentFile?: string) => void
+    onProgress?: (
+      current: number,
+      total: number,
+      currentFile?: string,
+      latestResult?: ImageClassificationResult
+    ) => void
     useCache?: boolean
   }
 ): Promise<ImageClassificationResult[]> {
@@ -105,11 +112,18 @@ export async function classifyImages(
   }
 
   let progressUnsubscribe: (() => void) | null = null
-  if (onProgress) {
+  if (onProgress || useCache) {
     progressUnsubscribe = window.electronAPI.onImageClassificationProgress((progress) => {
-      if (progress.status === 'classifying' && progress.current && progress.total) {
-        const totalProcessed = results.length + (progress.current || 0)
-        onProgress(totalProcessed, imagePaths.length, progress.currentFile)
+      if (progress.latestResult && useCache) {
+        cacheClassification(progress.latestResult)
+      }
+      if (onProgress && progress.status === 'classifying' && progress.current && progress.total) {
+        onProgress(
+          progress.current,
+          progress.total,
+          progress.currentFile,
+          progress.latestResult
+        )
       }
     })
   }

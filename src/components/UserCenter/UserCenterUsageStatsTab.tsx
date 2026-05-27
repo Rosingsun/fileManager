@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { App, Col, Empty, Row, Segmented, Space, Spin, Typography } from 'antd'
-import CategoryProportionChart from './CategoryProportionChart'
+
+const CategoryProportionChart = lazy(() => import('./CategoryProportionChart'))
 import {
   aggregateOperationLogs,
   formatAuthApiError,
@@ -99,8 +100,10 @@ const UserCenterUsageStatsTab: React.FC<Pick<UserCenterPanelProps, 'userId'>> = 
             </Row>
           </PageSection>
 
-          <PageSection title="分类占比" subtitle="左侧占比分布，右侧次数对比">
-            <CategoryProportionChart items={summary.byCategory} total={summary.total} />
+          <PageSection title="分类占比" subtitle="左侧占比分布，右侧次数与占比趋势">
+            <Suspense fallback={<Spin />}>
+              <CategoryProportionChart items={summary.byCategory} total={summary.total} />
+            </Suspense>
           </PageSection>
 
           <PageSection title="各能力最近使用">

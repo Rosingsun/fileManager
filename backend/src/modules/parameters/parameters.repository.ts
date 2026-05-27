@@ -9,7 +9,11 @@ export const DEFAULT_INVITE_MAX_REDEMPTIONS_PER_INVITER = 1
 
 export const PARAM_INVITE_MAX_GENERATIONS_PER_DAY = 'invite_max_generations_per_day'
 
-export const DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY = 2
+export const DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY = 1
+
+export const PARAM_INVITE_MAX_GENERATIONS_PER_DAY_ADMIN = 'invite_max_generations_per_day_admin'
+
+export const DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY_ADMIN = 5
 
 export const PARAM_COS_SECRET_ID = 'cos_secret_id'
 export const PARAM_COS_SECRET_KEY = 'cos_secret_key'
@@ -100,6 +104,22 @@ export async function getInviteMaxRedemptionsPerInviter(db: DbExecutor): Promise
 export async function getInviteMaxGenerationsPerDay(db: DbExecutor): Promise<number> {
   const n = await getIntParam(db, PARAM_INVITE_MAX_GENERATIONS_PER_DAY, DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY)
   return n >= 1 ? n : DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY
+}
+
+export async function getInviteMaxGenerationsPerDayAdmin(db: DbExecutor): Promise<number> {
+  const n = await getIntParam(
+    db,
+    PARAM_INVITE_MAX_GENERATIONS_PER_DAY_ADMIN,
+    DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY_ADMIN
+  )
+  return n >= 1 ? n : DEFAULT_INVITE_MAX_GENERATIONS_PER_DAY_ADMIN
+}
+
+export async function getInviteMaxGenerationsPerDayForUser(
+  db: DbExecutor,
+  isAdmin: boolean
+): Promise<number> {
+  return isAdmin ? getInviteMaxGenerationsPerDayAdmin(db) : getInviteMaxGenerationsPerDay(db)
 }
 
 export async function getCosUserStorageQuotaBytes(db: DbExecutor): Promise<number> {

@@ -25,7 +25,6 @@ import {
 } from './utils/classificationPresets'
 import { classifyImage as runClassifyImage, clearImagenetSessionCache } from './services/imageClassificationService'
 import { clearClipModelCache } from './utils/clipClassifier'
-import { clearCognivisionMobilenetCache } from './services/cognivisionTfClassifier'
 import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount'
 import { IMAGE_EXTENSIONS } from './utils/fileUtils'
 import { probeMediaAsset, shutdownMediaAssetCache } from './services/mediaAssetService'
@@ -1465,7 +1464,6 @@ ipcMain.on('imageQuality:cancel', () => {
 function clearModelCache(modelId?: ClassificationModelId): void {
   clearImagenetSessionCache(modelId)
   clearClipModelCache()
-  clearCognivisionMobilenetCache()
 }
 
 async function classifyImage(
@@ -1555,32 +1553,37 @@ ipcHandle('image:classifyBatch', async (event, config: ImageClassificationConfig
     sendProgress({ status: 'classifying', current: 0, total: totalImages })
     const results: ImageClassificationResult[] = []
     const batchSize = config.batchSize || 10
-    
+    let completedCount = 0
+
     for (let i = 0; i < totalImages; i += batchSize) {
       if (classificationCancelled) break
-      
+
       const batch = imagePaths.slice(i, i + batchSize)
       const batchPromises = batch.map(async (imagePath) => {
+        let result: ImageClassificationResult
         try {
-          sendProgress({
-            status: 'classifying',
-            current: i + batch.indexOf(imagePath) + 1,
-            total: totalImages,
-            currentFile: imagePath
-          })
           const presetOrModel =
-            config.presetId ?? config.modelId ?? 'accuracy_balanced'
-          return await classifyImage(imagePath, presetOrModel)
+            config.presetId ?? config.modelId ?? 'accuracy_max'
+          result = await classifyImage(imagePath, presetOrModel)
         } catch (error) {
           console.error('[Main] 分类失败:', imagePath, error)
-          return {
+          result = {
             filePath: imagePath,
             category: 'other' as ImageContentCategory,
             confidence: 0
           }
         }
+        completedCount++
+        sendProgress({
+          status: 'classifying',
+          current: completedCount,
+          total: totalImages,
+          currentFile: imagePath,
+          latestResult: result
+        })
+        return result
       })
-      
+
       const batchResults = await Promise.all(batchPromises)
       results.push(...batchResults)
     }
@@ -1726,13 +1729,10 @@ ipcHandle('model:getAvailableModels', async (): Promise<Array<{ id: string; name
 
 // IPC 处理器：获取精准度预设列表
 ipcHandle('model:getAvailablePresets', async () => {
-  return CLASSIFICATION_PRESETS.map(({ fusionParams, confidenceGate, disambiguationShiftStrength, ...rest }) => rest)
+  return CLASSIFICATION_PRESETS.map(rest => ({ ...rest }))
 })
 
 function checkSingleModelExists(cwd: string, modelId: ClassificationModelId): boolean {
-  if (modelId === 'cognivision') {
-    return existsSync(join(cwd, 'models', 'imagenet1000.json'))
-  }
   return existsSync(getClassificationModelPath(modelId, cwd))
 }
 
@@ -1747,7 +1747,7 @@ function checkPresetModelsReady(cwd: string, presetId: ClassificationPresetId): 
 // IPC 处理器：检查指定模型或预设是否就绪
 ipcHandle('model:checkExists', async (_event, modelOrPresetId?: string): Promise<boolean> => {
   const cwd = resolveProjectRoot()
-  const id = modelOrPresetId ?? 'accuracy_balanced'
+  const id = modelOrPresetId ?? 'accuracy_max'
 
   if (isPresetDownloadId(id) || isPresetId(id)) {
     return checkPresetModelsReady(cwd, id as ClassificationPresetId)
@@ -1755,7 +1755,7 @@ ipcHandle('model:checkExists', async (_event, modelOrPresetId?: string): Promise
 
   const modelId = id as ClassificationModelId
   if (modelId === 'clip_vit_b32_quant') {
-    return checkPresetModelsReady(cwd, 'accuracy_light')
+    return checkPresetModelsReady(cwd, 'accuracy_fast')
   }
   if (modelId === 'clip_vit_l14_quant') {
     return checkPresetModelsReady(cwd, 'accuracy_max')

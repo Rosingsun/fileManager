@@ -38,10 +38,16 @@ const MODELS = {
   }
 }
 
+const PRESET_ALIASES = {
+  accuracy_light: 'accuracy_fast',
+  accuracy_balanced: 'accuracy_max'
+}
+
 const PRESETS = {
-  accuracy_light: ['mobilenetv2', 'clip_vit_b32_quant'],
-  accuracy_balanced: ['efficientnet_b4', 'clip_vit_b32_quant'],
-  accuracy_max: ['efficientnet_b4', 'clip_vit_l14_quant']
+  accuracy_fast: ['clip_vit_b32_quant'],
+  accuracy_max: ['efficientnet_b4', 'clip_vit_l14_quant'],
+  accuracy_light: ['clip_vit_b32_quant'],
+  accuracy_balanced: ['efficientnet_b4', 'clip_vit_b32_quant']
 }
 
 function expandUrls(urls) {
@@ -58,7 +64,8 @@ function expandUrls(urls) {
   return out
 }
 
-const preset = process.argv[2] || 'accuracy_balanced'
+const rawPreset = process.argv[2] || 'accuracy_max'
+const preset = PRESET_ALIASES[rawPreset] || rawPreset
 const ids = PRESETS[preset]
 if (!ids) {
   console.error('未知预设:', preset)

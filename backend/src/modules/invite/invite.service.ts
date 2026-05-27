@@ -25,14 +25,13 @@ export const inviteService = {
     const pool = getPool()
     const now = Date.now()
     const dayStart = utcDayStartMs(now)
-    const [maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday, unlimitedInvitees] =
-      await Promise.all([
-        paramsRepo.getInviteMaxRedemptionsPerInviter(pool),
-        repo.countRedemptionsByInviter(pool, inviterUserId),
-        paramsRepo.getInviteMaxGenerationsPerDay(pool),
-        repo.countInviteCodesCreatedSince(pool, inviterUserId, dayStart),
-        authRepo.isUserAdmin(pool, inviterUserId),
-      ])
+    const unlimitedInvitees = await authRepo.isUserAdmin(pool, inviterUserId)
+    const [maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday] = await Promise.all([
+      paramsRepo.getInviteMaxRedemptionsPerInviter(pool),
+      repo.countRedemptionsByInviter(pool, inviterUserId),
+      paramsRepo.getInviteMaxGenerationsPerDayForUser(pool, unlimitedInvitees),
+      repo.countInviteCodesCreatedSince(pool, inviterUserId, dayStart),
+    ])
     return { maxInvitees, redeemedCount, maxGenerationsPerDay, generationsToday, unlimitedInvitees }
   },
 
@@ -68,7 +67,7 @@ export const inviteService = {
           throw new AppError(403, 'INVITE_QUOTA_EXCEEDED', '已达邀请人数上限')
         }
       }
-      const maxPerDay = await paramsRepo.getInviteMaxGenerationsPerDay(conn)
+      const maxPerDay = await paramsRepo.getInviteMaxGenerationsPerDayForUser(conn, isAdmin)
       const dayStart = utcDayStartMs(now)
       const generatedToday = await repo.countInviteCodesCreatedSince(conn, inviterUserId, dayStart)
       if (generatedToday >= maxPerDay) {

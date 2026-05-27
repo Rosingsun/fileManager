@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import ReactECharts from 'echarts-for-react'
 import type { EChartsOption } from 'echarts'
-import { BarChart, PieChart } from 'echarts/charts'
+import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -10,7 +10,7 @@ import { useThemeStore } from '../../stores'
 import type { OperationLogCategoryStat } from '../../utils'
 import { OPERATION_LOG_CATEGORY_ACCENTS } from './operationLogCategoryVisuals'
 
-echarts.use([BarChart, PieChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
+echarts.use([BarChart, LineChart, PieChart, TooltipComponent, LegendComponent, GridComponent, CanvasRenderer])
 
 const { Text } = Typography
 
@@ -116,22 +116,43 @@ const CategoryProportionChart: React.FC<CategoryProportionChartProps> = ({ items
       ],
     }
 
+    const percentages = segments.map((s) => Math.round((s.count / safeTotal) * 100))
+    const lineColor = isDark ? '#ffb340' : '#ff9f0a'
+
     const barOption: EChartsOption = {
+      legend: {
+        data: ['次数', '占比'],
+        top: 0,
+        right: 0,
+        icon: 'roundRect',
+        itemWidth: 10,
+        itemHeight: 10,
+        itemGap: 12,
+        textStyle: { color: theme.textSecondary, fontSize: 11 },
+      },
       tooltip: {
         ...tooltipBase,
         trigger: 'axis',
-        axisPointer: { type: 'shadow' },
+        axisPointer: { type: 'cross', crossStyle: { color: theme.textTertiary } },
         formatter: (params: unknown) => {
-          const row = (Array.isArray(params) ? params[0] : params) as {
+          const rows = (Array.isArray(params) ? params : [params]) as Array<{
             name?: string
+            seriesName?: string
             value?: number
-          }
-          const count = Number(row.value ?? 0)
-          const pct = Math.round((count / safeTotal) * 100)
-          return `${row.name ?? ''}<br/>${count} 次 · ${pct}%`
+            marker?: string
+          }>
+          const title = rows[0]?.name ?? ''
+          const lines = rows.map((row) => {
+            const value = Number(row.value ?? 0)
+            if (row.seriesName === '占比') {
+              return `${row.marker ?? ''}${row.seriesName}：${value}%`
+            }
+            return `${row.marker ?? ''}${row.seriesName ?? '次数'}：${value} 次`
+          })
+          return [title, ...lines].join('<br/>')
         },
       },
-      grid: { left: 8, right: 12, top: 16, bottom: 8, containLabel: true },
+      grid: { left: 8, right: 48, top: 28, bottom: 8, containLabel: true },
       xAxis: {
         type: 'category',
         data: labels,
@@ -144,17 +165,38 @@ const CategoryProportionChart: React.FC<CategoryProportionChartProps> = ({ items
           rotate: labels.some((l) => l.length > 5) ? 28 : 0,
         },
       },
-      yAxis: {
-        type: 'value',
-        minInterval: 1,
-        axisLine: { show: false },
-        axisTick: { show: false },
-        axisLabel: { color: theme.textTertiary, fontSize: 11 },
-        splitLine: { lineStyle: { color: theme.border, type: 'dashed' } },
-      },
+      yAxis: [
+        {
+          type: 'value',
+          name: '次数',
+          minInterval: 1,
+          nameTextStyle: { color: theme.textTertiary, fontSize: 11 },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: theme.textTertiary, fontSize: 11 },
+          splitLine: { lineStyle: { color: theme.border, type: 'dashed' } },
+        },
+        {
+          type: 'value',
+          name: '占比',
+          min: 0,
+          max: 100,
+          nameTextStyle: { color: theme.textTertiary, fontSize: 11 },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: {
+            color: theme.textTertiary,
+            fontSize: 11,
+            formatter: '{value}%',
+          },
+          splitLine: { show: false },
+        },
+      ],
       series: [
         {
+          name: '次数',
           type: 'bar',
+          yAxisIndex: 0,
           data: segments.map((s, i) => ({
             value: s.count,
             itemStyle: {
@@ -163,6 +205,28 @@ const CategoryProportionChart: React.FC<CategoryProportionChartProps> = ({ items
             },
           })),
           barMaxWidth: 48,
+        },
+        {
+          name: '占比',
+          type: 'line',
+          yAxisIndex: 1,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 7,
+          lineStyle: { width: 2, color: lineColor },
+          itemStyle: {
+            color: lineColor,
+            borderColor: isDark ? '#1c212b' : '#ffffff',
+            borderWidth: 2,
+          },
+          emphasis: {
+            scale: true,
+            itemStyle: {
+              borderColor: isDark ? '#1c212b' : '#ffffff',
+              borderWidth: 2,
+            },
+          },
+          data: percentages,
         },
       ],
     }
@@ -193,7 +257,7 @@ const CategoryProportionChart: React.FC<CategoryProportionChartProps> = ({ items
       </div>
       <div className="user-center-category-chart__pane user-center-category-chart__pane--bar">
         <Text type="secondary" className="user-center-category-chart__pane-label">
-          次数对比
+          次数与占比
         </Text>
         <ReactECharts
           key={`bar-${resolvedTheme}`}

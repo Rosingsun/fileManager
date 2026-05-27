@@ -1,49 +1,47 @@
 # 图片分类相关文件
 
-本目录存放 **ImageNet 辅助模型**、**CLIP 视觉 ONNX** 及 **预计算文本向量**。
+本目录存放 **CLIP 视觉 ONNX**、**ImageNet 辅助 ONNX（可选）**、**预计算文本向量** 与 **校准参数**。
 
 ## 精准度预设与依赖
 
 | 预设 ID | 显示名 | 需下载 ONNX | prompts 文件 |
 |---------|--------|-------------|--------------|
-| `accuracy_light` | 轻量精准 | mobilenetv2 + clip-vit-b32-vision-quant | clip-prompts.json |
-| `accuracy_balanced` | 平衡精准 | efficientnet-b4 + clip-vit-b32-vision-quant | clip-prompts.json |
-| `accuracy_max` | 最高精准 | efficientnet-b4 + clip-vit-l14-vision-quant | clip-prompts-l14.json |
+| `accuracy_fast` | 快速预览 | clip-vit-b32-vision-quant | clip-prompts.json |
+| `accuracy_max` | 最高精准（默认） | efficientnet-b4 + clip-vit-l14-vision-quant | clip-prompts-l14.json |
+
+旧版 ID：`accuracy_light` → `accuracy_fast`，`accuracy_balanced` → `accuracy_max`。
 
 `clip-prompts.json` / `clip-prompts-l14.json` 应随仓库提供；缺失时运行下方生成脚本。
+
+## 校准配置
+
+| 文件 | 说明 |
+|------|------|
+| `classification-calibration.json` | CLIP 打分、条件 ImageNet 融合、置信度门控等可调参数 |
+| `EVAL_BASELINE.md` | 评估基线记录模板 |
 
 ## 必需
 
 | 文件 | 说明 |
 |------|------|
-| `imagenet1000.json` | ImageNet 1000 类英文标签，随仓库提供。 |
+| `imagenet1000.json` | ImageNet 1000 类英文标签（`accuracy_max` 条件辅助需要） |
 
-在应用内选择精准度预设并下载，或手动放置 ONNX 至本目录。
-
-国内网络默认会通过 **hf-mirror.com** 镜像 Hugging Face 链接；也可在终端执行：
+在应用内选择精准度预设并下载，或：
 
 ```bash
 npm run download:models
-# 或指定预设：node scripts/download-classification-models.mjs accuracy_light
+node scripts/download-classification-models.mjs accuracy_fast
 ```
 
 环境变量 `FILEDEAL_HF_ENDPOINT` 可改为其他 Hugging Face 镜像根地址。
 
 ## CLIP prompts
 
-| 文件 | 说明 |
-|------|------|
-| `clip-prompts.json` | ViT-B/32，512 维，含 9 类 + 消歧 prompt 嵌入 |
-| `clip-prompts-l14.json` | ViT-L/14，768 维（最高精准档） |
-
-### 生成 prompts
-
 ```bash
 cd scripts/_clip_text_gen
 npm install
-node generate-prompts.mjs --model b32
-node generate-prompts.mjs --model l14
 node generate-prompts.mjs --model all
+# 或占位：npm run bootstrap:clip-prompts
 ```
 
 ## ONNX 文件名
@@ -52,9 +50,12 @@ node generate-prompts.mjs --model all
 |---------|--------|
 | clip_vit_b32_quant | clip-vit-b32-vision-quant.onnx |
 | clip_vit_l14_quant | clip-vit-l14-vision-quant.onnx |
-| mobilenetv2 | mobilenetv2-7.onnx |
 | efficientnet_b4 | efficientnet-b4.onnx |
 
-## 九大类映射
+## 评估
 
-索引 **0–397** 默认视为 **动物**；植物/珊瑚等标签例外归入 **自然风景**（见 `electron/main/utils/imagenetNine.ts`）。索引 ≥398 按英文标签关键词映射。
+```bash
+npm run bootstrap:fixtures
+npm run eval:classify
+npm run eval:classify-run
+```

@@ -58,15 +58,6 @@ export const CLASSIFICATION_MODELS = [
       'https://huggingface.co/Kalray/efficientnet-b4/resolve/main/efficientNet-b4.onnx',
       'https://huggingface.co/onnxmodelzoo/efficientnet-b4/resolve/main/efficientnet-b4.onnx'
     ]
-  },
-  {
-    id: 'cognivision',
-    name: 'CogniVision（TensorFlow MobileNet）',
-    description:
-      'TensorFlow.js MobileNet（与 npm「cognivision」同款推理）；首次分类自动下载权重；仅需仓库内 imagenet1000.json，无需 ONNX',
-    sizeMB: 12,
-    inputSize: 224,
-    downloadUrls: [] as readonly string[]
   }
 ] as const
 
@@ -81,8 +72,7 @@ export const MODEL_FILE_NAMES: Record<ClassificationModelId, string> = {
   clip_vit_l14_quant: 'clip-vit-l14-vision-quant.onnx',
   mobilenetv2: 'mobilenetv2-7.onnx',
   efficientnet_b0: 'efficientnet-b0.onnx',
-  efficientnet_b4: 'efficientnet-b4.onnx',
-  cognivision: 'cognivision.placeholder'
+  efficientnet_b4: 'efficientnet-b4.onnx'
 }
 
 export const PROMPTS_FILE_NAMES = {

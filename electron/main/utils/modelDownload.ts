@@ -145,10 +145,6 @@ export async function downloadModelFile(
   if (!modelInfo) {
     return { success: false, error: '未知的模型 ID', downloadUrls: [] }
   }
-  if (modelId === 'cognivision') {
-    return { success: true }
-  }
-
   const modelUrls = expandDownloadUrls(modelInfo.downloadUrls)
   if (modelUrls.length === 0) {
     return { success: false, error: '该模型无在线下载地址', downloadUrls: [] }

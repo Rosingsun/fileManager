@@ -18,7 +18,10 @@ export const PROMPTS_BY_CATEGORY = {
     '以人为主体不是动物',
     '人类面孔或身体为主要焦点',
     '穿服装的真人不是动物',
-    '活动现场人群合影'
+    '活动现场人群合影',
+    'not a wild animal or pet as main subject',
+    'not a landscape or city street scene',
+    '不是动物照片也不是风景街景'
   ],
   animal: [
     'a photo of an animal or bird or insect or fish',
@@ -34,7 +37,10 @@ export const PROMPTS_BY_CATEGORY = {
     '主体是动物不是人物',
     '猫狗宠物野生动物',
     '没有人类面孔的动物照片',
-    '动物园或自然中的动物'
+    '动物园或自然中的动物',
+    'not a human portrait or selfie',
+    'not city buildings or indoor room',
+    '不是人物肖像也不是城市建筑'
   ],
   landscape: [
     'natural outdoor scenery without city buildings',
@@ -49,7 +55,10 @@ export const PROMPTS_BY_CATEGORY = {
     '无建筑的户外自然风光',
     '国家公园自然景色',
     '山川湖海自然风景',
-    '没有城市建筑的自然户外'
+    '没有城市建筑的自然户外',
+    'not an indoor room or food close-up',
+    'not a human portrait as main subject',
+    '不是室内房间也不是人物特写'
   ],
   urban: [
     'city buildings downtown skyline skyscrapers',
@@ -64,7 +73,10 @@ export const PROMPTS_BY_CATEGORY = {
     '室外人造城市环境',
     '摩天大楼城市天际线',
     '城市户外街道与建筑',
-    '不是室内房间的城市外景'
+    '不是室内房间的城市外景',
+    'not natural mountain forest without buildings',
+    'not a food dish close-up',
+    '不是纯自然山水也不是食物特写'
   ],
   indoor: [
     'inside a room home office classroom ceiling walls furniture',
@@ -79,7 +91,10 @@ export const PROMPTS_BY_CATEGORY = {
     '建筑物内部不是室外街景',
     '客厅卧室厨房室内场景',
     '有家具和天花板的室内空间',
-    '商店或餐厅内部环境'
+    '商店或餐厅内部环境',
+    'not outdoor city street or natural landscape',
+    'not a vehicle or animal',
+    '不是室外街景也不是交通工具'
   ],
   food: [
     'cooked meal dish plate bowl on table',
@@ -94,7 +109,10 @@ export const PROMPTS_BY_CATEGORY = {
     '美食料理点心水果',
     '餐厅美食特写照片',
     '饮料咖啡茶果汁',
-    '不是室内场景的食物特写'
+    '不是室内场景的食物特写',
+    'not a wide interior room without food focus',
+    'not a person portrait',
+    '不是室内全景也不是人物照'
   ],
   vehicle: [
     'car truck bus motorcycle bicycle train airplane boat ship',
@@ -107,7 +125,10 @@ export const PROMPTS_BY_CATEGORY = {
     '机动车非机动车外景',
     '行驶中的交通工具',
     '公路上的汽车或摩托车',
-    '交通工具为主要拍摄对象'
+    '交通工具为主要拍摄对象',
+    'not food on a plate or indoor furniture scene',
+    'not a natural landscape',
+    '不是食物静物也不是自然风景'
   ],
   document: [
     'screenshot of computer phone UI text interface',
@@ -121,7 +142,10 @@ export const PROMPTS_BY_CATEGORY = {
     '纸质海报书本图表',
     '办公文档表格幻灯片',
     '手机或电脑屏幕截图',
-    '带有大量文字的文件或界面'
+    '带有大量文字的文件或界面',
+    'not a clear person animal landscape or vehicle scene',
+    'not a plated meal photo',
+    '不是清晰的人物动物风景或车辆场景'
   ],
   other: [
     'abstract pattern texture wallpaper macro object unclear',
@@ -132,7 +156,10 @@ export const PROMPTS_BY_CATEGORY = {
     '难以归类的小物件特写',
     '抽象纹理图案',
     '无法判断场景的杂物',
-    '难以归入其他类别的物品'
+    '难以归入其他类别的物品',
+    'not a recognizable person portrait',
+    'not a clear food dish or vehicle',
+    '不是明确的人物食物或交通工具照片'
   ]
 }
 

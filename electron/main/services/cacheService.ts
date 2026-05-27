@@ -5,7 +5,6 @@ import { readdir, rm, stat } from 'fs/promises'
 import { clearMediaAssetProbeCache, getMediaPreviewCacheDir } from './mediaAssetService'
 import { clearImagenetSessionCache } from './imageClassificationService'
 import { clearClipModelCache } from '../utils/clipClassifier'
-import { clearCognivisionMobilenetCache } from './cognivisionTfClassifier'
 
 export type MainCacheScope = 'previewDisk' | 'chromiumDisk' | 'modelSessions'
 
@@ -60,7 +59,6 @@ async function getDirectorySize(dir: string): Promise<CacheSizeStats> {
 export function clearModelSessions(): void {
   clearImagenetSessionCache()
   clearClipModelCache()
-  clearCognivisionMobilenetCache()
 }
 
 export async function getMainCacheOverview(): Promise<MainCacheOverview> {

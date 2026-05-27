@@ -1,4 +1,4 @@
-import type { SimilarityScanConfig, SimilarityScanProgress } from '../../types'
+import type { SimilarityScanConfig, SimilarityScanProgress, SimilarityScanResult } from '../../types'
 
 export type SimilarityWorkflowStep = 'config' | 'scan' | 'review'
 
@@ -70,4 +70,50 @@ export function getActiveWorkflowStep(
 export function basename(filePath: string): string {
   const idx = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'))
   return idx >= 0 ? filePath.slice(idx + 1) : filePath
+}
+
+export const DUPLICATE_FOLDER_NAME = '重复照片'
+
+export function getDefaultDuplicateFolder(scanPath: string): string {
+  return joinPath(scanPath, DUPLICATE_FOLDER_NAME)
+}
+
+export function joinPath(...parts: string[]): string {
+  return parts
+    .filter((p) => p.length > 0)
+    .join('\\')
+    .replace(/[/\\]+/g, '\\')
+}
+
+/** 从扫描结果中移除已移动/删除的路径，并重新计算统计 */
+export function removePathsFromSimilarityResult(
+  prev: SimilarityScanResult,
+  removedPaths: Set<string>
+): SimilarityScanResult {
+  const groups = prev.groups
+    .map((group) => {
+      const images = group.images.filter((img) => !removedPaths.has(img.filePath))
+      let recommendedKeep = group.recommendedKeep
+      if (recommendedKeep && removedPaths.has(recommendedKeep)) {
+        recommendedKeep = images[0]?.filePath
+      }
+      return { ...group, images, recommendedKeep }
+    })
+    .filter((g) => g.images.length >= 2)
+
+  let potentialSpaceSaved = 0
+  for (const group of groups) {
+    const keepPath = group.recommendedKeep ?? group.images[0]?.filePath
+    for (const img of group.images) {
+      if (img.filePath !== keepPath) potentialSpaceSaved += img.size
+    }
+  }
+
+  return {
+    ...prev,
+    groups,
+    totalGroups: groups.length,
+    totalImages: groups.reduce((sum, g) => sum + g.images.length, 0),
+    potentialSpaceSaved,
+  }
 }

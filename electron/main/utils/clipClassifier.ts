@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import { InferenceSession, Tensor } from 'onnxruntime-node'
 import type { ImageContentCategory } from '../../../src/types'
-import type { NineProbabilities } from './imagenetNine'
+import type { NineProbabilities } from '../classification/types'
 
 const CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]
 const CLIP_STD = [0.26862954, 0.26130258, 0.27577711]

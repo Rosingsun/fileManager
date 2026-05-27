@@ -1,5 +1,5 @@
 import type { ImageContentCategory } from '../../../src/types'
-import type { NineProbabilities } from './imagenetNine'
+import type { NineProbabilities } from '../classification/types'
 import type { ClipPromptsFile } from './clipClassifier'
 import { scorePairwiseDisambiguation } from './clipClassifier'
 

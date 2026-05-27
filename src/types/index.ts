@@ -364,10 +364,16 @@ export function migrateLegacyImageCategory(raw: string): ImageContentCategory {
   return 'other'
 }
 
+export type ClassificationStatus = 'ok' | 'uncertain' | 'failed'
+
 export interface ImageClassificationResult {
   filePath: string
   category: ImageContentCategory
   confidence: number // 置信度 0-1
+  /** 分类决策状态：成功 / 低置信不确定 / 推理失败 */
+  classificationStatus?: ClassificationStatus
+  /** 仅 classificationStatus 为 failed 时提供 */
+  failureReason?: string
   /** 曝光/对比度/构图启发式档位，与快速筛选一致；批量或单张分类时由主进程写入 */
   quality?: QuickFilterTier
   topPredictions?: Array<{
@@ -382,25 +388,41 @@ export interface ImageClassificationConfig {
   includeSubdirectories?: boolean
   /** @deprecated 使用 presetId */
   modelId?: string
-  /** 精准度预设：accuracy_light | accuracy_balanced | accuracy_max */
+  /** 精准度预设：accuracy_fast | accuracy_max */
   presetId?: ClassificationPresetId
 }
 
 export type ClassificationPresetId =
-  | 'accuracy_light'
-  | 'accuracy_balanced'
+  | 'accuracy_fast'
   | 'accuracy_max'
+  /** @deprecated 映射到 accuracy_fast */
+  | 'accuracy_light'
+  /** @deprecated 映射到 accuracy_max */
+  | 'accuracy_balanced'
 
 export const CLASSIFICATION_PRESET_STORAGE_KEY = 'classification_selected_preset'
 
-export const DEFAULT_CLASSIFICATION_PRESET_ID: ClassificationPresetId = 'accuracy_balanced'
+export const DEFAULT_CLASSIFICATION_PRESET_ID: ClassificationPresetId = 'accuracy_max'
+
+const PRESET_ID_ALIASES: Record<string, ClassificationPresetId> = {
+  accuracy_light: 'accuracy_fast',
+  accuracy_balanced: 'accuracy_max'
+}
+
+/** 将 localStorage / 旧版预设 ID 规范为当前预设 */
+export function normalizeClassificationPresetId(raw?: string | null): ClassificationPresetId {
+  if (!raw) return DEFAULT_CLASSIFICATION_PRESET_ID
+  if (PRESET_ID_ALIASES[raw]) return PRESET_ID_ALIASES[raw]
+  if (raw === 'accuracy_fast' || raw === 'accuracy_max') return raw
+  return DEFAULT_CLASSIFICATION_PRESET_ID
+}
 
 export interface ClassificationPresetInfo {
   id: ClassificationPresetId
   name: string
   description: string
   clipModelId: string
-  imagenetModelId: string
+  imagenetModelId: string | null
   promptsFile: string
   ttaCropCount: number
   estimatedSpeedFactor: number
@@ -410,39 +432,39 @@ export interface ClassificationPresetInfo {
 /** 前端展示用（IPC 不可用时兜底，与主进程预设一致） */
 export const CLASSIFICATION_PRESET_UI_OPTIONS: ClassificationPresetInfo[] = [
   {
-    id: 'accuracy_light',
-    name: '轻量精准',
-    description: 'CLIP B/32 + MobileNet，速度最快',
+    id: 'accuracy_fast',
+    name: '快速预览',
+    description: 'CLIP B/32 单裁剪，无 ImageNet 辅助，速度最快',
     clipModelId: 'clip_vit_b32_quant',
-    imagenetModelId: 'mobilenetv2',
+    imagenetModelId: null,
     promptsFile: 'clip-prompts.json',
     ttaCropCount: 1,
     estimatedSpeedFactor: 1,
-    totalSizeMB: 104
-  },
-  {
-    id: 'accuracy_balanced',
-    name: '平衡精准',
-    description: 'CLIP B/32 + EfficientNet-B4 + 3 裁剪，推荐',
-    clipModelId: 'clip_vit_b32_quant',
-    imagenetModelId: 'efficientnet_b4',
-    promptsFile: 'clip-prompts.json',
-    ttaCropCount: 3,
-    estimatedSpeedFactor: 2.5,
-    totalSizeMB: 179
+    totalSizeMB: 90
   },
   {
     id: 'accuracy_max',
     name: '最高精准',
-    description: 'CLIP L/14 + EfficientNet-B4 + 5 裁剪',
+    description: 'CLIP L/14 + EfficientNet 条件辅助 + 5 裁剪，推荐默认',
     clipModelId: 'clip_vit_l14_quant',
     imagenetModelId: 'efficientnet_b4',
     promptsFile: 'clip-prompts-l14.json',
     ttaCropCount: 5,
     estimatedSpeedFactor: 5,
-    totalSizeMB: 249
+    totalSizeMB: 400
   }
 ]
+
+/** 分类结果在 UI 上的展示文案 */
+export function getClassificationDisplayLabel(result: Pick<
+  ImageClassificationResult,
+  'category' | 'classificationStatus'
+>): string {
+  if (result.classificationStatus === 'failed') return '分类失败'
+  const base = IMAGE_CATEGORY_LABELS[result.category] || result.category
+  if (result.classificationStatus === 'uncertain') return `${base}（不确定）`
+  return base
+}
 
 export interface ImageClassificationProgress {
   current: number
@@ -450,6 +472,7 @@ export interface ImageClassificationProgress {
   currentFile?: string
   status: 'loading' | 'classifying' | 'completed' | 'error'
   results?: ImageClassificationResult[]
+  latestResult?: ImageClassificationResult
 }
 
 export interface ImageClassificationBatchResult {

@@ -48,4 +48,4 @@ for (const cat of expectedCats) {
   if (n) console.log(`[eval] fixtures/${cat}: ${n} images`)
 }
 console.log('[eval] fixtures total images:', total)
-console.log('[eval] 完整 Top-1 评估: node scripts/run-classification-eval.mjs [--preset accuracy_light|accuracy_balanced|accuracy_max]')
+console.log('[eval] 完整 Top-1 评估: npm run eval:classify-run [-- --preset accuracy_fast|accuracy_max]')
