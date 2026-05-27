@@ -1,7 +1,17 @@
 import React, { useState, useMemo } from 'react'
-import { Modal, Button, Space, Card, Select, InputNumber, Radio, message, Typography, Row, Col, Empty } from 'antd'
-import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import { Button, Space, Card, Select, InputNumber, Radio, message, Typography, Row, Col, Empty } from 'antd'
+import { FolderOpenOutlined, DeleteOutlined, FolderOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+} from '../ToolModal'
 import type { StitchOptions } from '../../../types'
+import { useToolOutputPathStore } from '../../../stores'
+import { logSignedInUserAction } from '../../../utils'
+import LocalFileImagePreview from '../LocalFileImagePreview'
 
 const { Text } = Typography
 
@@ -25,8 +35,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
   const [align, setAlign] = useState<'start' | 'center' | 'end'>('center')
   const [outputFormat, setOutputFormat] = useState<'jpeg' | 'png' | 'webp'>('jpeg')
   const [quality, setQuality] = useState(90)
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectImages = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -61,7 +73,7 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -103,6 +115,11 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
 
       if (result) {
         message.success('拼接成功！')
+        logSignedInUserAction(
+          'image_stitch',
+          `图片拼接成功（${mode}，${images.length} 张）`,
+          result
+        )
         onClose()
       }
     } catch (error) {
@@ -133,7 +150,19 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
           }}
         >
           {img ? (
-            <Text ellipsis style={{ fontSize: 12 }}>{img.name}</Text>
+            <Text
+              ellipsis
+              style={{
+                fontSize: 12,
+                display: 'block',
+                width: '100%',
+                padding: '0 6px',
+                boxSizing: 'border-box',
+                textAlign: 'center'
+              }}
+            >
+              {img.name}
+            </Text>
           ) : (
             <Text type="secondary">空白</Text>
           )}
@@ -144,12 +173,11 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
   }, [images, mode, rows, cols])
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
+      onClose={onClose}
       title="图片拼接"
-      width={900}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
+
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -164,9 +192,9 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
         </Space>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择图片">
+      <div className="app-tool-modal__layout">
+        <div className="app-tool-modal__sidebar">
+          <ToolModalPanel title="选择图片">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectImages}
@@ -176,9 +204,9 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
               添加图片
             </Button>
             <Text type="secondary">已选择: {images.length} 张图片</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="拼接模式">
+          <ToolModalPanel title="拼接模式">
             <Radio.Group 
               value={mode} 
               onChange={e => setMode(e.target.value)}
@@ -188,10 +216,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
               <Radio value="vertical">纵向拼接</Radio>
               <Radio value="grid">网格拼接</Radio>
             </Radio.Group>
-          </Card>
+          </ToolModalPanel>
 
           {mode === 'grid' && (
-            <Card size="small">
+            <ToolModalPanel>
               <Row gutter={8}>
                 <Col span={12}>
                   <Text>行数</Text>
@@ -214,10 +242,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
                   />
                 </Col>
               </Row>
-            </Card>
+            </ToolModalPanel>
           )}
 
-          <Card size="small" title="外观设置">
+          <ToolModalPanel title="外观设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
                 <Text>间距</Text>
@@ -251,9 +279,9 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
                 </Select>
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="输出设置">
+          <ToolModalPanel title="输出设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Select 
                 value={outputFormat} 
@@ -275,10 +303,10 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
                 />
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="app-tool-modal__main">
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Text strong>图片列表 ({images.length} 张)</Text>
             <Button 
@@ -290,44 +318,52 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+          <div className="app-tool-modal__preview">
             {images.length === 0 ? (
-              <Empty description="请先添加图片" />
+              <div className="app-tool-modal__preview-empty">
+                <Empty description="请先添加图片" />
+              </div>
             ) : (
-              <div style={{ padding: 8 }}>
-                {images.map((img, index) => (
-                  <Card
-                    size="small"
-                    key={index}
-                    style={{ marginBottom: 8 }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text ellipsis style={{ flex: 1, marginRight: 8 }}>
-                        {index + 1}. {img.name}
-                      </Text>
-                      <Space>
-                        <Button 
-                          size="small" 
-                          icon={<ArrowUpOutlined />}
-                          onClick={() => handleMoveImage(index, 'up')}
-                          disabled={index === 0}
-                        />
-                        <Button 
-                          size="small" 
-                          icon={<ArrowDownOutlined />}
-                          onClick={() => handleMoveImage(index, 'down')}
-                          disabled={index === images.length - 1}
-                        />
-                        <Button 
-                          size="small" 
-                          icon={<DeleteOutlined />}
-                          onClick={() => handleRemoveImage(index)}
-                          danger
-                        />
-                      </Space>
-                    </div>
-                  </Card>
-                ))}
+              <div className="app-tool-modal__preview-scroll is-padded">
+                  {images.map((img, index) => (
+                    <Card
+                      size="small"
+                      key={index}
+                      style={{ marginBottom: 8, width: '100%' }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                          <LocalFileImagePreview
+                            filePath={img.path}
+                            alt={img.name}
+                            maxEdge={320}
+                            style={{ width: 90, height: 60, objectFit: 'cover', borderRadius: 4 }}
+                          />
+                          <Text ellipsis style={{ flex: 1, minWidth: 0 }}>{index + 1}. {img.name}</Text>
+                        </div>
+                        <Space style={{ flexShrink: 0 }}>
+                          <Button 
+                            size="small" 
+                            icon={<ArrowUpOutlined />}
+                            onClick={() => handleMoveImage(index, 'up')}
+                            disabled={index === 0}
+                          />
+                          <Button 
+                            size="small" 
+                            icon={<ArrowDownOutlined />}
+                            onClick={() => handleMoveImage(index, 'down')}
+                            disabled={index === images.length - 1}
+                          />
+                          <Button 
+                            size="small" 
+                            icon={<DeleteOutlined />}
+                            onClick={() => handleRemoveImage(index)}
+                            danger
+                          />
+                        </Space>
+                      </div>
+                    </Card>
+                  ))}
               </div>
             )}
           </div>
@@ -346,7 +382,7 @@ const ImageStitch: React.FC<ImageStitchProps> = ({ visible, onClose }) => {
           )}
         </div>
       </div>
-    </Modal>
+    </ToolModal>
   )
 }
 

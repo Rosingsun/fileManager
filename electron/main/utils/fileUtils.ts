@@ -1,8 +1,11 @@
 import { join } from 'path'
 import { existsSync } from 'fs'
+import { getExtensionFromPath } from './mediaExtensions'
+
+export { IMAGE_EXTENSIONS } from './mediaExtensions'
 
 export function getMimeType(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase() || ''
+  const ext = getExtensionFromPath(filePath)
   const mimeTypes: Record<string, string> = {
     'jpg': 'image/jpeg',
     'jpeg': 'image/jpeg',
@@ -11,6 +14,21 @@ export function getMimeType(filePath: string): string {
     'bmp': 'image/bmp',
     'svg': 'image/svg+xml',
     'webp': 'image/webp',
+    'heic': 'image/heic',
+    'heif': 'image/heif',
+    'tiff': 'image/tiff',
+    'tif': 'image/tiff',
+    'cr2': 'image/x-canon-cr2',
+    'cr3': 'image/x-canon-cr3',
+    'nef': 'image/x-nikon-nef',
+    'nrw': 'image/x-nikon-nrw',
+    'arw': 'image/x-sony-arw',
+    'dng': 'image/x-adobe-dng',
+    'raf': 'image/x-fuji-raf',
+    'orf': 'image/x-olympus-orf',
+    'rw2': 'image/x-panasonic-rw2',
+    'pef': 'image/x-pentax-pef',
+    'raw': 'image/x-panasonic-raw',
     'mp4': 'video/mp4',
     'avi': 'video/x-msvideo',
     'mov': 'video/quicktime',
@@ -50,4 +68,3 @@ export function getPreloadPath(): string {
   throw new Error(errorMsg)
 }
 
-export const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif']

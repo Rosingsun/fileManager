@@ -1,7 +1,16 @@
 import React, { useState, useMemo } from 'react'
-import { Modal, Button, Space, List, Card, Input, Select, InputNumber, Radio, Checkbox, message, Progress, Typography } from 'antd'
+import { Button, Space, Input, Select, InputNumber, Radio, Checkbox, message, Progress, Typography, Empty } from 'antd'
 import { FolderOpenOutlined, ArrowRightOutlined, FolderOutlined } from '@ant-design/icons'
 import type { BatchRenameOptions, RenameResult } from '../../../types'
+import { logSignedInUserAction } from '../../../utils'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+  ToolConfirmModal,
+} from '../ToolModal'
 
 const { Text } = Typography
 
@@ -28,9 +37,11 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
   const [conflictAction, setConflictAction] = useState<'skip' | 'overwrite' | 'rename'>('rename')
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 0 })
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false)
 
   const getDefaultOutputPath = (fileList: string[]) => {
     if (fileList.length === 0) return ''
+    // 直接返回第一个文件所在目录，与后端逻辑保持一致
     const firstFile = fileList[0]
     const lastSlash = Math.max(firstFile.lastIndexOf('/'), firstFile.lastIndexOf('\\'))
     return lastSlash > 0 ? firstFile.substring(0, lastSlash) : ''
@@ -60,6 +71,9 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
   const displayOutputPath = outputPath || getDefaultOutputPath(files)
 
   const previewResults = useMemo(() => {
+    // 用于跟踪已生成的文件名，以模拟冲突处理
+    const generatedNames = new Set<string>()
+    
     return files.map((filePath, index) => {
       const fileName = filePath.split(/[/\\]/).pop() || ''
       const ext = fileName.includes('.') ? '.' + fileName.split('.').pop() : ''
@@ -100,30 +114,71 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
         }
       }
 
-      const finalOutputPath = outputPath || getDefaultOutputPath(files)
-      const newPath = finalOutputPath 
+      // 与后端保持一致的逻辑：当outputPath存在时使用指定目录，否则使用当前文件所在目录
+      const fileDir = filePath.split(/[/\\]/).slice(0, -1).join('/') || ''
+      const finalOutputPath = outputPath || fileDir
+      let newPath = finalOutputPath 
         ? `${finalOutputPath}/${newName}`.replace(/\\/g, '/')
         : filePath.replace(/[/\\][^/\\]+$/, `/${newName}`).replace(/\\/g, '/')
+      
+      // 模拟冲突处理逻辑，与后端保持一致
+      let previewNewName = newName
+      if (generatedNames.has(newName)) {
+        if (conflictAction === 'skip') {
+          // 跳过模式：保持原文件名
+          previewNewName = fileName
+          newPath = filePath
+        } else if (conflictAction === 'rename') {
+          // 重命名模式：生成唯一名称
+          let counter = 1
+          let uniqueName = newName
+          while (generatedNames.has(uniqueName)) {
+            const base = ext ? previewNewName.slice(0, -ext.length) : previewNewName
+            uniqueName = `${base}_${counter}${ext}`
+            counter++
+          }
+          previewNewName = uniqueName
+          newPath = finalOutputPath 
+            ? `${finalOutputPath}/${previewNewName}`.replace(/\\/g, '/')
+            : filePath.replace(/[/\\][^/\\]+$/, `/${previewNewName}`).replace(/\\/g, '/')
+        }
+        // 覆盖模式：不做任何处理，直接使用同名
+      }
+      
+      generatedNames.add(previewNewName)
 
       return {
         original: filePath,
         originalName: fileName,
-        newName,
+        newName: previewNewName,
         newPath
       }
     })
-  }, [files, mode, sequenceStart, sequencePadding, dateFormat, findText, replaceText, caseSensitive, prefix, suffix, outputPath])
+  }, [files, mode, sequenceStart, sequencePadding, dateFormat, findText, replaceText, caseSensitive, prefix, suffix, outputPath, conflictAction])
 
-  const handleExecute = async () => {
+  const handleExecute = () => {
     if (files.length === 0) {
       message.warning('请先选择文件')
       return
     }
+    setConfirmModalVisible(true)
+  }
 
+  const handleConfirmClose = () => {
+    setConfirmModalVisible(false)
+  }
+
+  const doRename = async (regenerate: boolean) => {
     setIsProcessing(true)
     setProgress({ current: 0, total: files.length })
 
     try {
+      // 重命名模式逻辑：
+      // - 直接修改：原地重命名，不使用outputPath
+      // - 重新生成：复制到指定目录，如果没有指定则使用第一个文件所在目录
+      const defaultOutputPath = getDefaultOutputPath(files)
+      const outputDir = regenerate ? (outputPath || defaultOutputPath) : undefined
+      
       const options: BatchRenameOptions = {
         mode,
         sequenceStart,
@@ -134,7 +189,7 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
         prefix,
         suffix,
         caseSensitive,
-        outputPath: outputPath || getDefaultOutputPath(files) || undefined,
+        outputPath: outputDir,
         conflictAction
       }
 
@@ -142,7 +197,12 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
       
       const successCount = results.filter(r => r.success).length
       message.success(`重命名完成：成功 ${successCount} 个，失败 ${results.length - successCount} 个`)
-      
+      logSignedInUserAction(
+        'batch_rename_tool',
+        `批量重命名工具（成功 ${successCount}，失败 ${results.length - successCount}）`,
+        `模式: ${mode}`
+      )
+
       onClose()
     } catch (error) {
       message.error('执行失败: ' + (error as Error).message)
@@ -153,29 +213,29 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
   }
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
+      onClose={onClose}
       title="批量重命名"
       width={1000}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
       footer={
-        <Space>
+        <>
           <Button onClick={onClose}>取消</Button>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             onClick={handleExecute}
             disabled={files.length === 0 || isProcessing}
             loading={isProcessing}
           >
             {isProcessing ? '处理中...' : '执行重命名'}
           </Button>
-        </Space>
+        </>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择文件">
+      <ToolModalLayout
+        sidebar={
+          <>
+          <ToolModalPanel title="选择文件">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectFiles}
@@ -185,11 +245,12 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
               选择图片文件
             </Button>
             <Text type="secondary">已选择: {files.length} 个文件</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="重命名规则">
-            <Radio.Group 
-              value={mode} 
+          <ToolModalPanel title="重命名规则">
+            <Radio.Group
+              className="app-tool-modal__radio-stack"
+              value={mode}
               onChange={e => setMode(e.target.value)}
               style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
             >
@@ -199,13 +260,13 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
               <Radio value="prefix">添加前缀</Radio>
               <Radio value="suffix">添加后缀</Radio>
             </Radio.Group>
-          </Card>
+          </ToolModalPanel>
 
           {mode === 'sequence' && (
-            <Card size="small">
-              <Space direction="vertical" style={{ width: '100%' }}>
+            <ToolModalPanel>
+              <Space direction="vertical" className="app-tool-modal__field-stack">
                 <div>
-                  <Text>起始序号</Text>
+                  <span className="app-tool-modal__field-label">起始序号</span>
                   <InputNumber 
                     value={sequenceStart} 
                     onChange={v => setSequenceStart(v || 1)} 
@@ -214,7 +275,7 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                   />
                 </div>
                 <div>
-                  <Text>序号位数</Text>
+                  <span className="app-tool-modal__field-label">序号位数</span>
                   <InputNumber 
                     value={sequencePadding} 
                     onChange={v => setSequencePadding(v || 1)} 
@@ -224,12 +285,12 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                   />
                 </div>
               </Space>
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'date' && (
-            <Card size="small">
-              <Text>日期格式</Text>
+            <ToolModalPanel>
+              <span className="app-tool-modal__field-label">日期格式</span>
               <Select 
                 value={dateFormat} 
                 onChange={setDateFormat}
@@ -239,12 +300,12 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                 <Select.Option value="YYYYMMDD">YYYYMMDD</Select.Option>
                 <Select.Option value="MM-DD-YYYY">MM-DD-YYYY</Select.Option>
               </Select>
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'replace' && (
-            <Card size="small">
-              <Space direction="vertical" style={{ width: '100%' }}>
+            <ToolModalPanel>
+              <Space direction="vertical" className="app-tool-modal__field-stack">
                 <Input 
                   placeholder="查找内容" 
                   value={findText} 
@@ -262,32 +323,33 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
                   区分大小写
                 </Checkbox>
               </Space>
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'prefix' && (
-            <Card size="small">
+            <ToolModalPanel>
               <Input 
                 placeholder="前缀内容" 
                 value={prefix} 
                 onChange={e => setPrefix(e.target.value)} 
               />
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'suffix' && (
-            <Card size="small">
+            <ToolModalPanel>
               <Input 
                 placeholder="后缀内容" 
                 value={suffix} 
                 onChange={e => setSuffix(e.target.value)} 
               />
-            </Card>
+            </ToolModalPanel>
           )}
 
-          <Card size="small" title="冲突处理">
-            <Radio.Group 
-              value={conflictAction} 
+          <ToolModalPanel title="冲突处理">
+            <Radio.Group
+              className="app-tool-modal__radio-stack"
+              value={conflictAction}
               onChange={e => setConflictAction(e.target.value)}
               style={{ display: 'flex', flexDirection: 'column', gap: 4 }}
             >
@@ -295,51 +357,56 @@ const BatchRename: React.FC<BatchRenameProps> = ({ visible, onClose, selectedFil
               <Radio value="overwrite">覆盖</Radio>
               <Radio value="rename">重命名</Radio>
             </Radio.Group>
-          </Card>
-        </div>
+          </ToolModalPanel>
+          </>
+        }
+        main={
+          <ToolModalMainSection
+            title={`预览效果 (${files.length} 个文件)`}
+            extra={
+              <Button type="link" icon={<FolderOutlined />} onClick={handleSelectOutputPath} style={{ padding: 0 }}>
+                {displayOutputPath ? displayOutputPath.split(/[/\\]/).pop() : '选择输出目录'}
+              </Button>
+            }
+            footer={
+              isProcessing ? (
+                <Progress
+                  percent={Math.round((progress.current / progress.total) * 100)}
+                  status="active"
+                  style={{ marginTop: 8 }}
+                />
+              ) : null
+            }
+          >
+            <ToolModalPreview empty={<Empty description="请先选择文件" />}>
+              {files.length > 0
+                ? previewResults.map((item, index) => (
+                    <div key={item.original} className="app-tool-modal__preview-item">
+                      <span className="app-tool-modal__preview-index">{index + 1}.</span>
+                      <Text ellipsis style={{ flex: 1, minWidth: 0 }}>
+                        {item.originalName}
+                      </Text>
+                      <ArrowRightOutlined className="app-tool-modal__preview-arrow" />
+                      <Text ellipsis className="app-tool-modal__preview-new" style={{ flex: 1, minWidth: 0 }}>
+                        {item.newName}
+                      </Text>
+                    </div>
+                  ))
+                : null}
+            </ToolModalPreview>
+          </ToolModalMainSection>
+        }
+      />
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text strong>预览效果 ({files.length} 个文件)</Text>
-            <Button 
-              type="link" 
-              icon={<FolderOutlined />} 
-              onClick={handleSelectOutputPath}
-              style={{ padding: 0 }}
-            >
-              {displayOutputPath ? displayOutputPath.split(/[/\\]/).pop() : '选择输出目录'}
-            </Button>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
-            <List
-              size="small"
-              dataSource={previewResults}
-              renderItem={(item, index) => (
-                <List.Item>
-                  <Space>
-                    <Text type="secondary">{index + 1}.</Text>
-                    <Text style={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.originalName}
-                    </Text>
-                    <ArrowRightOutlined />
-                    <Text style={{ color: '#52c41a', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.newName}
-                    </Text>
-                  </Space>
-                </List.Item>
-              )}
-            />
-          </div>
-          {isProcessing && (
-            <Progress 
-              percent={Math.round((progress.current / progress.total) * 100)} 
-              status="active" 
-              style={{ marginTop: 8 }}
-            />
-          )}
-        </div>
-      </div>
-    </Modal>
+      <ToolConfirmModal open={confirmModalVisible} onClose={handleConfirmClose} prompt="请选择重命名方式：">
+        <Button type="primary" block onClick={() => doRename(false)}>
+          直接修改
+        </Button>
+        <Button block onClick={() => doRename(true)}>
+          重新生成
+        </Button>
+      </ToolConfirmModal>
+    </ToolModal>
   )
 }
 

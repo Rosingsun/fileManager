@@ -1,7 +1,17 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, Slider, Select, message, Typography, Empty, Switch } from 'antd'
+import { Button, Space, Card, Slider, Select, message, Typography, Empty, Switch, Radio } from 'antd'
 import { FolderOpenOutlined, DeleteOutlined, ThunderboltOutlined, FolderOutlined } from '@ant-design/icons'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+} from '../ToolModal'
 import type { EnhanceOptions } from '../../../types'
+import { logSignedInUserAction } from '../../../utils'
+import { useToolOutputPathStore } from '../../../stores'
+import LocalFileImagePreview from '../LocalFileImagePreview'
 
 const { Text } = Typography
 
@@ -27,8 +37,10 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
   const [sharpness, setSharpness] = useState(0)
   const [denoise, setDenoise] = useState(0)
   const [scale, setScale] = useState<1 | 2 | 4>(1)
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectFiles = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -51,7 +63,7 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -94,6 +106,7 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
       )
 
       message.success('图片增强完成！')
+      logSignedInUserAction('image_enhance', '图片增强完成', files[0].path)
       onClose()
     } catch (error) {
       message.error('增强失败: ' + (error as Error).message)
@@ -103,12 +116,11 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
   }
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
+      onClose={onClose}
       title="图片增强"
-      width={900}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
+
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -124,9 +136,9 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
         </Space>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择图片">
+      <div className="app-tool-modal__layout">
+        <div className="app-tool-modal__sidebar">
+          <ToolModalPanel title="选择图片">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectFiles}
@@ -136,9 +148,9 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
               添加图片
             </Button>
             <Text type="secondary">已选择: {files.length} 张图片</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="增强模式">
+          <ToolModalPanel title="增强模式">
             <Radio.Group 
               value={mode} 
               onChange={e => setMode(e.target.value)}
@@ -147,10 +159,10 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
               <Radio value="auto">自动增强</Radio>
               <Radio value="manual">手动调整</Radio>
             </Radio.Group>
-          </Card>
+          </ToolModalPanel>
 
           {mode === 'auto' && (
-            <Card size="small" title="自动增强选项">
+            <ToolModalPanel title="自动增强选项">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <Text>智能曝光</Text>
@@ -165,11 +177,11 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
                   <Switch checked={autoSharpen} onChange={setAutoSharpen} />
                 </div>
               </Space>
-            </Card>
+            </ToolModalPanel>
           )}
 
           {mode === 'manual' && (
-            <Card size="small" title="手动调整">
+            <ToolModalPanel title="手动调整">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <div>
                   <Text>亮度: {brightness}</Text>
@@ -217,10 +229,10 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
                   />
                 </div>
               </Space>
-            </Card>
+            </ToolModalPanel>
           )}
 
-          <Card size="small" title="超分辨率">
+          <ToolModalPanel title="超分辨率">
             <Space direction="vertical" style={{ width: '100%' }}>
               <Text>放大倍数</Text>
               <Select 
@@ -233,10 +245,10 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
                 <Select.Option value={4}>4倍</Select.Option>
               </Select>
             </Space>
-          </Card>
+          </ToolModalPanel>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="app-tool-modal__main">
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <Text strong>图片列表 ({files.length} 张)</Text>
@@ -251,39 +263,46 @@ const ImageEnhance: React.FC<ImageEnhanceProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+            <div className="app-tool-modal__preview">
             {files.length === 0 ? (
-              <Empty description="请先添加图片" />
+              <div className="app-tool-modal__preview-empty">
+                <Empty description="请先添加图片" />
+              </div>
             ) : (
-              <div style={{ padding: 8 }}>
+              <div className="app-tool-modal__preview-scroll is-padded">
                 {files.map((file, index) => (
                   <Card
                     size="small"
                     key={index}
-                    style={{ marginBottom: 8 }}
+                    style={{ marginBottom: 8, width: '100%' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text ellipsis style={{ flex: 1, marginRight: 8 }}>
-                        {file.name}
-                      </Text>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                        <LocalFileImagePreview
+                          filePath={file.path}
+                          alt={file.name}
+                          maxEdge={200}
+                          style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                        />
+                        <Text ellipsis style={{ flex: 1, minWidth: 0 }}>{file.name}</Text>
+                      </div>
                       <Button 
                         size="small" 
                         icon={<DeleteOutlined />}
                         onClick={() => handleRemoveFile(index)}
                         danger
+                        style={{ flexShrink: 0 }}
                       />
                     </div>
                   </Card>
                 ))}
               </div>
             )}
-          </div>
+            </div>
         </div>
       </div>
-    </Modal>
+    </ToolModal>
   )
 }
-
-import { Radio } from 'antd'
 
 export default ImageEnhance

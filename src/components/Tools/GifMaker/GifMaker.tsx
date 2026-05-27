@@ -1,7 +1,17 @@
 import React, { useState } from 'react'
-import { Modal, Button, Space, Card, InputNumber, Select, message, Typography, Empty, Slider } from 'antd'
-import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
+import { Button, Space, Card, InputNumber, Select, message, Typography, Empty, Slider } from 'antd'
+import { FolderOpenOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined, FolderOutlined } from '@ant-design/icons'
+import {
+  ToolModal,
+  ToolModalLayout,
+  ToolModalPanel,
+  ToolModalMainSection,
+  ToolModalPreview,
+} from '../ToolModal'
 import type { GifFrame, GifOptions } from '../../../types'
+import { logSignedInUserAction } from '../../../utils'
+import { useToolOutputPathStore } from '../../../stores'
+import LocalFileImagePreview from '../LocalFileImagePreview'
 
 const { Text } = Typography
 
@@ -23,8 +33,10 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
   const [delay, setDelay] = useState(200)
   const [loop, setLoop] = useState(0)
   const [quality, setQuality] = useState(10)
-  const [outputPath, setOutputPath] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const { sharedOutputPath, setSharedOutputPath } = useToolOutputPathStore()
+  const outputPath = sharedOutputPath
 
   const handleSelectFrames = async () => {
     if (window.electronAPI?.selectFiles) {
@@ -66,7 +78,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
     if (window.electronAPI?.openDirectory) {
       const dir = await window.electronAPI.openDirectory()
       if (dir) {
-        setOutputPath(dir)
+        setSharedOutputPath(dir)
       }
     }
   }
@@ -108,6 +120,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
 
       if (result) {
         message.success('GIF创建成功！')
+        logSignedInUserAction('gif_create', `GIF 制作（${frames.length} 帧）`, result)
         onClose()
       }
     } catch (error) {
@@ -118,12 +131,11 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
   }
 
   return (
-    <Modal
+    <ToolModal
       open={visible}
-      onCancel={onClose}
+      onClose={onClose}
       title="GIF制作"
-      width={900}
-      styles={{ body: { padding: '16px', overflow: 'hidden' } }}
+
       footer={
         <Space>
           <Button onClick={onClose}>取消</Button>
@@ -138,9 +150,9 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
         </Space>
       }
     >
-      <div style={{ display: 'flex', gap: 16, height: '60vh' }}>
-        <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto' }}>
-          <Card size="small" title="选择图片">
+      <div className="app-tool-modal__layout">
+        <div className="app-tool-modal__sidebar">
+          <ToolModalPanel title="选择图片">
             <Button 
               icon={<FolderOpenOutlined />} 
               onClick={handleSelectFrames}
@@ -150,9 +162,9 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
               添加帧
             </Button>
             <Text type="secondary">已选择: {frames.length} 帧</Text>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="尺寸设置">
+          <ToolModalPanel title="尺寸设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
@@ -179,9 +191,9 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
                 </div>
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
 
-          <Card size="small" title="动画设置">
+          <ToolModalPanel title="动画设置">
             <Space direction="vertical" style={{ width: '100%' }}>
               <div>
                 <Text>帧延迟: {delay}ms</Text>
@@ -219,14 +231,14 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
                 />
               </div>
             </Space>
-          </Card>
+          </ToolModalPanel>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="app-tool-modal__main">
           <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <Text strong>帧列表 ({frames.length} 帧)</Text>
-              <Text type="secondary" style={{ marginLeft: 8 }}>（拖拽调整顺序）</Text>
+              {/* <Text type="secondary" style={{ marginLeft: 8 }}>（拖拽调整顺序）</Text> */}
             </div>
             <Button 
               type="link" 
@@ -237,22 +249,32 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
               {outputPath ? outputPath.split(/[/\\]/).pop() : '选择输出目录'}
             </Button>
           </div>
-          <div style={{ flex: 1, overflow: 'auto', border: '1px solid #d9d9d9', borderRadius: 6 }}>
+          <div className="app-tool-modal__preview">
             {frames.length === 0 ? (
-              <Empty description="请先添加图片作为帧" />
+              <div className="app-tool-modal__preview-empty">
+                <Empty description="请先添加图片作为帧" />
+              </div>
             ) : (
-              <div style={{ padding: 8 }}>
+              <div className="app-tool-modal__preview-scroll is-padded">
                 {frames.map((frame, index) => (
                   <Card
                     size="small"
                     key={index}
-                    style={{ marginBottom: 8 }}
+                    style={{ marginBottom: 8, width: '100%' }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <Text ellipsis style={{ flex: 1, marginRight: 8, maxWidth: 200 }}>
-                        {index + 1}. {frame.name}
-                      </Text>
-                      <Space size="small">
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: 8, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                        <LocalFileImagePreview
+                          filePath={frame.path}
+                          alt={frame.name}
+                          maxEdge={200}
+                          style={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 4 }}
+                        />
+                        <Text ellipsis style={{ flex: 1, minWidth: 0 }}>
+                          {index + 1}. {frame.name}
+                        </Text>
+                      </div>
+                      <Space size="small" style={{ flexShrink: 0 }}>
                         <InputNumber 
                           size="small"
                           value={frame.delay}
@@ -260,7 +282,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
                           min={50}
                           max={5000}
                           step={50}
-                          style={{ width: 80 }}
+                          style={{ width: 110 }}
                           addonAfter="ms"
                         />
                         <Button 
@@ -290,7 +312,7 @@ const GifMaker: React.FC<GifMakerProps> = ({ visible, onClose }) => {
           </div>
         </div>
       </div>
-    </Modal>
+    </ToolModal>
   )
 }
 

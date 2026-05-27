@@ -55,18 +55,18 @@
   text-align: center;
 }
 
-.circular-progress {
+.image-preview__ring {
   width: 60px;
   height: 60px;
   transform: rotate(-90deg);
 }
 
-.circular-progress-bg {
+.image-preview__ring-bg {
   stroke: #e0e0e0;
 }
 
-.circular-progress-fill {
-  stroke: #1890ff;
+.image-preview__ring-fill {
+  stroke: var(--app-primary);
   transition: stroke-dasharray 0.3s ease;
 }
 
@@ -131,7 +131,7 @@
 }
 
 /* 暗色模式支持（可选） */
-@media (prefers-color-scheme: dark) {
+[data-app-theme='dark'] {
   .image-preview-container {
     background-color: #1f1f1f;
   }
@@ -150,10 +150,10 @@
 /* 底部操作栏卡片化样式 */
 .image-preview-footer {
   padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.8);
+  background: var(--app-glass-bg);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  border-top: 1px solid var(--app-border);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -161,7 +161,7 @@
   flex-wrap: wrap;
 }
 
-@media (prefers-color-scheme: dark) {
+[data-app-theme='dark'] {
   .image-preview-footer {
     background: rgba(30, 30, 30, 0.85);
     border-top-color: rgba(255, 255, 255, 0.1);
@@ -185,7 +185,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
+[data-app-theme='dark'] {
   .image-preview-toolbar-group {
     background: rgba(60, 60, 60, 0.6);
     border-color: rgba(255, 255, 255, 0.1);
@@ -226,7 +226,7 @@
   margin: 0 4px;
 }
 
-@media (prefers-color-scheme: dark) {
+[data-app-theme='dark'] {
   .image-preview-toolbar-divider {
     background: rgba(255, 255, 255, 0.15);
   }
@@ -242,7 +242,7 @@
   text-align: center;
 }
 
-@media (prefers-color-scheme: dark) {
+[data-app-theme='dark'] {
   .image-preview-toolbar-label {
     color: rgba(255, 255, 255, 0.45);
   }
@@ -275,7 +275,7 @@
   transform: translateY(0);
 }
 
-@media (prefers-color-scheme: dark) {
+[data-app-theme='dark'] {
   .image-preview-nav-buttons .ant-btn {
     background: rgba(60, 60, 60, 0.7);
     border-color: rgba(255, 255, 255, 0.1);
@@ -302,7 +302,7 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
+[data-app-theme='dark'] {
   .image-preview-close-btn .ant-btn {
     background: rgba(60, 60, 60, 0.7);
     border-color: rgba(255, 255, 255, 0.15);
@@ -321,11 +321,11 @@
   background: rgba(24, 144, 255, 0.1);
   border-radius: 16px;
   font-size: 13px;
-  color: #1890ff;
+  color: var(--app-primary);
   font-weight: 500;
 }
 
-@media (prefers-color-scheme: dark) {
+[data-app-theme='dark'] {
   .image-preview-info-badge {
     background: rgba(24, 144, 255, 0.2);
     color: #4096ff;

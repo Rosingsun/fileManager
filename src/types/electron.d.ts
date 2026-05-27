@@ -18,6 +18,8 @@ declare global {
       ) => Promise<Array<{ from: string; to: string; success: boolean; error?: string }>>
       getAppVersion: () => Promise<string>
       getPlatform: () => Promise<string>
+      getCacheOverview: () => Promise<import('./cache').MainCacheOverview>
+      clearAppCache: (scopes: import('./cache').MainCacheScope[]) => Promise<void>
       minimizeWindow: () => void
       maximizeWindow: () => void
       closeWindow: () => void
@@ -26,17 +28,45 @@ declare global {
       renameFile: (oldPath: string, newName: string) => Promise<boolean>
       deleteFile: (filePath: string) => Promise<boolean>
       moveFile: (oldPath: string, newPath: string) => Promise<boolean>
+      batchCopyToDirectory: (
+        sources: string[],
+        destDir: string,
+        conflictAction: import('./index').FileConflictAction
+      ) => Promise<import('./index').BatchFileOpResult[]>
+      batchRelocate: (
+        moves: import('./index').BatchRelocateEntry[],
+        conflictAction: import('./index').FileConflictAction
+      ) => Promise<import('./index').BatchFileOpResult[]>
       getImageBase64: (filePath: string) => Promise<string>
+      probeMediaAsset: (filePath: string) => Promise<import('./index').MediaAssetInfo>
+      getFileStats: (
+        filePath: string
+      ) => Promise<{ size: number; createdTime: number; modifiedTime: number } | null>
       getImageDimensions: (filePath: string) => Promise<{ width: number; height: number } | null>
       getImageThumbnail: (filePath: string, size?: number, quality?: number) => Promise<string>
+      getShutterCount: (filePath: string) => Promise<{ count: number | null; message?: string }>
+      getPhotoFocusPoints: (filePath: string) => Promise<import('./index').PhotoFocusPointsResult>
       // image editing operations
       applyEdits: (paths: string[] | string, settings: import('./index').ImageEditSettings) => Promise<import('./index').BatchOperationResult[]>
+      previewEdits: (filePath: string, settings: import('./index').ImageEditSettings) => Promise<string>
+      getImageHistogram: (filePath: string) => Promise<{
+        bins: number[]
+        total: number
+        peak: number
+        clipShadow: number
+        clipHighlight: number
+        rgbBins?: { r: number[]; g: number[]; b: number[] }
+      }>
+      analyzeForEdit: (filePath: string) => Promise<import('./index').ImageEditSettings>
       convertFormat: (paths: string[] | string, options: import('./index').FormatConversionOptions) => Promise<import('./index').BatchOperationResult[]>
       compressImage: (paths: string[] | string, options: import('./index').CompressionOptions) => Promise<import('./index').BatchOperationResult[]>
       estimateCompressedSize: (path: string, options: import('./index').CompressionOptions) => Promise<number>
       scanSimilarImages: (config: import('./index').SimilarityScanConfig) => Promise<import('./index').SimilarityScanResult>
       onSimilarityScanProgress: (callback: (progress: import('./index').SimilarityScanProgress) => void) => () => void
       cancelSimilarityScan: () => void
+      scanImageQuality: (config: import('./index').ImageQualityScanConfig) => Promise<import('./index').ImageQualityScanResult>
+      onImageQualityScanProgress: (callback: (progress: import('./index').ImageQualityScanProgress) => void) => () => void
+      cancelImageQualityScan: () => void
       classifyImage: (imagePath: string) => Promise<import('./index').ImageClassificationResult>
       classifyImagesBatch: (config: import('./index').ImageClassificationConfig) => Promise<import('./index').ImageClassificationBatchResult>
       onImageClassificationProgress: (callback: (progress: import('./index').ImageClassificationProgress) => void) => () => void
@@ -45,17 +75,41 @@ declare global {
       getAvailableModels: () => Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>>
       downloadModel: (modelId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal) => Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }>
       openExternalLink: (url: string) => Promise<boolean>
+      saveRefreshToken: (token: string) => Promise<{ ok: boolean; error?: string }>
+      loadRefreshToken: () => Promise<string | null>
+      clearRefreshToken: () => Promise<void>
+      setCurrentUserId: (userId: string | null) => Promise<void>
+      appendOperationLog: (payload: {
+        userId: string
+        action: string
+        summary?: string
+        detail?: string
+      }) => Promise<void>
+      listOperationLogs: (
+        userId: string,
+        limit?: number
+      ) => Promise<Array<{ id: string; ts: number; action: string; summary?: string; detail?: string }>>
+      clearOperationLogs: (userId: string) => Promise<void>
       selectAndSaveModelFile: () => Promise<string | null>
       saveModelFile: (sourcePath: string) => Promise<string | null>
       
       // 实用工具
       batchRename: (files: string[], options: import('./index').BatchRenameOptions) => Promise<import('./index').RenameResult[]>
       addWatermark: (files: string[], options: import('./index').WatermarkOptions) => Promise<import('./index').BatchOperationResult[]>
+      previewWatermark: (filePath: string, options: import('./index').WatermarkOptions) => Promise<string>
       stitchImages: (images: string[], options: import('./index').StitchOptions) => Promise<string>
       createGif: (frames: import('./index').GifFrame[], options: import('./index').GifOptions) => Promise<string>
       imagesToPdf: (images: string[], options: import('./index').PdfOptions) => Promise<string>
       generateThumbnails: (files: string[], options: import('./index').ThumbnailOptions) => Promise<import('./index').ThumbnailResult[]>
       enhanceImage: (file: string, options: import('./index').EnhanceOptions) => Promise<string>
+      previewFocusAdjust: (
+        filePath: string,
+        options: import('./index').FocusAdjustOptions
+      ) => Promise<string>
+      applyFocusAdjust: (
+        filePath: string,
+        options: import('./index').FocusAdjustOptions
+      ) => Promise<string>
       selectFiles: (filter?: string) => Promise<string[] | null>
     }
   }

@@ -1,26 +1,18 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Modal, Button, Space, Spin, message } from 'antd'
-import EditorControls from './EditorControls'
-import PresetsPanel from './PresetsPanel'
-import FormatCompressDialog from './FormatCompressDialog'
-import CropOverlay from './CropOverlay'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { Button, Space, message } from 'antd'
+import ImageEditorShell from './ImageEditorShell'
+import EditorPreviewCanvas from './EditorPreviewCanvas'
+import EditorSidebar from './EditorSidebar'
 import { useImageEditor } from './useImageEditor'
-import { getFilterCss } from '../../utils/imageEditorUtils'
+import {
+  hasAnyEdit,
+  countActiveEdits,
+  imageLoader,
+  logSignedInUserAction,
+  settingsForComparePreview,
+  rgbToWhiteBalance,
+} from '../../utils'
 import type { ImageEditSettings } from '../../types'
-
-const getTransform = (settings: ImageEditSettings): string => {
-  const transforms: string[] = []
-  if (settings.rotation) {
-    transforms.push(`rotate(${settings.rotation}deg)`)
-  }
-  if (settings.flipHorizontal) {
-    transforms.push('scaleX(-1)')
-  }
-  if (settings.flipVertical) {
-    transforms.push('scaleY(-1)')
-  }
-  return transforms.length > 0 ? transforms.join(' ') : 'none'
-}
 
 interface ImageEditorProps {
   visible: boolean
@@ -29,14 +21,37 @@ interface ImageEditorProps {
   onSaved?: (result: { success: boolean; filePath: string }) => void
 }
 
+const PREVIEW_DEBOUNCE_MS = 300
+
 const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, onSaved }) => {
   const { settings, setSettings, updateSetting, resetSettings } = useImageEditor()
   const [imageUrl, setImageUrl] = useState<string | null>(null)
+  /** 始终为未编辑的原始 base64，供「对比原图」使用 */
+  const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null)
   const [loadingImage, setLoadingImage] = useState(false)
-  const [openFormatDialog, setOpenFormatDialog] = useState(false)
   const [showCropOverlay, setShowCropOverlay] = useState(false)
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
-  const imgRef = useRef<HTMLImageElement>(null)
+  const [saving, setSaving] = useState(false)
+  const [sharpPreviewUrl, setSharpPreviewUrl] = useState<string | null>(null)
+  /** 对比视图全画幅 Sharp 预览（不含裁切） */
+  const [sharpCompareUrl, setSharpCompareUrl] = useState<string | null>(null)
+  const [sharpPreviewLoading, setSharpPreviewLoading] = useState(false)
+  const [autoEnhanceLoading, setAutoEnhanceLoading] = useState(false)
+  const [pickWhiteBalanceMode, setPickWhiteBalanceMode] = useState(false)
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewGenRef = useRef(0)
+
+  const fileName = filePath ? filePath.split(/[/\\]/).pop() ?? filePath : ''
+
+  const previewSrc = useMemo(
+    () => sharpPreviewUrl ?? imageUrl ?? originalImageUrl ?? null,
+    [sharpPreviewUrl, imageUrl, originalImageUrl]
+  )
+
+  const settingsDigest = useMemo(
+    () => `${sharpPreviewUrl ?? ''}|${JSON.stringify(settings)}`,
+    [sharpPreviewUrl, settings]
+  )
 
   const loadImage = useCallback(async () => {
     if (!filePath) return
@@ -46,12 +61,20 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
         const base64 = await window.electronAPI.getImageBase64(filePath)
         if (base64 && base64.startsWith('data:image')) {
           setImageUrl(base64)
+          setOriginalImageUrl(base64)
         } else {
           setImageUrl(null)
+          setOriginalImageUrl(null)
           message.error('无法加载图片')
         }
       } else {
-        setImageUrl(`file://${filePath}`)
+        const fileUrl = `file://${filePath}`
+        setImageUrl(fileUrl)
+        setOriginalImageUrl(fileUrl)
+      }
+      if (window.electronAPI?.getImageDimensions) {
+        const dim = await window.electronAPI.getImageDimensions(filePath)
+        if (dim) setImageSize({ width: dim.width, height: dim.height })
       }
     } catch (error) {
       console.error('加载图片失败:', error)
@@ -63,24 +86,81 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
 
   useEffect(() => {
     if (visible && filePath) {
-      loadImage()
+      void loadImage()
     } else {
       setImageUrl(null)
+      setOriginalImageUrl(null)
+      setSharpPreviewUrl(null)
     }
   }, [visible, filePath, loadImage])
 
-  const handleSettingsChange = useCallback((updates: Partial<ImageEditSettings>) => {
-    Object.entries(updates).forEach(([key, value]) => {
-      updateSetting(key as any, value)
-    })
-  }, [updateSetting])
+  const handleSettingsChange = useCallback(
+    (updates: Partial<ImageEditSettings>) => {
+      Object.entries(updates).forEach(([key, value]) => {
+        updateSetting(key as keyof ImageEditSettings, value)
+      })
+    },
+    [updateSetting]
+  )
 
   useEffect(() => {
     if (!visible) {
       resetSettings()
       setImageUrl(null)
+      setOriginalImageUrl(null)
+      setSharpPreviewUrl(null)
+      setSharpCompareUrl(null)
+      setShowCropOverlay(false)
     }
   }, [visible, resetSettings])
+
+  const comparePreviewSettings = useMemo(
+    () => settingsForComparePreview(settings),
+    [settings]
+  )
+
+  useEffect(() => {
+    if (!visible || !filePath || !imageUrl) return
+
+    if (!hasAnyEdit(settings)) {
+      setSharpPreviewUrl(null)
+      setSharpCompareUrl(null)
+      setSharpPreviewLoading(false)
+      return
+    }
+
+    const api = window.electronAPI
+    if (!api?.previewEdits) return
+
+    if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+    setSharpPreviewLoading(true)
+    const gen = ++previewGenRef.current
+    const needComparePreview =
+      !!settings.crop && hasAnyEdit(comparePreviewSettings)
+
+    previewTimerRef.current = setTimeout(() => {
+      const mainPreview = api.previewEdits(filePath, settings)
+      const comparePreview = needComparePreview
+        ? api.previewEdits(filePath, comparePreviewSettings)
+        : Promise.resolve(null as string | null)
+
+      void Promise.all([mainPreview, comparePreview])
+        .then(([url, compareUrl]) => {
+          if (previewGenRef.current !== gen) return
+          setSharpPreviewUrl(url)
+          setSharpCompareUrl(compareUrl)
+          setSharpPreviewLoading(false)
+        })
+        .catch(() => {
+          if (previewGenRef.current !== gen) return
+          setSharpPreviewLoading(false)
+        })
+    }, PREVIEW_DEBOUNCE_MS)
+
+    return () => {
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
+    }
+  }, [visible, filePath, imageUrl, settings, comparePreviewSettings])
 
   const handleApplyPreset = (presetSettings: ImageEditSettings) => {
     setSettings(presetSettings)
@@ -88,139 +168,135 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
 
   const handleReset = () => {
     resetSettings()
+    setSharpPreviewUrl(null)
+    setSharpCompareUrl(null)
+  }
+
+  const handlePickWhiteBalance = useCallback(
+    (rgb: { r: number; g: number; b: number }) => {
+      const wb = rgbToWhiteBalance(rgb.r, rgb.g, rgb.b)
+      handleSettingsChange(wb)
+      setPickWhiteBalanceMode(false)
+      message.success('已根据采样点设置色温与色调')
+    },
+    [handleSettingsChange]
+  )
+
+  const handleAutoEnhance = async () => {
+    const api = window.electronAPI
+    if (!api?.analyzeForEdit || !filePath) {
+      message.warning('当前环境不支持一键增强')
+      return
+    }
+    setAutoEnhanceLoading(true)
+    try {
+      const suggested = await api.analyzeForEdit(filePath)
+      setSettings({ ...settings, ...suggested })
+      message.success('已应用增强建议，可继续微调')
+    } catch (e: unknown) {
+      message.error(`分析失败：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setAutoEnhanceLoading(false)
+    }
   }
 
   const handleSave = async () => {
+    if (!filePath) {
+      message.error('文件路径不可用，无法保存')
+      return
+    }
+
+    setSaving(true)
     try {
       const api = window.electronAPI
-      if (!api) {
-        throw new Error('electronAPI not available')
-      }
+      if (!api) throw new Error('electronAPI not available')
       const res = await api.applyEdits(filePath, settings)
-      if (res[0]?.success) {
-        onSaved && onSaved({ success: true, filePath })
+      const first = res?.[0]
+      if (first?.success) {
+        const savedPath = first.newPath || filePath
+        message.success(first.newPath ? `已另存为新文件（原图未修改）` : '已保存')
+        logSignedInUserAction('image_editor_apply', '图片编辑器应用调整', savedPath)
+        imageLoader.clearCache(savedPath)
+        if (filePath !== savedPath) imageLoader.clearCache(filePath)
+        onSaved?.({ success: true, filePath: savedPath })
       } else {
-        onSaved && onSaved({ success: false, filePath })
+        message.error(`保存失败：${first?.error || '返回结果为空'}`)
+        onSaved?.({ success: false, filePath })
       }
-    } catch (e) {
-      console.error(e)
-      onSaved && onSaved({ success: false, filePath })
+    } catch (e: unknown) {
+      message.error(`保存出错：${e instanceof Error ? e.message : String(e)}`)
+      onSaved?.({ success: false, filePath })
+    } finally {
+      setSaving(false)
+      onClose()
     }
-    onClose()
   }
 
+  const sizeMeta =
+    imageSize.width > 0 ? `${imageSize.width} × ${imageSize.height}` : undefined
+
   return (
-    <Modal
-      open={visible}
-      onCancel={onClose}
-      title="图片编辑"
-      width={900}
-      footer={
-        <Space>
-          <Button onClick={() => setOpenFormatDialog(true)}>格式/压缩</Button>
-          <Button onClick={handleReset}>重置</Button>
-          <Button onClick={onClose}>取消</Button>
-          <Button type="primary" onClick={handleSave}>保存</Button>
-        </Space>
-      }
-    >
-      <div style={{ display: 'flex', gap: 16 }}>
-        <div style={{ 
-          flex: 1, 
-          textAlign: 'center',
-          background: 'rgba(248, 248, 248, 0.5)',
-          borderRadius: 8,
-          padding: 16,
-          minHeight: 400,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative'
-        }}>
-          {loadingImage ? (
-            <Spin size="large" tip="加载图片中..." />
-          ) : imageUrl ? (
-            <div style={{ position: 'relative', display: 'inline-block' }}>
-              <img
-                ref={imgRef}
-                src={imageUrl}
-                alt="preview"
-                onLoad={(e) => {
-                  const img = e.target as HTMLImageElement
-                  setImageSize({ width: img.naturalWidth, height: img.naturalHeight })
-                }}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '500px',
-                  filter: getFilterCss(settings),
-                  transform: getTransform(settings),
-                  borderRadius: 4,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  display: showCropOverlay ? 'none' : 'block'
-                }}
-              />
-              {showCropOverlay && imageSize.width > 0 && (
-                <div style={{ position: 'relative', width: 'fit-content', margin: '0 auto' }}>
-                  <img
-                    src={imageUrl}
-                    alt="preview"
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '500px',
-                      filter: getFilterCss(settings),
-                      transform: getTransform(settings),
-                      borderRadius: 4
-                    }}
-                  />
-                  <CropOverlay
-                    settings={settings}
-                    onChange={handleSettingsChange}
-                    imageWidth={imageSize.width}
-                    imageHeight={imageSize.height}
-                  />
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ color: '#999' }}>无法加载图片</div>
-          )}
-        </div>
-        <div style={{ 
-          width: 320, 
-          background: 'rgba(255, 255, 255, 0.6)',
-          backdropFilter: 'blur(20px)',
-          borderRadius: 8,
-          border: '1px solid rgba(0, 0, 0, 0.1)'
-        }}>
-          <PresetsPanel onApply={handleApplyPreset} currentSettings={settings} />
-          <EditorControls 
-            settings={settings} 
+    <>
+      <ImageEditorShell
+        open={visible}
+        title={fileName || '图片编辑'}
+        meta={sizeMeta}
+        onClose={onClose}
+        toolbarExtra={
+          <Space>
+            <Button onClick={handleReset} disabled={saving}>
+              重置
+            </Button>
+            <Button onClick={onClose} disabled={saving}>
+              取消
+            </Button>
+            <Button
+              type="primary"
+              onClick={handleSave}
+              disabled={saving || loadingImage || !imageUrl}
+              loading={saving}
+            >
+              保存
+            </Button>
+          </Space>
+        }
+      >
+        <div className="image-editor-layout">
+          <EditorPreviewCanvas
+            imageUrl={imageUrl}
+            originalUrl={originalImageUrl}
+            sharpPreviewUrl={sharpPreviewUrl}
+            sharpCompareUrl={sharpCompareUrl}
+            sharpPreviewLoading={sharpPreviewLoading}
+            settings={settings}
+            onSettingsChange={handleSettingsChange}
+            imageWidth={imageSize.width}
+            imageHeight={imageSize.height}
+            showCropOverlay={showCropOverlay}
+            loading={loadingImage}
+            editCount={countActiveEdits(settings)}
+            pickWhiteBalanceMode={pickWhiteBalanceMode}
+            onPickWhiteBalance={handlePickWhiteBalance}
+          />
+          <EditorSidebar
+            settings={settings}
             onChange={handleSettingsChange}
+            onApplyPreset={handleApplyPreset}
+            previewSrc={previewSrc}
+            settingsDigest={settingsDigest}
             showCropMode={showCropOverlay}
             onToggleCropMode={setShowCropOverlay}
             imageWidth={imageSize.width}
             imageHeight={imageSize.height}
+            onAutoEnhance={handleAutoEnhance}
+            autoEnhanceLoading={autoEnhanceLoading}
+            filePath={filePath}
+            onPickWhiteBalance={() => setPickWhiteBalanceMode(m => !m)}
+            pickWhiteBalanceActive={pickWhiteBalanceMode}
           />
         </div>
-      </div>
-      <FormatCompressDialog
-        visible={openFormatDialog}
-        files={[filePath]}
-        onClose={() => setOpenFormatDialog(false)}
-        onConvert={opts => {
-          const api = window.electronAPI
-          if (api) {
-            api.convertFormat(filePath, opts).then(() => setOpenFormatDialog(false))
-          }
-        }}
-        onCompress={opts => {
-          const api = window.electronAPI
-          if (api) {
-            api.compressImage(filePath, opts).then(() => setOpenFormatDialog(false))
-          }
-        }}
-      />
-    </Modal>
+      </ImageEditorShell>
+    </>
   )
 }
 

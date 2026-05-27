@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import {
-  Card,
   Button,
   Select,
   Radio,
@@ -13,7 +12,8 @@ import {
   Modal,
   Tabs,
   Tree,
-  Segmented
+  Segmented,
+  Card
 } from 'antd'
 import {
   FolderOpenOutlined,
@@ -23,8 +23,10 @@ import {
 } from '@ant-design/icons'
 import { useFileStore } from '../stores'
 import { useFileSystem } from '../hooks'
-import { generatePreview, getExtensionsByCategory } from '../utils'
+import { GlassCard } from './UnifiedUI'
+import { generatePreview, getExtensionsByCategory, formatOrganizeRuleLabel, logSignedInUserAction } from '../utils'
 import type { OrganizeRule, OrganizeConfig, PreviewResultItem, SizeRange } from '../types'
+import OrganizeHistoryTab from './ControlPanel/OrganizeHistoryTab'
 
 const { Option } = Select
 
@@ -84,7 +86,8 @@ const ControlPanel: React.FC = () => {
     addSizeRange,
     updateSizeRange,
     deleteSizeRange,
-    resetSizeRanges
+    resetSizeRanges,
+    addOrganizeHistory
   } = useFileStore()
 
   const { selectDirectory, loadDirectory, extractFiles, loadRecursiveDirectoryForPreview } = useFileSystem()
@@ -97,7 +100,7 @@ const ControlPanel: React.FC = () => {
   const [previewVisible, setPreviewVisible] = useState(false)
 
   // Tab选择状态
-  const [activeTab, setActiveTab] = useState<'organize' | 'extract'>('organize')
+  const [activeTab, setActiveTab] = useState<'organize' | 'extract' | 'history'>('organize')
 
   // 文件提取相关状态
   const [extractCategory, setExtractCategory] = useState<'all' | 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other'>('all')
@@ -159,6 +162,21 @@ const ControlPanel: React.FC = () => {
       } else {
         message.success(`成功整理 ${successCount} 个文件`)
       }
+      logSignedInUserAction(
+        'file_organize',
+        `文件整理完成（成功 ${successCount}，失败 ${failCount}）`,
+        currentPath
+      )
+      addOrganizeHistory({
+        action: 'organize',
+        sourcePath: currentPath,
+        ruleLabel: formatOrganizeRuleLabel(rule),
+        includeSubdirectories: includeSubdirs,
+        conflictAction,
+        successCount,
+        failCount,
+        totalCount: results.length
+      })
 
       // 重新加载目录
       await loadDirectory(currentPath)
@@ -199,7 +217,23 @@ const ControlPanel: React.FC = () => {
       if (extractMaxSizeMB !== undefined) filters.maxSize = extractMaxSizeMB * 1024 * 1024
       if (extractCategory && extractCategory !== 'all') filters.category = extractCategory
 
-      await extractFiles(currentPath, filters, extractConflictAction)
+      const results = await extractFiles(currentPath, filters, extractConflictAction)
+      if (results && results.length > 0) {
+        const successCount = results.filter((r) => r.success).length
+        const failCount = results.length - successCount
+        addOrganizeHistory({
+          action: 'extract',
+          sourcePath: currentPath,
+          ruleLabel:
+            extractCategory === 'all'
+              ? '按条件提取'
+              : `提取 · ${extractCategory}`,
+          conflictAction: extractConflictAction,
+          successCount,
+          failCount,
+          totalCount: results.length
+        })
+      }
     } catch (error: any) {
       message.error(`提取文件失败: ${error.message}`)
     }
@@ -264,13 +298,26 @@ const ControlPanel: React.FC = () => {
       const results = await generatePreview(filesToPreview, config, sizeRanges)
       setPreviewResults(results)
       setPreviewVisible(true)
+      logSignedInUserAction(
+        'file_organize_preview',
+        `生成整理预览（${results.length} 条）`,
+        currentPath
+      )
+      addOrganizeHistory({
+        action: 'preview',
+        sourcePath: currentPath,
+        ruleLabel: formatOrganizeRuleLabel(rule),
+        includeSubdirectories: includeSubdirs,
+        conflictAction,
+        totalCount: results.length
+      })
     } catch (error: any) {
       message.error(`预览失败: ${error.message}`)
     }
   }
 
   return (
-    <Card title="整理控制面板" >
+    <GlassCard title="整理控制面板" fillHeight>
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
         {/* 选择目录 */}
         <Button
@@ -283,16 +330,18 @@ const ControlPanel: React.FC = () => {
         </Button>
 
         {!currentPath ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '40px 20px', 
-            color: '#999',
-            background: '#f5f5f5',
-            borderRadius: 8
-          }}>
-            <FolderOpenOutlined style={{ fontSize: 48, marginBottom: 16, color: '#bfbfbf' }} />
+          <div
+            style={{
+              textAlign: 'center',
+              padding: '32px 16px',
+              color: '#999',
+              background: '#f5f5f5',
+              borderRadius: 8
+            }}
+          >
+            <FolderOpenOutlined style={{ fontSize: 40, marginBottom: 12, color: '#bfbfbf' }} />
             <div style={{ fontSize: 14 }}>请先选择要整理的目录</div>
-            <div style={{ fontSize: 12, marginTop: 8 }}>点击上方的"选择目录"按钮开始</div>
+            <div style={{ fontSize: 12, marginTop: 8 }}>可在左侧「最近目录」快速打开</div>
           </div>
         ) : (
           <>
@@ -302,7 +351,7 @@ const ControlPanel: React.FC = () => {
 
             <Tabs
               activeKey={activeTab}
-              onChange={(key) => setActiveTab(key as 'organize' | 'extract')}
+              onChange={(key) => setActiveTab(key as 'organize' | 'extract' | 'history')}
               items={[
                 {
                   key: 'organize',
@@ -524,6 +573,11 @@ const ControlPanel: React.FC = () => {
                       </Button>
                     </Space>
                   )
+                },
+                {
+                  key: 'history',
+                  label: '历史',
+                  children: <OrganizeHistoryTab />
                 }
               ]}
             />
@@ -562,7 +616,7 @@ const ControlPanel: React.FC = () => {
               {previewResults.map((result: PreviewResultItem, index: number) => (
                 <div key={index} style={{ marginBottom: 8, fontSize: 12 }}>
                   <div style={{ color: '#666' }}>从: {result.from.replace(currentPath + '/', '')}</div>
-                  <div style={{ color: '#1890ff' }}>到: {result.to.replace(currentPath + '/', '')}</div>
+                  <div style={{ color: 'var(--app-primary)' }}>到: {result.to.replace(currentPath + '/', '')}</div>
                   {index < previewResults.length - 1 && <Divider style={{ margin: '8px 0' }} />}
                 </div>
               ))}
@@ -581,7 +635,7 @@ const ControlPanel: React.FC = () => {
                   <div style={{ color: '#666', marginBottom: 4 }}>来源:</div>
                   <div style={{ wordBreak: 'break-all', fontSize: 11 }}>{result.from.replace(currentPath + '/', '')}</div>
                   <Divider style={{ margin: '8px 0' }} />
-                  <div style={{ color: '#1890ff', marginBottom: 4 }}>目标:</div>
+                  <div style={{ color: 'var(--app-primary)', marginBottom: 4 }}>目标:</div>
                   <div style={{ wordBreak: 'break-all', fontSize: 11 }}>{result.to.replace(currentPath + '/', '')}</div>
                 </Card>
               ))}
@@ -605,6 +659,7 @@ const ControlPanel: React.FC = () => {
           <Button key="reset" onClick={() => {
             resetSizeRanges()
             message.success('已重置为默认范围')
+            logSignedInUserAction('size_range_reset', '大小分类范围已重置为默认')
           }}>
             重置为默认
           </Button>,
@@ -626,7 +681,7 @@ const ControlPanel: React.FC = () => {
           </div>
           <Space direction="vertical" style={{ width: '100%' }}>
             {sizeRanges.map((range) => (
-              <Card key={range.id} size="small" style={{ backgroundColor: '#f9f9f9' }}>
+              <Card key={range.id} size="small" style={{ backgroundColor: 'var(--app-surface-subtle)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontWeight: 500 }}>{range.name}</div>
@@ -657,6 +712,7 @@ const ControlPanel: React.FC = () => {
                           message.error('至少需要保留1个分类范围')
                         } else {
                           message.success('删除成功')
+                          logSignedInUserAction('size_range_delete', `删除大小分类范围：${range.name}`)
                         }
                       }}
                     >
@@ -727,6 +783,7 @@ const ControlPanel: React.FC = () => {
                     })
                     if (success) {
                       message.success('更新成功')
+                      logSignedInUserAction('size_range_update', `更新大小分类范围：${rangeName.trim()}`)
                       setEditingRange(null)
                       setRangeName('')
                       setRangeMinSize('')
@@ -742,6 +799,7 @@ const ControlPanel: React.FC = () => {
                     })
                     if (success) {
                       message.success('添加成功')
+                      logSignedInUserAction('size_range_add', `添加大小分类范围：${rangeName.trim()}`)
                       setRangeName('')
                       setRangeMinSize('')
                       setRangeMaxSize('')
@@ -769,7 +827,7 @@ const ControlPanel: React.FC = () => {
           </Space>
         </div>
       </Modal>
-    </Card>
+    </GlassCard>
   )
 }
 

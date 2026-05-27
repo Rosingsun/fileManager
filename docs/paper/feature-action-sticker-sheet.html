@@ -1,0 +1,108 @@
+<!--
+  fileDeal · FeatureAction 对照稿（code-to-design）
+  来源：src/styles/tokens.css、src/styles/feature-action.css
+  Paper 就绪后：新建画板 → 让 Agent 用 write_html 导入本文件，或粘贴到 Paper 画布
+-->
+<div data-artboard="FeatureAction · fileDeal" style="
+  width: 1120px;
+  min-height: 720px;
+  padding: 32px 36px 40px;
+  box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  background: linear-gradient(165deg, #f7f9fc 0%, #f5f7fb 45%, #eef2f8 100%);
+  color: #1f2329;
+  border-radius: 16px;
+">
+  <header style="margin-bottom: 28px;">
+    <p style="margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #8a94a6;">
+      fileDeal · 来自代码库
+    </p>
+    <h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.03em;">FeatureAction 组件对照</h1>
+    <p style="margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: #5d6673; max-width: 640px;">
+      快速筛选与相似检测共用 <code style="font-size: 12px; background: rgba(15,23,42,0.06); padding: 2px 6px; border-radius: 4px;">feat-btn</code>；
+      仅 <strong>--feat-accent</strong> 按模块区分。实现见 <code style="font-size: 12px;">FeatureActionButton.tsx</code>。
+    </p>
+  </header>
+
+  <section style="margin-bottom: 24px; padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,0.72); border: 1px solid rgba(15,23,42,0.08);">
+    <h2 style="margin: 0 0 10px; font-size: 12px; font-weight: 600; color: #5d6673;">Design tokens（浅色 · tokens.css）</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;"><i style="width:14px;height:14px;border-radius:4px;background:#0a84ff;"></i> primary #0a84ff</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;"><i style="width:14px;height:14px;border-radius:4px;background:#ff9f0a;"></i> warning #ff9f0a</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;"><i style="width:14px;height:14px;border-radius:4px;background:#ff453a;"></i> danger #ff453a</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;"><i style="width:14px;height:14px;border-radius:4px;background:#ffffff;border:1px solid rgba(15,23,42,0.08);"></i> surface</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;font-size:11px;"><i style="width:14px;height:14px;border-radius:4px;background:rgba(255,255,255,0.72);border:1px solid rgba(15,23,42,0.08);"></i> glass-bg</span>
+    </div>
+  </section>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <!-- Quick Filter · warning accent -->
+    <article class="quick-filter" style="
+      --feat-accent: #ff9f0a;
+      --feat-accent-on: #1a1408;
+      padding: 20px 22px 22px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.84);
+      border: 1px solid rgba(15,23,42,0.08);
+      box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+    ">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,rgba(255,159,10,0.28),rgba(255,204,0,0.16));color:#ff9f0a;font-size:18px;">◎</div>
+        <div>
+          <h3 style="margin:0;font-size:15px;font-weight:700;letter-spacing:-0.02em;">快速筛选</h3>
+          <p style="margin:2px 0 0;font-size:11px;color:#5d6673;">.quick-filter · --feat-accent: warning</p>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <button type="button" class="feat-btn feat-btn--secondary feat-btn--md" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:1px solid rgba(15,23,42,0.08);border-radius:10px;background:#fff;color:#1f2329;font:inherit;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(15,23,42,0.04);">选择目录</button>
+        <button type="button" class="feat-btn feat-btn--ghost feat-btn--md" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:1px solid transparent;border-radius:10px;background:transparent;color:#5d6673;font:inherit;font-size:13px;font-weight:600;">取消</button>
+        <button type="button" class="feat-btn feat-btn--emphasis feat-btn--md" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:1px solid color-mix(in srgb,#ff9f0a 38%,rgba(15,23,42,0.08));border-radius:10px;background:color-mix(in srgb,#ff9f0a 12%,#fff);color:#1f2329;font:inherit;font-size:13px;font-weight:600;">推荐</button>
+        <button type="button" class="feat-btn feat-btn--primary feat-btn--md" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:none;border-radius:10px;background:linear-gradient(180deg,color-mix(in srgb,#ff9f0a 90%,#fff 10%),color-mix(in srgb,#ff9f0a 96%,#000 4%));color:#1a1408;font:inherit;font-size:13px;font-weight:600;box-shadow:0 4px 14px color-mix(in srgb,#ff9f0a 36%,transparent);">开始扫描</button>
+      </div>
+      <div style="display:inline-flex;align-items:center;gap:4px;padding:5px;border-radius:12px;border:1px solid rgba(15,23,42,0.08);background:color-mix(in srgb,#1f2329 4%,transparent);">
+        <button type="button" style="min-height:34px;padding:0 12px;border:1px solid color-mix(in srgb,#ff9f0a 35%,rgba(15,23,42,0.08));border-radius:8px;background:#fff;color:#1f2329;font:inherit;font-size:12px;font-weight:600;box-shadow:0 4px 14px rgba(15,23,42,0.04);">宽松</button>
+        <button type="button" style="min-height:34px;padding:0 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:#5d6673;font:inherit;font-size:12px;font-weight:600;">推荐</button>
+        <button type="button" style="min-height:34px;padding:0 12px;border:1px solid transparent;border-radius:8px;background:transparent;color:#5d6673;font:inherit;font-size:12px;font-weight:600;">严格</button>
+      </div>
+      <footer style="display:flex;justify-content:flex-end;gap:12px;margin-top:18px;padding-top:16px;border-top:1px solid rgba(15,23,42,0.08);">
+        <button type="button" style="min-width:96px;min-height:36px;padding:0 18px;border:1px solid transparent;border-radius:10px;background:transparent;color:#5d6673;font:inherit;font-size:13px;font-weight:600;">取消</button>
+        <button type="button" style="min-width:108px;min-height:36px;padding:0 18px;border:none;border-radius:10px;background:linear-gradient(180deg,color-mix(in srgb,#ff9f0a 90%,#fff 10%),color-mix(in srgb,#ff9f0a 96%,#000 4%));color:#1a1408;font:inherit;font-size:13px;font-weight:600;">开始扫描</button>
+      </footer>
+    </article>
+
+    <!-- Similarity · primary accent -->
+    <article class="similarity-detection" style="
+      --feat-accent: #0a84ff;
+      --feat-accent-on: #ffffff;
+      padding: 20px 22px 22px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.84);
+      border: 1px solid rgba(15,23,42,0.08);
+      box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+    ">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <div style="width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,rgba(10,132,255,0.22),rgba(90,200,250,0.12));color:#0a84ff;font-size:18px;">⧉</div>
+        <div>
+          <h3 style="margin:0;font-size:15px;font-weight:700;letter-spacing:-0.02em;">相似检测</h3>
+          <p style="margin:2px 0 0;font-size:11px;color:#5d6673;">.similarity-detection · --feat-accent: primary</p>
+        </div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+        <button type="button" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:1px solid rgba(15,23,42,0.08);border-radius:10px;background:#fff;color:#1f2329;font:inherit;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(15,23,42,0.04);">选择目录</button>
+        <button type="button" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:1px solid transparent;border-radius:10px;background:transparent;color:#5d6673;font:inherit;font-size:13px;font-weight:600;">预览</button>
+        <button type="button" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:1px solid color-mix(in srgb,#0a84ff 38%,rgba(15,23,42,0.08));border-radius:10px;background:color-mix(in srgb,#0a84ff 12%,#fff);color:#1f2329;font:inherit;font-size:13px;font-weight:600;">pHash</button>
+        <button type="button" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:none;border-radius:10px;background:linear-gradient(180deg,color-mix(in srgb,#0a84ff 90%,#fff 10%),color-mix(in srgb,#0a84ff 96%,#000 4%));color:#fff;font:inherit;font-size:13px;font-weight:600;box-shadow:0 4px 14px color-mix(in srgb,#0a84ff 36%,transparent);">开始检测</button>
+        <button type="button" style="display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:36px;padding:0 18px;border:1px solid color-mix(in srgb,#ff453a 32%,rgba(15,23,42,0.08));border-radius:10px;background:color-mix(in srgb,#ff453a 10%,#fff);color:#ff453a;font:inherit;font-size:13px;font-weight:600;">删除选中</button>
+      </div>
+      <p style="margin:0 0 12px;font-size:11px;color:#8a94a6;">variant: danger · 批量对话框</p>
+      <footer style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px;padding-top:16px;border-top:1px solid rgba(15,23,42,0.08);">
+        <button type="button" style="min-width:96px;min-height:36px;padding:0 18px;border:1px solid transparent;border-radius:10px;background:transparent;color:#5d6673;font:inherit;font-size:13px;font-weight:600;">取消</button>
+        <button type="button" style="min-width:108px;min-height:36px;padding:0 18px;border:none;border-radius:10px;background:linear-gradient(180deg,color-mix(in srgb,#0a84ff 90%,#fff 10%),color-mix(in srgb,#0a84ff 96%,#000 4%));color:#fff;font:inherit;font-size:13px;font-weight:600;">确认</button>
+      </footer>
+    </article>
+  </div>
+
+  <p style="margin: 24px 0 0; font-size: 11px; color: #8a94a6; text-align: center;">
+    尺寸 md · 圆角 10px · 与 feature-action.css 一致 · 生成于 code-to-design 工作流
+  </p>
+</div>

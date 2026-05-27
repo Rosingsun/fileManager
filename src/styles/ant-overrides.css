@@ -1,0 +1,81 @@
+.ant-card {
+  border-color: var(--app-border);
+  background: var(--app-surface-elevated);
+}
+
+.ant-card-head {
+  border-bottom-color: var(--app-border);
+  color: var(--app-text-primary);
+}
+
+.ant-table-wrapper .ant-table {
+  background: transparent;
+}
+
+.ant-table-thead > tr > th {
+  background: var(--app-surface-subtle) !important;
+  color: var(--app-text-secondary);
+  border-bottom-color: var(--app-border) !important;
+}
+
+.ant-table-tbody > tr > td {
+  border-bottom-color: var(--app-border);
+}
+
+.ant-table-tbody > tr.ant-table-row:hover > td {
+  background: var(--app-selected-bg) !important;
+}
+
+.ant-modal-content {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-lg);
+}
+
+.ant-modal-header {
+  background: transparent;
+  border-bottom-color: var(--app-border);
+}
+
+.ant-tabs-nav::before {
+  border-bottom-color: var(--app-border) !important;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker {
+  border-radius: var(--app-radius-md) !important;
+  border-color: var(--app-border) !important;
+  background: var(--app-surface) !important;
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:hover,
+.ant-select-selector:hover {
+  border-color: var(--app-border-strong) !important;
+}
+
+.ant-input:focus,
+.ant-input-affix-wrapper-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--app-primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-primary) 22%, transparent) !important;
+}
+
+.ant-segmented {
+  background: var(--app-surface-subtle);
+  border: 1px solid var(--app-border);
+}
+
+.ant-list-item {
+  border-block-end-color: var(--app-border) !important;
+}
+
+.ant-btn-primary {
+  box-shadow: none;
+}
+
+.ant-btn-primary:not(:disabled):hover {
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--app-primary) 32%, transparent);
+}

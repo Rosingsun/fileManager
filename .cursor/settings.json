@@ -1,0 +1,13 @@
+{
+  "plugins": {
+    "figma": {
+      "enabled": true
+    },
+    "paper-desktop": {
+      "enabled": true
+    },
+    "shadcn": {
+      "enabled": true
+    }
+  }
+}

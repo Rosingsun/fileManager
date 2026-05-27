@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { Card, Modal, Input, message, Space, Empty } from 'antd'
+import { Card, Modal, Input, message, Space } from 'antd'
 import { Button as AntButton } from 'antd'
 import {
   DeleteOutlined,
@@ -9,15 +9,26 @@ import {
 import { useFileStore } from '../../stores'
 import { useImageClassificationStore } from '../../stores'
 import { useFileSystem } from '../../hooks'
-import { filterFiles, getFileExtension, imageLoader } from '../../utils'
+import {
+  filterFiles,
+  getFileExtension,
+  getMediaPreviewKind,
+  imageLoader,
+  isPreviewableImageFile,
+  isRawImage,
+  logSignedInUserAction
+} from '../../utils'
+import type { MediaPreviewKind } from '../../utils'
+import type { MediaAssetInfo } from '../../types'
 import { useFilePreview } from './useFilePreview'
 import { FileListHeader } from './FileListHeader'
 import { FileListTable } from './FileListTable'
 import { FileListGrid } from './FileListGrid'
-import ImageViewer from '../ImageViewer/ImageViewer'
-import type { Image } from '../ImageViewer/types'
 import ImageEditor from '../ImageEditor/ImageEditor'
 import BatchEditModal from '../ImageEditor/BatchEditModal'
+import { SelectionActionBar } from '../UnifiedUI'
+import ImageViewer from '../ImageViewer/ImageViewer'
+import { MediaPreviewModal } from '../MediaPreview'
 import type { FileInfo } from '../../types'
 import { MAX_IMAGE_SIZE } from './types'
 
@@ -40,6 +51,7 @@ const FileList: React.FC = () => {
   const { results: classificationResultsFromStore } = useImageClassificationStore()
 
   const [selectedImageCategory, setSelectedImageCategory] = useState<string>('all')
+  const [selectedQuality, setSelectedQuality] = useState<string>('all')
   const [renameModalVisible, setRenameModalVisible] = useState(false)
   const [renamingFile, setRenamingFile] = useState<FileInfo | null>(null)
   const [newFileName, setNewFileName] = useState('')
@@ -48,7 +60,14 @@ const FileList: React.FC = () => {
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
   const [selectedRows, setSelectedRows] = useState<FileInfo[]>([])
   const [batchRenameModalVisible, setBatchRenameModalVisible] = useState(false)
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list')
+  // view mode can be list or grid; default to grid and remember user choice across sessions
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+    const saved = localStorage.getItem('file_list_view_mode')
+    if (saved === 'list' || saved === 'grid') {
+      return saved
+    }
+    return 'grid'
+  })
   const [batchRenamePrefix, setBatchRenamePrefix] = useState('')
   const [batchRenameSuffix, setBatchRenameSuffix] = useState('')
   const [moveModalVisible, setMoveModalVisible] = useState(false)
@@ -59,13 +78,20 @@ const FileList: React.FC = () => {
 
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
   const [previewIndex, setPreviewIndex] = useState(0)
-  const [previewImages, setPreviewImages] = useState<Image[]>([])
+  const [previewImages, setPreviewImages] = useState<string[]>([])
   const [previewableFiles, setPreviewableFiles] = useState<FileInfo[]>([])
+  const [previewMediaMeta, setPreviewMediaMeta] = useState<Map<string, MediaAssetInfo>>(new Map())
+
+  const [mediaPreviewVisible, setMediaPreviewVisible] = useState(false)
+  const [mediaPreviewKind, setMediaPreviewKind] = useState<Exclude<MediaPreviewKind, 'image'>>('video')
+  const [mediaPreviewFiles, setMediaPreviewFiles] = useState<FileInfo[]>([])
+  const [mediaPreviewIndex, setMediaPreviewIndex] = useState(0)
 
   // 编辑器
   const [editorVisible, setEditorVisible] = useState(false)
   const [editorFilePath, setEditorFilePath] = useState<string | null>(null)
   const [batchEditorVisible, setBatchEditorVisible] = useState(false)
+  const [isAnalyzingImages, setIsAnalyzingImages] = useState(false)
 
   const previewEnabled = true
 
@@ -118,117 +144,35 @@ const FileList: React.FC = () => {
 
   useEffect(() => {
     setCurrentPage(1)
-  }, [fileList, pageSize, selectedCategory, selectedSubExtensions])
+  }, [fileList, pageSize, selectedCategory, selectedSubExtensions, selectedImageCategory, selectedQuality])
+
+  useEffect(() => {
+    setSelectedImageCategory('all')
+    setSelectedQuality('all')
+  }, [currentPath])
+
+  const siblingNames = useMemo(
+    () => fileList.filter(f => !f.isDirectory).map(f => f.name),
+    [fileList]
+  )
 
   const isPreviewable = useCallback((file: FileInfo): boolean => {
     if (file.isDirectory) return false
     const ext = getFileExtension(file.name).toLowerCase()
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp']
-    return imageExtensions.includes(ext)
+    return getMediaPreviewKind(ext) !== null
   }, [])
+
+  const isPreviewableImage = useCallback(
+    (file: FileInfo): boolean => {
+      if (file.isDirectory) return false
+      return isPreviewableImageFile(file.name, siblingNames)
+    },
+    [siblingNames]
+  )
 
   const getImageFiles = useCallback(() => {
-    return fileList.filter(f => !f.isDirectory && isPreviewable(f))
-  }, [fileList, isPreviewable])
-
-  const convertFileToImage = useCallback(async (file: FileInfo, imageUrl: string): Promise<Image> => {
-    let width = 0
-    let height = 0
-
-    try {
-      const dimensions = await window.electronAPI?.getImageDimensions(file.path)
-      if (dimensions && dimensions.width > 0 && dimensions.height > 0) {
-        width = dimensions.width
-        height = dimensions.height
-      } else {
-        throw new Error('无法从 electron 端获取尺寸')
-      }
-    } catch (error) {
-      try {
-        const img = new Image()
-        img.src = imageUrl
-        await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error('加载超时')), 10000)
-          img.onload = () => {
-            clearTimeout(timeout)
-            width = img.naturalWidth || img.width || 0
-            height = img.naturalHeight || img.height || 0
-            resolve()
-          }
-          img.onerror = () => {
-            clearTimeout(timeout)
-            reject(new Error('图片加载失败'))
-          }
-        })
-      } catch (imgError) {
-        width = 1920
-        height = 1080
-      }
-    }
-
-    let classification = undefined
-    try {
-      const savedResults = localStorage.getItem('image_classification_results')
-      if (savedResults) {
-        const resultsMap = JSON.parse(savedResults)
-        const classificationResult = resultsMap[file.path]
-        if (classificationResult) {
-          classification = classificationResult
-        }
-      }
-    } catch (e) {
-      console.warn('加载分类结果失败:', e)
-    }
-
-    return {
-      id: file.path,
-      url: imageUrl,
-      filename: file.name,
-      width,
-      height,
-      size: file.size,
-      format: getFileExtension(file.name).toLowerCase() || 'unknown',
-      createdAt: new Date(file.createdTime).toISOString(),
-      modifiedAt: new Date(file.modifiedTime).toISOString(),
-      description: '',
-      tags: [],
-      classification
-    }
-  }, [])
-
-  const loadImageForPreview = useCallback(async (index: number, filePath: string, file: FileInfo) => {
-    const previewData = previews.get(filePath)
-    if (previewData?.full?.trim()) {
-      const image = await convertFileToImage(file, previewData.full)
-      setPreviewImages(prev => {
-        const newImages = [...prev]
-        newImages[index] = image
-        return newImages
-      })
-      return
-    }
-
-    try {
-      const result = await imageLoader.loadSmart(filePath, {
-        useCache: true,
-        timeout: 20000,
-        retryCount: 1,
-        fallbackSize: 200,
-        fallbackQuality: 70
-      })
-
-      if (result.data) {
-        const image = await convertFileToImage(file, result.data)
-        setPreviewImages(prev => {
-          const newImages = [...prev]
-          newImages[index] = image
-          return newImages
-        })
-      }
-    } catch (error) {
-      console.error('加载图片失败:', error)
-    }
-  }, [previews, convertFileToImage])
+    return fileList.filter(f => !f.isDirectory && isPreviewableImage(f))
+  }, [fileList, isPreviewableImage])
 
   const handleEdit = useCallback((file: FileInfo) => {
     setEditorFilePath(file.path)
@@ -242,48 +186,60 @@ const FileList: React.FC = () => {
   }, [selectedRows])
 
   const handlePreview = useCallback(async (file: FileInfo) => {
+    const ext = getFileExtension(file.name).toLowerCase()
+    const kind = getMediaPreviewKind(ext)
+
+    if (kind && kind !== 'image') {
+      const sameKindFiles = fileList.filter((f) => {
+        if (f.isDirectory) return false
+        return getMediaPreviewKind(getFileExtension(f.name).toLowerCase()) === kind
+      })
+      const mediaIndex = sameKindFiles.findIndex((f) => f.path === file.path)
+      if (mediaIndex < 0) return
+      setMediaPreviewKind(kind)
+      setMediaPreviewFiles(sameKindFiles)
+      setMediaPreviewIndex(mediaIndex)
+      setMediaPreviewVisible(true)
+      return
+    }
+
     const imageFiles = getImageFiles()
     const index = imageFiles.findIndex(f => f.path === file.path)
     if (index >= 0) {
       setPreviewableFiles(imageFiles)
 
-      const initialImages: Image[] = imageFiles.map((f) => ({
-        id: f.path,
-        url: '',
-        filename: f.name,
-        width: 0,
-        height: 0,
-        size: f.size,
-        format: getFileExtension(f.name).toLowerCase() || 'unknown',
-        createdAt: new Date(f.createdTime).toISOString(),
-        modifiedAt: new Date(f.modifiedTime).toISOString(),
-        description: '',
-        tags: [],
-        classification: undefined
-      }))
+      const metaMap = new Map<string, MediaAssetInfo>()
+      if (window.electronAPI?.probeMediaAsset) {
+        await Promise.all(
+          imageFiles.map(async (f) => {
+            try {
+              const info = await window.electronAPI!.probeMediaAsset(f.path)
+              metaMap.set(f.path, info)
+            } catch {
+              metaMap.set(f.path, { kind: 'standard', stillPath: f.path })
+            }
+          })
+        )
+      }
+      setPreviewMediaMeta(metaMap)
 
-      setPreviewImages(initialImages)
+      const imageUrls: string[] = imageFiles.map((f) => {
+        const previewData = previews.get(f.path)
+        if (previewData?.full?.trim()) {
+          return previewData.full
+        }
+        return `file://${f.path}`
+      })
+
+      setPreviewImages(imageUrls)
       setPreviewIndex(index)
-
-      try {
-        await loadImageForPreview(index, imageFiles[index].path, imageFiles[index])
-        setPreviewModalVisible(true)
-      } catch (error) {
-        console.error('加载第一张图片失败:', error)
-        setPreviewModalVisible(true)
-      }
+      setPreviewModalVisible(true)
     }
-  }, [getImageFiles, loadImageForPreview])
+  }, [fileList, getImageFiles, previews])
 
-  const handlePreviewIndexChange = useCallback(async (newIndex: number) => {
+  const handlePreviewIndexChange = useCallback((newIndex: number) => {
     setPreviewIndex(newIndex)
-    if (previewableFiles[newIndex]) {
-      const currentImage = previewImages[newIndex]
-      if (!currentImage || !currentImage.url || currentImage.url.trim() === '') {
-        await loadImageForPreview(newIndex, previewableFiles[newIndex].path, previewableFiles[newIndex])
-      }
-    }
-  }, [previewableFiles, previewImages, loadImageForPreview])
+  }, [])
 
   const filteredFileList = useMemo(() => {
     let files = filterFiles(fileList, selectedCategory, selectedSubExtensions)
@@ -295,14 +251,29 @@ const FileList: React.FC = () => {
       })
     }
 
+    if (selectedQuality !== 'all') {
+      files = files.filter(file => {
+        const classification = imageClassificationResults.get(file.path)
+        return classification?.quality === selectedQuality
+      })
+    }
+
     return files
-  }, [fileList, selectedCategory, selectedSubExtensions, imageClassificationResults, selectedImageCategory])
+  }, [fileList, selectedCategory, selectedSubExtensions, imageClassificationResults, selectedImageCategory, selectedQuality])
 
   const handleGoBack = useCallback(() => {
     if (!currentPath) return
+
+    const currentIndex = historyList.findIndex(item => item.path === currentPath)
+    if (currentIndex >= 0 && currentIndex < historyList.length - 1) {
+      const previousPath = historyList[currentIndex + 1].path
+      loadDirectory(previousPath, false)
+      return
+    }
+
     const parentPath = currentPath.split('/').slice(0, -1).join('/') || '/'
-    loadDirectory(parentPath)
-  }, [currentPath, loadDirectory])
+    loadDirectory(parentPath, false)
+  }, [currentPath, historyList, loadDirectory])
 
   const handleCategoryChange = useCallback((value: string) => {
     setSelectedCategory(value as 'all' | 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other')
@@ -318,6 +289,11 @@ const FileList: React.FC = () => {
 
   const handleViewModeChange = useCallback((mode: 'list' | 'grid') => {
     setViewMode(mode)
+    try {
+      localStorage.setItem('file_list_view_mode', mode)
+    } catch {
+      /* ignore */
+    }
   }, [])
 
   const handleRename = useCallback((file: FileInfo) => {
@@ -333,6 +309,7 @@ const FileList: React.FC = () => {
       const success = await window.electronAPI?.renameFile(renamingFile.path, newFileName.trim())
       if (success) {
         message.success('重命名成功')
+        logSignedInUserAction('file_rename', `重命名为「${newFileName.trim()}」`, renamingFile.path)
         if (currentPath) {
           loadDirectory(currentPath)
         }
@@ -359,6 +336,7 @@ const FileList: React.FC = () => {
       const success = await window.electronAPI?.deleteFile(deletingFile.path)
       if (success) {
         message.success('删除成功')
+        logSignedInUserAction('file_delete', '删除文件', deletingFile.path)
         if (currentPath) {
           loadDirectory(currentPath)
         }
@@ -372,7 +350,29 @@ const FileList: React.FC = () => {
     setDeletingFile(null)
   }, [deletingFile, currentPath, loadDirectory])
 
-  const handleBatchDelete = useCallback(async () => {
+  const performBatchDelete = useCallback(
+    async (files: FileInfo[]) => {
+      if (files.length === 0) return
+      let successCount = 0
+      for (const file of files) {
+        const success = await window.electronAPI?.deleteFile(file.path)
+        if (success) successCount++
+      }
+      message.success(`批量删除完成：成功 ${successCount} 个，失败 ${files.length - successCount} 个`)
+      logSignedInUserAction(
+        'file_batch_delete',
+        `批量删除（成功 ${successCount}，失败 ${files.length - successCount}）`
+      )
+      setSelectedRowKeys([])
+      setSelectedRows([])
+      if (currentPath) {
+        loadDirectory(currentPath)
+      }
+    },
+    [currentPath, loadDirectory]
+  )
+
+  const handleBatchDelete = useCallback(() => {
     if (selectedRows.length === 0) {
       message.warning('请先选择要删除的文件')
       return
@@ -384,21 +384,9 @@ const FileList: React.FC = () => {
       okText: '确定删除',
       cancelText: '取消',
       okButtonProps: { danger: true },
-      onOk: async () => {
-        let successCount = 0
-        for (const file of selectedRows) {
-          const success = await window.electronAPI?.deleteFile(file.path)
-          if (success) successCount++
-        }
-        message.success(`批量删除完成：成功 ${successCount} 个，失败 ${selectedRows.length - successCount} 个`)
-        setSelectedRowKeys([])
-        setSelectedRows([])
-        if (currentPath) {
-          loadDirectory(currentPath)
-        }
-      }
+      onOk: () => performBatchDelete(selectedRows),
     })
-  }, [selectedRows, currentPath, loadDirectory])
+  }, [selectedRows, performBatchDelete])
 
   const handleBatchRename = useCallback(() => {
     if (selectedRows.length === 0) {
@@ -421,6 +409,10 @@ const FileList: React.FC = () => {
       if (success) successCount++
     }
     message.success(`批量重命名完成：成功 ${successCount} 个，失败 ${selectedRows.length - successCount} 个`)
+    logSignedInUserAction(
+      'file_batch_rename',
+      `批量重命名（成功 ${successCount}，失败 ${selectedRows.length - successCount}）`
+    )
     setBatchRenameModalVisible(false)
     setBatchRenamePrefix('')
     setBatchRenameSuffix('')
@@ -451,6 +443,10 @@ const FileList: React.FC = () => {
       if (success) successCount++
     }
     message.success(`批量移动完成：成功 ${successCount} 个，失败 ${selectedRows.length - successCount} 个`)
+    logSignedInUserAction(
+      'file_batch_move',
+      `批量移动至「${moveTargetPath.trim()}」（成功 ${successCount}，失败 ${selectedRows.length - successCount}）`
+    )
     setMoveModalVisible(false)
     setMoveTargetPath('')
     setSelectedRowKeys([])
@@ -462,23 +458,88 @@ const FileList: React.FC = () => {
 
   const handleDoubleClick = useCallback(async (file: FileInfo) => {
     if (file.isDirectory) {
-      loadDirectory(file.path, false)
+      loadDirectory(file.path)
+    } else if (isPreviewable(file)) {
+      handlePreview(file)
     } else {
       if (window.electronAPI && window.electronAPI.openFile) {
         await window.electronAPI.openFile(file.path)
       }
     }
-  }, [loadDirectory])
+  }, [loadDirectory, isPreviewable, handlePreview])
 
   const handleSelectionChange = useCallback((keys: string[], rows: FileInfo[]) => {
     setSelectedRowKeys(keys)
     setSelectedRows(rows)
   }, [])
 
+  /** 网格仅回传 path keys，需按全量筛选列表还原 row，顶部批量删除等依赖 selectedRows */
+  const handleGridSelectionChange = useCallback(
+    (keys: string[]) => {
+      setSelectedRowKeys(keys)
+      setSelectedRows(filteredFileList.filter(f => keys.includes(f.path)))
+    },
+    [filteredFileList]
+  )
+
   const handlePageChange = useCallback((page: number, pageSize: number) => {
     setCurrentPage(page)
     setPageSize(pageSize)
   }, [])
+
+  const analyzableImageCount = useMemo(
+    () => fileList.filter(f => !f.isDirectory && isPreviewableImage(f)).length,
+    [fileList, isPreviewableImage]
+  )
+
+  const hasClassifiedImagesInFolder = useMemo(
+    () => fileList.some(f => !f.isDirectory && imageClassificationResults.has(f.path)),
+    [fileList, imageClassificationResults]
+  )
+
+  const handleAnalyzeImages = useCallback(async () => {
+    const imagePaths = fileList.filter(f => !f.isDirectory && isPreviewableImage(f)).map(f => f.path)
+    if (imagePaths.length === 0) {
+      message.warning('当前目录没有可分析的图片')
+      return
+    }
+    if (!window.electronAPI?.classifyImagesBatch) {
+      message.error('图片分析不可用')
+      return
+    }
+    let modelOk = true
+    try {
+      modelOk = (await window.electronAPI.checkModelExists?.()) ?? false
+    } catch {
+      modelOk = false
+    }
+    if (!modelOk) {
+      message.warning('请先下载图片分类模型（可在「图片分类」页下载）')
+      return
+    }
+    setIsAnalyzingImages(true)
+    try {
+      const result = await window.electronAPI.classifyImagesBatch({
+        imagePaths,
+        batchSize: 8,
+        modelId: 'clip_vit_b32_quant'
+      })
+      const prev = new Map(useImageClassificationStore.getState().results)
+      for (const r of result.results) {
+        prev.set(r.filePath, r)
+      }
+      useImageClassificationStore.getState().setResults(Array.from(prev.values()))
+      message.success(`分析完成：成功 ${result.successCount} 张，失败 ${result.errorCount} 张`)
+      logSignedInUserAction(
+        'image_classify_file_list',
+        `文件列表内图片分类分析（成功 ${result.successCount}，失败 ${result.errorCount}）`
+      )
+    } catch (e) {
+      message.error('分析失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setIsAnalyzingImages(false)
+    }
+  }, [fileList, isPreviewableImage])
 
   const startIndex = (currentPage - 1) * pageSize
   const endIndex = startIndex + pageSize
@@ -486,8 +547,12 @@ const FileList: React.FC = () => {
 
   if (!currentPath) {
     return (
-      <Card title="文件列表" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-        <Empty description="请先选择目录" />
+      <Card title="文件列表" className="app-surface-card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div className="app-empty-state is-panel">
+          <div className="app-empty-state__icon">📁</div>
+          <div className="app-empty-state__title">请先选择目录</div>
+          <div className="app-empty-state__description">选择左侧目录后，文件列表、筛选和图片预览会在这里展示。</div>
+        </div>
       </Card>
     )
   }
@@ -498,32 +563,34 @@ const FileList: React.FC = () => {
         title={
           <FileListHeader
             currentPath={currentPath}
-            historyList={historyList}
             selectedCategory={selectedCategory}
             selectedSubExtensions={selectedSubExtensions}
             selectedImageCategory={selectedImageCategory}
-            imageClassificationResults={imageClassificationResults}
+            selectedQuality={selectedQuality}
             filteredFileList={filteredFileList}
+            analyzableImageCount={analyzableImageCount}
+            hasClassifiedImagesInFolder={hasClassifiedImagesInFolder}
+            isAnalyzingImages={isAnalyzingImages}
+            onAnalyzeImages={handleAnalyzeImages}
             viewMode={viewMode}
-            currentPage={currentPage}
-            pageSize={pageSize}
-            total={filteredFileList.length}
+            onViewModeChange={handleViewModeChange}
             onGoBack={handleGoBack}
             onCategoryChange={handleCategoryChange}
             onSubExtensionChange={handleSubExtensionChange}
             onResetFilter={handleResetFilter}
             onImageCategoryChange={setSelectedImageCategory}
-            onViewModeChange={handleViewModeChange}
-            onPageChange={handlePageChange}
+            onQualityChange={setSelectedQuality}
           />
         }
+        className="app-surface-card"
         style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
         bodyStyle={{ padding: 0, flex: 1, overflow: 'hidden' }}
       >
         {selectedRows.length > 0 && (
-          <div style={{ padding: '8px 16px', borderBottom: '1px solid #f0f0f0', backgroundColor: '#fafafa' }}>
-            <Space>
-              <span>已选择 {selectedRows.length} 项</span>
+          <SelectionActionBar
+            summary={`已选择 ${selectedRows.length} 项`}
+            onClear={() => { setSelectedRowKeys([]); setSelectedRows([]) }}
+          >
               <AntButton size="small" danger icon={<DeleteOutlined />} onClick={handleBatchDelete}>
                 批量删除
               </AntButton>
@@ -536,14 +603,11 @@ const FileList: React.FC = () => {
               <AntButton size="small" icon={<EditOutlined />} onClick={handleBatchEdit}>
                 批量编辑
               </AntButton>
-              <AntButton size="small" onClick={() => { setSelectedRowKeys([]); setSelectedRows([]) }}>
-                取消选择
-              </AntButton>
-            </Space>
-          </div>
+          </SelectionActionBar>
         )}
 
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        {/* container holds either table or grid; use flex layout and hide overflow so the child components manage scrolling internally */}
+        <div style={{ flex: 1,height:"100%", minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {viewMode === 'list' ? (
             <FileListTable
               dataSource={paginatedFileList}
@@ -569,6 +633,7 @@ const FileList: React.FC = () => {
               onRegisterRef={registerImageRef}
               onPageChange={handlePageChange}
               isPreviewable={isPreviewable}
+              isPreviewableImage={isPreviewableImage}
             />
           ) : (
             <FileListGrid
@@ -584,11 +649,14 @@ const FileList: React.FC = () => {
               selectedRowKeys={selectedRowKeys}
               maxImageSize={maxImageSize}
               onPreview={handlePreview}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
               onDoubleClick={handleDoubleClick}
-              onSelectionChange={setSelectedRowKeys}
+              onSelectionChange={handleGridSelectionChange}
               onRegisterRef={registerImageRef}
               onPageChange={handlePageChange}
               isPreviewable={isPreviewable}
+              isPreviewableImage={isPreviewableImage}
             />
           )}
         </div>
@@ -650,9 +718,32 @@ const FileList: React.FC = () => {
       </Modal>
       </Card>
 
+      <MediaPreviewModal
+        visible={mediaPreviewVisible}
+        kind={mediaPreviewKind}
+        files={mediaPreviewFiles}
+        currentIndex={mediaPreviewIndex}
+        onClose={() => setMediaPreviewVisible(false)}
+        onIndexChange={setMediaPreviewIndex}
+      />
+
       {previewModalVisible && previewImages.length > 0 && (
         <ImageViewer
-          images={previewImages}
+          images={previewImages.map((src, index) => {
+            const f = previewableFiles[index]
+            return {
+              id: `${index}-${src}`,
+              url: src,
+              filePath: f?.path,
+              filename: f?.name || `image-${index + 1}`,
+              width: 0,
+              height: 0,
+              size: f?.size ?? 0,
+              format: getFileExtension(f?.name || 'jpg'),
+              createdAt: f ? new Date(f.createdTime).toISOString() : '',
+              modifiedAt: f ? new Date(f.modifiedTime).toISOString() : ''
+            }
+          })}
           currentIndex={previewIndex}
           onIndexChange={handlePreviewIndexChange}
           onClose={() => setPreviewModalVisible(false)}
@@ -664,7 +755,15 @@ const FileList: React.FC = () => {
           visible={editorVisible}
           filePath={editorFilePath}
           onClose={() => setEditorVisible(false)}
-          onSaved={() => { /* optional refresh actions */ }}
+          onSaved={(result) => {
+            if (result?.success) {
+              // image was modified – invalidate any cached previews and reload directory
+              imageLoader.clearCache(result.filePath)
+              clearCache()
+              // reload current folder to refresh metadata/modified time
+              loadDirectory(currentPath)
+            }
+          }}
         />
       )}
 

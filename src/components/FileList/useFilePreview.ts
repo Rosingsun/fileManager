@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { imageLoader, imageCache } from '../../utils'
+import { useFileStore } from '../../stores'
 import type { FileInfo } from '../../types'
 import type { PreviewData } from './types'
 
@@ -20,6 +21,21 @@ export function useFilePreview(options: UseFilePreviewOptions = {}) {
   const observerRef = useRef<IntersectionObserver | null>(null)
   const imageRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const fileListRef = useRef<FileInfo[]>([])
+  const previewCacheEpoch = useFileStore((s) => s.previewCacheEpoch)
+
+  const resetPreviewState = useCallback(() => {
+    setPreviews(new Map())
+    setVisibleImages(new Set())
+    setLoadingImages(new Set())
+    setProgress(new Map())
+    imageRefs.current.clear()
+    setPreviewVersion((v) => v + 1)
+  }, [])
+
+  useEffect(() => {
+    if (previewCacheEpoch === 0) return
+    resetPreviewState()
+  }, [previewCacheEpoch, resetPreviewState])
 
   const loadThumbnailWithProgress = useCallback(async (
     filePath: string,

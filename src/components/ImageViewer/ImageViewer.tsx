@@ -2,12 +2,17 @@
  * 全屏图片查看器主组件
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import ImageCanvas from './components/ImageCanvas'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import ImageCanvas, { type ImageCanvasHandle } from './components/ImageCanvas'
 import InfoPanel from './components/InfoPanel'
+import LivePhotoPlayer from './components/LivePhotoPlayer'
+import { getPhotoFocusPoints } from '../../utils'
+import type { PhotoFocusPoint } from '../../types'
+import type { LivePlaybackMode } from './components/LivePhotoPlayer'
 import { useImageLoader } from './hooks/useImageLoader'
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts'
 import type { ImageViewerProps, ViewMode } from './types'
+import { getFilePathFromFileUrl } from '../../utils/electronFileUrl'
 import './ImageViewer.css'
 
 const ImageViewer: React.FC<ImageViewerProps> = ({
@@ -15,10 +20,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   currentIndex: initialIndex,
   onIndexChange,
   onClose,
-  onImageEdit,
-  onTagsUpdate,
-  onDescriptionUpdate,
-  onImageDelete,
   onImageRotate,
   onImageFlip
 }) => {
@@ -31,6 +32,15 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [isLoadingBlob, setIsLoadingBlob] = useState(false)
   const [backgroundColor, setBackgroundColor] = useState<string | null>(null)
+  const [diskFileMeta, setDiskFileMeta] = useState<{
+    size: number
+    createdAt: string
+    modifiedAt: string
+  } | null>(null)
+  const [livePlaybackMode, setLivePlaybackMode] = useState<LivePlaybackMode>('once')
+  const [focusPoints, setFocusPoints] = useState<PhotoFocusPoint[]>([])
+  const [activeFocusPointIndex, setActiveFocusPointIndex] = useState(0)
+  const imageCanvasRef = useRef<ImageCanvasHandle>(null)
 
   const currentImage = useMemo(() => {
     return images[currentIndex] || null
@@ -56,7 +66,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
       if (url.startsWith('file://')) {
         setIsLoadingBlob(true)
         try {
-          const filePath = url.replace('file://', '')
+          const filePath =
+            currentImage.filePath?.trim() ||
+            getFilePathFromFileUrl(url) ||
+            url.replace(/^file:\/\//i, '')
           if (window.electronAPI?.getImageBase64) {
             const base64Data = await window.electronAPI.getImageBase64(filePath)
             if (base64Data && base64Data.startsWith('data:image')) {
@@ -80,7 +93,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     }
 
     loadBlobUrl()
-  }, [currentImage?.url])
+  }, [currentImage?.url, currentImage?.filePath])
 
   // 确定要传递给 ImageCanvas 的 URL
   const displayImageUrl = useMemo(() => {
@@ -106,17 +119,83 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     console.log('[ImageViewer] blobUrl:', blobUrl)
   }, [currentImage, displayImageUrl, blobUrl])
 
-  const { isLoading, isError, retry } = useImageLoader(displayImageUrl)
+  const { isLoading, isError, retry, naturalWidth, naturalHeight } = useImageLoader(displayImageUrl)
+
+  const infoPanelImage = useMemo(() => {
+    if (!currentImage) return null
+    const w = naturalWidth ?? currentImage.width
+    const h = naturalHeight ?? currentImage.height
+    let merged =
+      w === currentImage.width && h === currentImage.height
+        ? currentImage
+        : { ...currentImage, width: w, height: h }
+    if (diskFileMeta) {
+      merged = {
+        ...merged,
+        size: diskFileMeta.size,
+        createdAt: diskFileMeta.createdAt,
+        modifiedAt: diskFileMeta.modifiedAt
+      }
+    }
+    return merged
+  }, [currentImage, naturalWidth, naturalHeight, diskFileMeta])
+
+  const imageFilePathForMeta = useMemo(
+    () =>
+      (currentImage?.filePath?.trim() ||
+        (currentImage?.url ? getFilePathFromFileUrl(currentImage.url) : null)) ??
+      null,
+    [currentImage?.filePath, currentImage?.url]
+  )
+
+  useEffect(() => {
+    const fp = imageFilePathForMeta
+    if (!fp || !window.electronAPI?.getFileStats) {
+      setDiskFileMeta(null)
+      return
+    }
+    let cancelled = false
+    setDiskFileMeta(null)
+    void window.electronAPI.getFileStats(fp).then(s => {
+      if (cancelled || !s) return
+      setDiskFileMeta({
+        size: s.size,
+        createdAt: new Date(s.createdTime).toISOString(),
+        modifiedAt: new Date(s.modifiedTime).toISOString()
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [imageFilePathForMeta])
+
+  useEffect(() => {
+    const fp = imageFilePathForMeta
+    if (!fp) {
+      setFocusPoints([])
+      setActiveFocusPointIndex(0)
+      return
+    }
+    let cancelled = false
+    void getPhotoFocusPoints(fp).then((res) => {
+      if (cancelled) return
+      setFocusPoints(res.points)
+      setActiveFocusPointIndex(0)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [imageFilePathForMeta])
 
   // 当图片切换或 URL 变化时，重置状态
   useEffect(() => {
     if (currentImage && displayImageUrl) {
-      // 图片 URL 存在，重置视图状态
       setScale(100)
       setRotation(0)
       setFlipHorizontal(false)
       setFlipVertical(false)
       setViewMode('fit')
+      setLivePlaybackMode('once')
     }
   }, [currentImage?.id, displayImageUrl])
 
@@ -187,66 +266,25 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     setViewMode('fit')
   }, [])
 
-  // 描述和标签更新
-  const handleDescriptionSave = useCallback((description: string) => {
-    if (currentImage) {
-      if (onDescriptionUpdate) {
-        onDescriptionUpdate(currentImage.id, description)
-      }
-      if (onImageEdit) {
-        onImageEdit(currentImage.id, { description })
-      }
+  const selectFocusPoint = useCallback((index: number, pan = true) => {
+    if (index < 0 || index >= focusPoints.length) return
+    setActiveFocusPointIndex(index)
+    if (pan) {
+      queueMicrotask(() => imageCanvasRef.current?.centerOnFocusPoint(index))
     }
-  }, [currentImage, onDescriptionUpdate, onImageEdit])
+  }, [focusPoints.length])
 
-  const handleTagsChange = useCallback((tags: string[]) => {
-    if (currentImage) {
-      if (onTagsUpdate) {
-        onTagsUpdate(currentImage.id, tags)
-      }
-      if (onImageEdit) {
-        onImageEdit(currentImage.id, { tags })
-      }
-    }
-  }, [currentImage, onTagsUpdate, onImageEdit])
-
-  // 删除功能
-  const handleDelete = useCallback(() => {
-    if (currentImage && onImageDelete) {
-      if (window.confirm('确定要删除这张图片吗？')) {
-        onImageDelete(currentImage.id)
-        // 删除后切换到下一张或上一张
-        if (currentIndex < images.length - 1) {
-          handleNext()
-        } else if (currentIndex > 0) {
-          handlePrev()
-        } else {
-          // 最后一张，关闭查看器
-          if (onClose) {
-            onClose()
-          }
-        }
-      }
-    }
-  }, [currentImage, currentIndex, images.length, onImageDelete, onClose, handleNext, handlePrev])
-
-  // 下载功能
-  const handleDownload = useCallback(() => {
-    if (currentImage) {
-      const link = document.createElement('a')
-      link.href = currentImage.url
-      link.download = currentImage.filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    }
-  }, [currentImage])
-
-  // 收藏功能（可选）
-  const handleFavorite = useCallback(() => {
-    // 这里可以添加收藏逻辑
-    console.log('收藏功能待实现')
-  }, [])
+  const cycleFocusPoint = useCallback(
+    (direction: 1 | -1) => {
+      if (focusPoints.length < 2) return
+      setActiveFocusPointIndex((i) => {
+        const next = (i + direction + focusPoints.length) % focusPoints.length
+        queueMicrotask(() => imageCanvasRef.current?.centerOnFocusPoint(next))
+        return next
+      })
+    },
+    [focusPoints.length]
+  )
 
   // 键盘快捷键
   useKeyboardShortcuts({
@@ -258,6 +296,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
     onKey1: () => setViewMode('actual'),
     onPlus: () => setScale(prev => Math.min(prev + 10, 400)),
     onMinus: () => setScale(prev => Math.max(prev - 10, 25)),
+    onBracketLeft: () => cycleFocusPoint(-1),
+    onBracketRight: () => cycleFocusPoint(1),
     enabled: true
   })
 
@@ -271,9 +311,10 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
         {/* 左侧：图片展示区域 */}
         <div className="image-viewer-canvas-wrapper">
           <ImageCanvas
+            ref={imageCanvasRef}
             imageUrl={displayImageUrl}
-            imageWidth={currentImage?.width || 0}
-            imageHeight={currentImage?.height || 0}
+            imageWidth={naturalWidth ?? currentImage?.width ?? 0}
+            imageHeight={naturalHeight ?? currentImage?.height ?? 0}
             scale={scale}
             rotation={rotation}
             flipHorizontal={flipHorizontal}
@@ -290,13 +331,35 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             isLoading={isLoading || isLoadingBlob}
             isError={isError}
             onRetry={retry}
+            focusPoints={focusPoints}
+            activeFocusPointIndex={activeFocusPointIndex}
+            onFocusPointSelect={index => selectFocusPoint(index)}
           />
+          {focusPoints.length > 1 && (
+            <span className="image-viewer-badge image-viewer-badge--focus" title="切换对焦点">
+              对焦点 {activeFocusPointIndex + 1}/{focusPoints.length} · [ ]
+            </span>
+          )}
+          {currentImage?.mediaKind === 'raw' && (
+            <span className="image-viewer-badge image-viewer-badge--raw">RAW · 嵌入预览</span>
+          )}
+          {currentImage?.mediaKind === 'live' && currentImage.liveVideoPath && (
+            <LivePhotoPlayer
+              key={currentImage.liveVideoPath}
+              liveVideoPath={currentImage.liveVideoPath}
+              playbackMode={livePlaybackMode}
+              disabled={isLoading || isLoadingBlob || isError}
+            />
+          )}
         </div>
 
-{/* 右侧：信息面板 */}
+        {/* 右侧：信息面板 */}
         <div className="image-viewer-info-wrapper">
           <InfoPanel
-            image={currentImage}
+            image={infoPanelImage}
+            imageFilePath={imageFilePathForMeta}
+            paletteImageUrl={displayImageUrl}
+            paletteSourceLoading={isLoadingBlob}
             currentIndex={currentIndex}
             totalCount={images.length}
             rotation={rotation}
@@ -304,17 +367,14 @@ const ImageViewer: React.FC<ImageViewerProps> = ({
             flipVertical={flipVertical}
             backgroundColor={backgroundColor}
             onBackgroundColorChange={setBackgroundColor}
-            onDescriptionSave={handleDescriptionSave}
-            onTagsChange={handleTagsChange}
             onPrev={handlePrev}
             onNext={handleNext}
             onRotate={handleRotate}
             onFlipHorizontal={handleFlipHorizontal}
             onFlipVertical={handleFlipVertical}
             onReset={handleReset}
-            onDelete={handleDelete}
-            onDownload={handleDownload}
-            onFavorite={handleFavorite}
+            livePlaybackMode={livePlaybackMode}
+            onLivePlaybackModeChange={setLivePlaybackMode}
           />
         </div>
       </div>

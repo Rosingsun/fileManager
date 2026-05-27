@@ -1,0 +1,27 @@
+%% fileDeal — Auth / Users / COS 云端路径（由代码梳理，供 Figma generate_diagram 使用）
+%% 调用示例（插件已登录后）：
+%%   name: fileDeal Auth and COS Architecture
+%%   useArchitectureLayoutCode: FIGMA_DIAGRAM_2026
+%%   mermaidSyntax: <本文件 flowchart 主体，不含注释行>
+
+flowchart LR
+    subgraph client ["Desktop Client"]
+        electronApp["Electron + React UI"]
+    end
+    subgraph gateway ["API Layer"]
+        expressApi["Express HTTP API"]
+    end
+    subgraph service ["Backend Modules"]
+        backendApp["Auth / Users / COS / Invite / Admin"]
+    end
+    subgraph datastore ["Data Stores"]
+        mysql["MySQL"]
+    end
+    subgraph external ["External"]
+        tencentCos["Tencent COS"]
+    end
+
+    electronApp -->|"REST GET/POST"| expressApi
+    expressApi -->|"Routes /auth /users /cos"| backendApp
+    backendApp -->|"Reads Writes Users Tokens"| mysql
+    backendApp -.->|"COS: Objects Avatars"| tencentCos

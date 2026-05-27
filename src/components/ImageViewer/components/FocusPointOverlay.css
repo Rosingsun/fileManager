@@ -1,0 +1,28 @@
+.image-viewer-focus-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.image-viewer-focus-marker {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  background: rgba(10, 132, 255, 0.45);
+  transition: transform 0.15s ease, background 0.15s ease;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.image-viewer-focus-marker--active {
+  transform: scale(1.25);
+  background: rgba(10, 132, 255, 0.75);
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.5);
+}

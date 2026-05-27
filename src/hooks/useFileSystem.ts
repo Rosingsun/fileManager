@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { message } from 'antd'
 import { useFileStore } from '../stores/fileStore'
+import { logSignedInUserAction } from '../utils'
 
 const checkElectronAPI = () => {
   if (!window.electronAPI) {
@@ -42,6 +43,7 @@ export function useFileSystem() {
         const normalizedPath = normalizePath(path)
         await loadDirectory(normalizedPath)
         message.success('目录选择成功')
+        logSignedInUserAction('directory_selected', '选择工作目录', normalizedPath)
       }
     } catch (error: any) {
       message.error(`选择目录失败: ${error.message}`)
@@ -91,7 +93,14 @@ export function useFileSystem() {
       } else {
         message.success(`成功提取 ${successCount} 个文件`)
       }
-      
+      if (results.length > 0) {
+        logSignedInUserAction(
+          'file_extract',
+          `文件提取（成功 ${successCount}，失败 ${failCount}）`,
+          normalizedPath
+        )
+      }
+
       await loadDirectory(normalizedPath)
       return results
     } catch (error: any) {

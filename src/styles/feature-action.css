@@ -1,0 +1,215 @@
+/* 功能页通用操作按钮（快速筛选 / 相似检测等） */
+
+.quick-filter {
+  --feat-accent: var(--app-warning);
+  --feat-accent-on: #1a1408;
+}
+
+.similarity-detection {
+  --feat-accent: var(--app-primary);
+  --feat-accent-on: #ffffff;
+}
+
+.feat-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  transition:
+    background-color var(--app-motion-fast),
+    border-color var(--app-motion-fast),
+    color var(--app-motion-fast),
+    box-shadow var(--app-motion-fast),
+    transform var(--app-motion-fast);
+}
+
+.feat-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.feat-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.feat-btn--sm {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
+  border-radius: 9px;
+  gap: 6px;
+}
+
+.feat-btn--lg {
+  min-height: 44px;
+  padding: 0 26px;
+  font-size: 14px;
+  border-radius: 12px;
+  gap: 9px;
+}
+
+.feat-btn--full {
+  width: 100%;
+}
+
+.feat-btn--icon-only {
+  width: 36px;
+  padding: 0;
+}
+
+.feat-btn--icon-only.feat-btn--sm {
+  width: 32px;
+}
+
+.feat-btn__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.feat-btn__label {
+  line-height: 1.2;
+}
+
+.feat-btn--secondary {
+  border-color: var(--app-border);
+  background: var(--app-surface);
+  color: var(--app-text-primary);
+  box-shadow: var(--app-shadow-xs);
+}
+
+.feat-btn--secondary:hover:not(:disabled) {
+  border-color: var(--app-border-strong);
+  background: var(--app-surface-elevated);
+}
+
+.feat-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--app-text-secondary);
+  box-shadow: none;
+}
+
+.feat-btn--ghost:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--app-text-primary) 6%, transparent);
+  color: var(--app-text-primary);
+}
+
+.feat-btn--emphasis {
+  border-color: color-mix(in srgb, var(--feat-accent) 38%, var(--app-border));
+  background: color-mix(in srgb, var(--feat-accent) 12%, var(--app-surface));
+  color: var(--app-text-primary);
+  box-shadow: var(--app-shadow-xs);
+}
+
+.feat-btn--emphasis:hover:not(:disabled) {
+  border-color: var(--feat-accent);
+  background: color-mix(in srgb, var(--feat-accent) 18%, var(--app-surface));
+}
+
+.feat-btn--primary {
+  border: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--feat-accent) 90%, #fff 10%),
+    color-mix(in srgb, var(--feat-accent) 96%, #000 4%)
+  );
+  color: var(--feat-accent-on);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--feat-accent) 36%, transparent);
+}
+
+.feat-btn--primary:hover:not(:disabled) {
+  filter: brightness(1.04);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--feat-accent) 42%, transparent);
+}
+
+.feat-btn--danger {
+  border-color: color-mix(in srgb, var(--app-danger) 32%, var(--app-border));
+  background: color-mix(in srgb, var(--app-danger) 10%, var(--app-surface));
+  color: var(--app-danger);
+  box-shadow: var(--app-shadow-xs);
+}
+
+.feat-btn--danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--app-danger) 48%, var(--app-border));
+  background: color-mix(in srgb, var(--app-danger) 18%, var(--app-surface));
+}
+
+.feat-btn--segment {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--app-text-secondary);
+  box-shadow: none;
+  font-size: 12px;
+}
+
+.feat-btn--segment:hover:not(:disabled) {
+  color: var(--app-text-primary);
+  background: var(--app-surface);
+}
+
+.feat-btn--segment.is-active {
+  border-color: color-mix(in srgb, var(--feat-accent) 35%, var(--app-border));
+  background: var(--app-surface);
+  color: var(--app-text-primary);
+  box-shadow: var(--app-shadow-xs);
+}
+
+.feat-btn-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  border-radius: 12px;
+  border: 1px solid var(--app-border);
+  background: color-mix(in srgb, var(--app-text-primary) 4%, transparent);
+}
+
+.feat-btn-group .feat-btn {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.feat-btn-group .feat-btn:hover:not(:disabled) {
+  background: var(--app-surface);
+  border-color: transparent;
+}
+
+.feat-dialog-footer {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--app-border);
+}
+
+.feat-dialog-footer .feat-btn {
+  min-width: 96px;
+}
+
+.feat-dialog-footer .feat-btn--primary,
+.feat-dialog-footer .feat-btn--danger {
+  min-width: 108px;
+}

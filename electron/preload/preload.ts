@@ -62,6 +62,14 @@ try {
     getPlatform: (): Promise<string> => {
       return ipcRenderer.invoke('app:getPlatform')
     },
+
+    getCacheOverview: (): Promise<import('../../src/types/cache').MainCacheOverview> => {
+      return ipcRenderer.invoke('cache:getOverview')
+    },
+
+    clearAppCache: (scopes: import('../../src/types/cache').MainCacheScope[]): Promise<void> => {
+      return ipcRenderer.invoke('cache:clear', scopes)
+    },
     
     // 窗口控制
     minimizeWindow: (): void => {
@@ -96,9 +104,35 @@ try {
       return ipcRenderer.invoke('file:move', oldPath, newPath)
     },
 
+    batchCopyToDirectory: (
+      sources: string[],
+      destDir: string,
+      conflictAction: import('../../src/types').FileConflictAction
+    ): Promise<import('../../src/types').BatchFileOpResult[]> => {
+      return ipcRenderer.invoke('files:batchCopyToDirectory', sources, destDir, conflictAction)
+    },
+
+    batchRelocate: (
+      moves: import('../../src/types').BatchRelocateEntry[],
+      conflictAction: import('../../src/types').FileConflictAction
+    ): Promise<import('../../src/types').BatchFileOpResult[]> => {
+      return ipcRenderer.invoke('files:batchRelocate', moves, conflictAction)
+    },
+
     // 获取图片base64用于预览
     getImageBase64: (filePath: string): Promise<string> => {
       return ipcRenderer.invoke('file:getImageBase64', filePath)
+    },
+
+    probeMediaAsset: (filePath: string): Promise<import('../../src/types').MediaAssetInfo> => {
+      return ipcRenderer.invoke('file:probeMediaAsset', filePath)
+    },
+
+    /** 本地文件大小与创建/修改时间（毫秒时间戳），用于预览侧栏信息补全 */
+    getFileStats: (
+      filePath: string
+    ): Promise<{ size: number; createdTime: number; modifiedTime: number } | null> => {
+      return ipcRenderer.invoke('file:getFileStats', filePath)
     },
 
     // 获取图片尺寸信息
@@ -110,7 +144,21 @@ try {
     getImageThumbnail: (filePath: string, size?: number, quality?: number): Promise<string> => {
       return ipcRenderer.invoke('file:getImageThumbnail', filePath, size, quality)
     },
-    
+
+    /** 从本地文件读取快门次数（需磁盘路径；依赖 ExifTool） */
+    getShutterCount: (
+      filePath: string
+    ): Promise<{ count: number | null; message?: string }> => {
+      return ipcRenderer.invoke('file:getShutterCount', filePath)
+    },
+
+    /** 读取图片对焦点（人脸/主体区域，相对坐标 0–1） */
+    getPhotoFocusPoints: (
+      filePath: string
+    ): Promise<import('../../src/types').PhotoFocusPointsResult> => {
+      return ipcRenderer.invoke('file:getPhotoFocusPoints', filePath)
+    },
+
     // 打开文件
     openFile: (filePath: string): Promise<boolean> => {
       return ipcRenderer.invoke('file:open', filePath)
@@ -120,8 +168,24 @@ try {
     applyEdits: (paths: string[] | string, settings: import('../../src/types').ImageEditSettings): Promise<import('../../src/types').BatchOperationResult[]> => {
       return ipcRenderer.invoke('image:applyEdits', paths, settings)
     },
-    convertFormat: (paths: string[] | string, options: import('../../src/types').FormatConversionOptions): Promise<import('../../src/types').BatchOperationResult[]> => {
-      return ipcRenderer.invoke('image:convertFormat', paths, options)
+    previewEdits: (filePath: string, settings: import('../../src/types').ImageEditSettings): Promise<string> => {
+      return ipcRenderer.invoke('image:previewEdits', filePath, settings)
+    },
+    getImageHistogram: (filePath: string): Promise<{
+      bins: number[]
+      total: number
+      peak: number
+      clipShadow: number
+      clipHighlight: number
+      rgbBins?: { r: number[]; g: number[]; b: number[] }
+    }> => {
+      return ipcRenderer.invoke('image:getHistogram', filePath)
+    },
+    analyzeForEdit: (filePath: string): Promise<import('../../src/types').ImageEditSettings> => {
+      return ipcRenderer.invoke('image:analyzeForEdit', filePath)
+    },
+    convertFormat: (paths: string[] | string, options: import('../../src/types').FormatConversionOptions, outputPath?: string): Promise<import('../../src/types').BatchOperationResult[]> => {
+      return ipcRenderer.invoke('image:convertFormat', paths, options, outputPath)
     },
     compressImage: (paths: string[] | string, options: import('../../src/types').CompressionOptions): Promise<import('../../src/types').BatchOperationResult[]> => {
       return ipcRenderer.invoke('image:compress', paths, options)
@@ -147,6 +211,24 @@ try {
 
     cancelSimilarityScan: (): void => {
       ipcRenderer.send('similarity:cancel')
+    },
+
+    scanImageQuality: (config: import('../../src/types').ImageQualityScanConfig): Promise<import('../../src/types').ImageQualityScanResult> => {
+      return ipcRenderer.invoke('imageQuality:scan', config)
+    },
+
+    onImageQualityScanProgress: (callback: (progress: import('../../src/types').ImageQualityScanProgress) => void): (() => void) => {
+      const handler = (_event: unknown, progress: import('../../src/types').ImageQualityScanProgress) => {
+        callback(progress)
+      }
+      ipcRenderer.on('imageQuality:progress', handler)
+      return () => {
+        ipcRenderer.removeListener('imageQuality:progress', handler)
+      }
+    },
+
+    cancelImageQualityScan: (): void => {
+      ipcRenderer.send('imageQuality:cancel')
     },
 
     // 图片内容分类
@@ -239,6 +321,44 @@ try {
       return ipcRenderer.invoke('shell:openExternal', url)
     },
 
+    saveRefreshToken: (token: string): Promise<{ ok: boolean; error?: string }> => {
+      return ipcRenderer.invoke('auth:saveRefreshToken', token)
+    },
+
+    loadRefreshToken: (): Promise<string | null> => {
+      return ipcRenderer.invoke('auth:loadRefreshToken')
+    },
+
+    clearRefreshToken: (): Promise<void> => {
+      return ipcRenderer.invoke('auth:clearRefreshToken')
+    },
+
+    setCurrentUserId: (userId: string | null): Promise<void> => {
+      return ipcRenderer.invoke('app:setCurrentUserId', userId)
+    },
+
+    appendOperationLog: (payload: {
+      userId: string
+      action: string
+      summary?: string
+      detail?: string
+    }): Promise<void> => {
+      return ipcRenderer.invoke('oplog:append', payload)
+    },
+
+    listOperationLogs: (
+      userId: string,
+      limit?: number
+    ): Promise<
+      Array<{ id: string; ts: number; action: string; summary?: string; detail?: string }>
+    > => {
+      return ipcRenderer.invoke('oplog:list', userId, limit)
+    },
+
+    clearOperationLogs: (userId: string): Promise<void> => {
+      return ipcRenderer.invoke('oplog:clear', userId)
+    },
+
     // 实用工具
     batchRename: (files: string[], options: any): Promise<any[]> => {
       return ipcRenderer.invoke('tools:batchRename', files, options)
@@ -246,6 +366,10 @@ try {
 
     addWatermark: (files: string[], options: any): Promise<any[]> => {
       return ipcRenderer.invoke('tools:addWatermark', files, options)
+    },
+
+    previewWatermark: (filePath: string, options: any): Promise<string> => {
+      return ipcRenderer.invoke('tools:previewWatermark', filePath, options)
     },
 
     stitchImages: (images: string[], options: any): Promise<string> => {
@@ -266,6 +390,20 @@ try {
 
     enhanceImage: (file: string, options: any): Promise<string> => {
       return ipcRenderer.invoke('tools:enhanceImage', file, options)
+    },
+
+    previewFocusAdjust: (
+      filePath: string,
+      options: import('../../src/types').FocusAdjustOptions
+    ): Promise<string> => {
+      return ipcRenderer.invoke('tools:previewFocusAdjust', filePath, options)
+    },
+
+    applyFocusAdjust: (
+      filePath: string,
+      options: import('../../src/types').FocusAdjustOptions
+    ): Promise<string> => {
+      return ipcRenderer.invoke('tools:applyFocusAdjust', filePath, options)
     },
 
     selectFiles: (filter?: string): Promise<string[] | null> => {

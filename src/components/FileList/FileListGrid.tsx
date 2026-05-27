@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef } from 'react'
 import { Empty, Pagination } from 'antd'
 import {
   FolderOutlined,
@@ -8,11 +8,19 @@ import {
   FileExcelOutlined,
   VideoCameraOutlined,
   SoundOutlined,
-  FileZipOutlined
+  FileZipOutlined,
+  EditOutlined,
+  DeleteOutlined
 } from '@ant-design/icons'
 import { ImageThumbnail } from './ImageThumbnail'
 import { MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
-import { getFileExtension, getFileTypeIcon } from '../../utils'
+import {
+  FILE_TYPE_ICON_COLORS,
+  getFileExtension,
+  getFileTypeIcon,
+  isLikelyLivePhoto,
+  isRawImage
+} from '../../utils'
 import type { FileInfo } from '../../types'
 import type { PreviewData } from './types'
 
@@ -29,11 +37,15 @@ interface FileListGridProps {
   selectedRowKeys: string[]
   maxImageSize?: number
   onPreview: (file: FileInfo) => void
+  onEdit?: (file: FileInfo) => void
+  onDelete: (file: FileInfo) => void
   onDoubleClick: (file: FileInfo) => void
   onSelectionChange: (keys: string[]) => void
   onRegisterRef: (filePath: string, el: HTMLDivElement | null) => void
   onPageChange: (page: number, pageSize: number) => void
   isPreviewable: (file: FileInfo) => boolean
+  isPreviewableImage: (file: FileInfo) => boolean
+  siblingFileNames?: string[]
 }
 
 export const FileListGrid: React.FC<FileListGridProps> = ({
@@ -49,36 +61,51 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
   selectedRowKeys,
   maxImageSize = MAX_IMAGE_SIZE,
   onPreview,
+  onEdit,
+  onDelete,
   onDoubleClick,
   onSelectionChange,
   onRegisterRef,
   onPageChange,
-  isPreviewable
+  isPreviewable,
+  isPreviewableImage,
+  siblingFileNames = []
 }) => {
+  const contentRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    contentRef.current?.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
+  }, [current, pageSize])
+
+  const iconSize = { fontSize: 48 } as const
+
   const getFileIcon = (file: FileInfo) => {
     if (file.isDirectory) {
-      return <FolderOutlined style={{ fontSize: 48, color: '#1890ff' }} />
+      return <FolderOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.folder }} />
     }
 
     const ext = getFileExtension(file.name)
     const iconType = getFileTypeIcon(ext, false)
 
     const iconMap: Record<string, React.ReactNode> = {
-      'file-pdf': <FilePdfOutlined style={{ fontSize: 48, color: '#ff4d4f' }} />,
-      'file-word': <FileWordOutlined style={{ fontSize: 48, color: '#1890ff' }} />,
-      'file-excel': <FileExcelOutlined style={{ fontSize: 48, color: '#52c41a' }} />,
-      'video': <VideoCameraOutlined style={{ fontSize: 48, color: '#faad14' }} />,
-      'audio': <SoundOutlined style={{ fontSize: 48, color: '#722ed1' }} />,
-      'file-zip': <FileZipOutlined style={{ fontSize: 48, color: '#fa8c16' }} />
+      'file-pdf': <FilePdfOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.pdf }} />,
+      'file-word': <FileWordOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.word }} />,
+      'file-excel': <FileExcelOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.excel }} />,
+      video: <VideoCameraOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.video }} />,
+      audio: <SoundOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.audio }} />,
+      'file-zip': <FileZipOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.archive }} />,
     }
 
-    return iconMap[iconType] || <FileOutlined style={{ fontSize: 48, color: '#8c8c8c' }} />
+    return iconMap[iconType] || <FileOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.default }} />
   }
 
   if (dataSource.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="file-grid-empty">
+        <div className="app-empty-state">
           <Empty description="该目录暂无文件" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         </div>
       </div>
@@ -86,16 +113,13 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div className="file-grid">
       <div
+        ref={contentRef}
+        className="file-grid__content"
         key={`grid-${previewVersion}`}
         style={{
-          flex: 1,
-          display: 'grid',
           gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
-          gap: '10px',
-          padding: '10px',
-          overflowY: 'auto',
           alignContent: 'start'
         }}
       >
@@ -105,20 +129,12 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
           const isLoading = loadingImages.has(file.path)
           const fileProgress = progress.get(file.path)
           const canPreview = isPreviewable(file)
+          const canPreviewImage = isPreviewableImage(file)
 
           return (
             <div
               key={file.path}
-              style={{
-                border: `1px solid ${isSelected ? '#1890ff' : '#d9d9d9'}`,
-                borderRadius: '5px',
-                overflow: 'hidden',
-                cursor: file.isDirectory ? 'pointer' : 'default',
-                position: 'relative',
-                backgroundColor: isSelected ? '#e6f7ff' : '#fff',
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-                transition: 'all 0.3s ease'
-              }}
+              className={`file-grid-card${isSelected ? ' is-selected' : ''}${file.isDirectory ? ' is-directory' : ''}`}
               onClick={() => {
                 if (file.isDirectory) {
                   onDoubleClick(file)
@@ -131,17 +147,8 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
               }}
               onDoubleClick={() => onDoubleClick(file)}
             >
-              <div
-                style={{
-                  width: '100%',
-                  aspectRatio: '1',
-                  backgroundColor: '#f5f5f5',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-              >
-                {canPreview ? (
+              <div className="file-grid-card__preview">
+                {canPreviewImage ? (
                   <ImageThumbnail
                     filePath={file.path}
                     fileName={file.name}
@@ -150,51 +157,76 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
                     previewData={previewData}
                     isLoading={isLoading}
                     progress={fileProgress}
+                    showLiveBadge={isLikelyLivePhoto(file.name, siblingFileNames)}
+                    showRawBadge={isRawImage(getFileExtension(file.name))}
                     onClick={() => onPreview(file)}
                     onRef={(el) => onRegisterRef(file.path, el)}
                   />
+                ) : canPreview ? (
+                  <div
+                    className="media-preview-grid-hit"
+                    role="button"
+                    tabIndex={0}
+                    title="预览"
+                    onClick={() => onPreview(file)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onPreview(file)
+                      }
+                    }}
+                  >
+                    {getFileIcon(file)}
+                  </div>
                 ) : (
                   getFileIcon(file)
                 )}
+                <div
+                  className="file-grid-card__preview-actions"
+                  role="presentation"
+                  onClick={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                >
+                  {canPreviewImage && onEdit && (
+                    <button
+                      type="button"
+                      className="file-grid-card__preview-action-btn file-grid-card__preview-action-btn--edit"
+                      title="编辑"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEdit(file)
+                      }}
+                    >
+                      <EditOutlined />
+                    </button>
+                  )}
+                  {canPreviewImage && onEdit && (
+                    <span className="file-grid-card__preview-actions-divider" aria-hidden />
+                  )}
+                  <button
+                    type="button"
+                    className="file-grid-card__preview-action-btn file-grid-card__preview-action-btn--delete"
+                    title="删除"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onDelete(file)
+                    }}
+                  >
+                    <DeleteOutlined />
+                  </button>
+                </div>
               </div>
-              <div
-                style={{
-                  padding: '8px',
-                  fontSize: '12px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  textAlign: 'center'
-                }}
-                title={file.name}
-              >
+              <div className="file-grid-card__name" title={file.name}>
                 {file.name}
               </div>
               {isSelected && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 4,
-                    right: 4,
-                    width: 16,
-                    height: 16,
-                    borderRadius: '50%',
-                    backgroundColor: '#1890ff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: '10px'
-                  }}
-                >
-                  ✓
-                </div>
+                <div className="file-grid-card__check">✓</div>
               )}
             </div>
           )
         })}
       </div>
-      <div style={{ padding: '10px', borderTop: '1px solid #f0f0f0', textAlign: 'right' }}>
+      <div className="file-grid__pagination">
         <Pagination
           total={total}
           current={current}

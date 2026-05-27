@@ -74,6 +74,33 @@
 | 格式转换 | JPEG, PNG, WebP, BMP, TIFF |
 | 质量压缩 | 1-100% |
 
+### 2.8 专业控件与扩展工具（2026-05-20）
+
+**侧栏分段**：调整 · 色彩 · **曲线** · **几何** · 滤镜 · 裁切
+
+| 分段 | 能力 |
+|------|------|
+| 调整 | 曝光（上方实时亮度直方图）、亮度/对比度/饱和度（tonal 渐变轨）、色相（彩虹轨+色块）、智能增强、降噪 |
+| 色彩 | 色温/色调渐变轨、伽马、阴影/高光/清晰度 |
+| 曲线 | 实时直方图、自动色阶、黑点/中间调/白点、主曲线 SVG 拖拽 |
+| 几何 | 左旋/右旋 90°、180°、水平/垂直翻转、角度 0–360° |
+| 裁切 | 仅裁切与比例预设（旋转/翻转已迁至几何） |
+
+**数据**：`ImageEditSettings.levels`、`ImageEditSettings.toneCurve`（master / R / G / B）；预览图 `previewSrc = sharpPreviewUrl ?? imageUrl ?? originalImageUrl`；直方图 Canvas 采样（最长边 320px，debounce 280ms）；≥4K 像素时回退 `image:getHistogram` 主进程采样。
+
+### 2.9 二期专业能力（2026-05-20）
+
+| 能力 | 说明 |
+|------|------|
+| 直方图拖拽黑/白场 | 曲线页直方图下沿三角与色阶滑杆双向绑定 |
+| RGB 分通道曲线 | 曲线页分段：RGB / R / G / B；独立 LUT |
+| RGB 直方图叠层 | 曲线页开关，R/G/B 半透明叠层 |
+| HSL 分色相 8 色 | 色彩页折叠面板：红橙黄绿青蓝紫品红，各 h/s/l ±100 |
+| 灰点白平衡 | 色彩页「灰点取色」→ 点击预览采样 RGB → 色温/色调 |
+| 去雾 / 鲜明度 | 色彩页；Sharp 像素级近似 |
+| 导出尺寸 / 水印 | 格式对话框：缩放 %、文字水印；`convertFormat` 支持 `editSettings` / `scalePercent` / `watermark` |
+| 主进程直方图 | IPC `image:getHistogram`，弱机大图回退 |
+
 ## 3. UI 布局设计
 
 ```
@@ -255,32 +282,24 @@ async function applySharpSettings(sharpInstance: any, settings: ImageEditSetting
 }
 ```
 
-## 5. 实现计划
+## 5. 全屏编辑器（2026-05）
 
-### Phase 1: 完善现有功能
-- [x] 图片加载优化（base64）
-- [x] 翻转/旋转预览
-- [x] 重置功能
-- [ ] 可视化裁切
+- **布局**：近全屏 `ImageEditorShell`，左侧大预览 + 右侧 320px Tab 侧栏（调整 / 色彩 / 滤镜 / 裁切 / 预设）。
+- **预览**：基础项 CSS 实时；高级项（锐化、高光、暗角、颗粒等）经 IPC `image:previewEdits` 降采样 Sharp 预览（300ms debounce）。
+- **保存**：主进程 `buildImageEditPipeline` 与预览共用管线。
+- **IPC**：`image:previewEdits`、`image:analyzeForEdit`（一键增强建议参数）。
 
-### Phase 2: 新增滤镜
-- [ ] 灰度滤镜
-- [ ] 复古滤镜
-- [ ] 模糊滤镜
-- [ ] 锐化滤镜
+### ImageEditSettings 扩展字段
 
-### Phase 3: 高级调整
-- [ ] 阴影/高光
-- [ ] 清晰度
-- [ ] 色调分离
-
-### Phase 4: 预设系统
-- [ ] 内置预设
-- [ ] 预设分类
+| 字段 | 范围 |
+|------|------|
+| temperature | -100 ~ 100 |
+| gamma | 50 ~ 200 |
+| vignette / fade / grain / denoise | 0 ~ 100 |
 
 ## 6. 设计原则
 
 1. **直观易用**：滑块 + 实时预览，所见即所得
-2. **专业实用**：提供常用高级功能（阴影、高光、锐化等）
-3. **性能优先**：图片处理在主进程进行，预览用 CSS
+2. **专业实用**：色温、伽马、暗角、颗粒、降噪、一键增强
+3. **性能优先**：基础 CSS + 降采样 Sharp 预览；保存走完整管线
 4. **风格统一**：遵循 macOS/iOS 设计规范

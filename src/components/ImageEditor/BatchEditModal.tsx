@@ -1,10 +1,10 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Modal, Button, Space, message } from 'antd'
 import EditorControls from './EditorControls'
 import PresetsPanel from './PresetsPanel'
-import FormatCompressDialog from './FormatCompressDialog'
 import { useImageEditor } from './useImageEditor'
-import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../types'
+import { imageLoader, logSignedInUserAction } from '../../utils'
+import type { ImageEditSettings } from '../../types'
 
 interface BatchEditModalProps {
   visible: boolean
@@ -20,54 +20,37 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
       updateSetting(key as any, value)
     })
   }
-  const [formatDialog, setFormatDialog] = useState(false)
-
   const handleApplyPreset = (presetSettings: ImageEditSettings) => {
     setSettings(presetSettings)
   }
 
   const handleBatchApply = async () => {
+    if (filePaths.length === 0) {
+      message.warning('没有选择任何文件')
+      return
+    }
+
     try {
       const api = window.electronAPI
       if (!api) throw new Error('electronAPI missing')
       const res = await api.applyEdits(filePaths, settings)
+      console.log('[BatchEditModal] applyEdits result:', res)
       const failed = res.filter(r => !r.success)
       if (failed.length) {
-        message.error(`部分图片处理失败：${failed.map(f => f.filePath).join(',')}`)
+        message.error(`部分图片处理失败：${failed.map(f => `${f.filePath}(${f.error || 'error'})`).join(',')}`)
       } else {
-        message.success('批量应用完成')
+        message.success(`已生成 ${res.length} 张新图片，原文件均未修改`)
+        logSignedInUserAction('image_editor_batch_apply', `批量编辑应用（${res.length} 张）`)
+        res.forEach(r => {
+          if (r.newPath) imageLoader.clearCache(r.newPath)
+          imageLoader.clearCache(r.filePath)
+        })
       }
-    } catch (e) {
-      console.error(e)
-      message.error('批量处理出错')
+    } catch (e: any) {
+      console.error('[BatchEditModal] 批量处理出错', e)
+      message.error(`批量处理出错：${e?.message || e}`)
     }
     onClose()
-  }
-
-  const handleBatchConvert = (opts: FormatConversionOptions) => {
-    const api = window.electronAPI
-    if (api) {
-      api.convertFormat(filePaths, opts).then(results => {
-        const failed = results.filter(r => !r.success)
-        if (failed.length) message.error('部分转换失败')
-        else message.success('格式转换完成')
-        setFormatDialog(false)
-        onClose()
-      })
-    }
-  }
-
-  const handleBatchCompress = (opts: CompressionOptions) => {
-    const api = window.electronAPI
-    if (api) {
-      api.compressImage(filePaths, opts).then(results => {
-        const failed = results.filter(r => !r.success)
-        if (failed.length) message.error('部分压缩失败')
-        else message.success('压缩完成')
-        setFormatDialog(false)
-        onClose()
-      })
-    }
   }
 
   return (
@@ -78,7 +61,6 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
       width={800}
       footer={
         <Space>
-          <Button onClick={() => setFormatDialog(true)}>格式/压缩</Button>
           <Button onClick={onClose}>取消</Button>
           <Button type="primary" onClick={handleBatchApply}>应用到选中项</Button>
         </Space>
@@ -89,17 +71,10 @@ const BatchEditModal: React.FC<BatchEditModalProps> = ({ visible, filePaths, onC
           <p>共 {filePaths.length} 张图片</p>
         </div>
         <div style={{ width: 320, borderLeft: '1px solid #eee' }}>
-          <PresetsPanel onApply={handleApplyPreset} currentSettings={settings} />
+          <PresetsPanel layout="modal" onApply={handleApplyPreset} currentSettings={settings} />
           <EditorControls settings={settings} onChange={handleSettingsChange} />
         </div>
       </div>
-      <FormatCompressDialog
-        visible={formatDialog}
-        files={filePaths}
-        onClose={() => setFormatDialog(false)}
-        onConvert={handleBatchConvert}
-        onCompress={handleBatchCompress}
-      />
     </Modal>
   )
 }

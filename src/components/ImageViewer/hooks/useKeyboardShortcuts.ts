@@ -14,6 +14,8 @@ export interface KeyboardShortcuts {
   onKey1?: () => void
   onPlus?: () => void
   onMinus?: () => void
+  onBracketLeft?: () => void
+  onBracketRight?: () => void
   enabled?: boolean
 }
 
@@ -28,6 +30,8 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
     onKey1,
     onPlus,
     onMinus,
+    onBracketLeft,
+    onBracketRight,
     enabled = true
   } = shortcuts
 
@@ -104,6 +108,18 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
             onMinus()
           }
           break
+        case '[':
+          if (onBracketLeft && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault()
+            onBracketLeft()
+          }
+          break
+        case ']':
+          if (onBracketRight && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault()
+            onBracketRight()
+          }
+          break
       }
     }
 
@@ -121,7 +137,9 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
     onKeyF,
     onKey1,
     onPlus,
-    onMinus
+    onMinus,
+    onBracketLeft,
+    onBracketRight
   ])
 }
 

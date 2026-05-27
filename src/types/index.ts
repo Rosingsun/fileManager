@@ -1,3 +1,14 @@
+/** 媒体资源类型（RAW / Apple Live / 普通图） */
+export type MediaAssetKind = 'standard' | 'raw' | 'live'
+
+export interface MediaAssetInfo {
+  kind: MediaAssetKind
+  stillPath: string
+  liveVideoPath?: string
+  rawUsesEmbeddedPreview?: boolean
+  contentIdentifier?: string
+}
+
 // 文件信息类型
 export interface FileInfo {
   name: string
@@ -81,6 +92,23 @@ export interface HistoryItem {
   timestamp: number // 访问时间戳
 }
 
+/** 文件整理操作历史（执行整理 / 提取 / 预览） */
+export type OrganizeHistoryAction = 'organize' | 'extract' | 'preview'
+
+export interface OrganizeHistoryItem {
+  id: string
+  timestamp: number
+  action: OrganizeHistoryAction
+  sourcePath: string
+  /** 可读规则摘要，如「按扩展名」「按修改日期·按月」 */
+  ruleLabel: string
+  includeSubdirectories?: boolean
+  conflictAction?: OrganizeOptions['conflictAction']
+  successCount?: number
+  failCount?: number
+  totalCount?: number
+}
+
 // 相似照片检测相关类型
 export interface SimilarityScanConfig {
   scanPath: string // 扫描路径
@@ -126,51 +154,222 @@ export interface SimilarityScanResult {
   scanTime: number // 扫描耗时（毫秒）
 }
 
-// 图片内容分类相关类型 - 升级版（25个细分类）
+/** 图片质量快速筛选：曝光/对比度阈值与构图启发式参数 */
+export interface ImageQualityThresholds {
+  /** 高光占比超过此值（0–1）则标记可能过曝 */
+  highlightClipRatio: number
+  /** 阴影占比超过此值（0–1）则标记可能欠曝 */
+  shadowClipRatio: number
+  /** 亮度标准差低于此值则标记低对比（发灰） */
+  lowContrastStd: number
+  /** 平均亮度高于此值（0–255）则辅助标记过曝 */
+  overexposedMeanLuma: number
+  /** 平均亮度低于此值（0–255）则辅助标记欠曝 */
+  underexposedMeanLuma: number
+  /** 中心宫格梯度能量占比超过此值则提示「主体过于居中」 */
+  compositionCenterEnergyRatio: number
+  /** 重心到最近三分点归一化距离大于此值则提示「偏离三分区」 */
+  compositionCentroidOffThirdsMin: number
+  /** 归一化重心距边缘小于此值则提示「主体贴近边缘」 */
+  compositionNearEdge: number
+  /** 拉普拉斯均值低于此值则提示可能模糊（0–255 尺度） */
+  minSharpnessLapMean: number
+  /** 局部噪点估计高于此值则提示噪点偏多（0–255 尺度） */
+  maxNoiseLevel: number
+  /** 通道偏离灰度均值的比例高于此值则提示色偏（0–1） */
+  maxColorCastScore: number
+}
+
+export const DEFAULT_IMAGE_QUALITY_THRESHOLDS: ImageQualityThresholds = {
+  highlightClipRatio: 0.06,
+  shadowClipRatio: 0.06,
+  lowContrastStd: 14,
+  overexposedMeanLuma: 200,
+  underexposedMeanLuma: 48,
+  compositionCenterEnergyRatio: 0.52,
+  compositionCentroidOffThirdsMin: 0.22,
+  compositionNearEdge: 0.09,
+  minSharpnessLapMean: 9,
+  maxNoiseLevel: 16,
+  maxColorCastScore: 0.14
+}
+
+export interface ImageQualityScanConfig {
+  scanPath: string
+  includeSubdirectories: boolean
+  minFileSize?: number
+  maxFileSize?: number
+  excludedFolders?: string[]
+  excludedExtensions?: string[]
+  /** 分析时长边像素，默认 640 */
+  analysisLongEdge?: number
+  /** 并行分析数量，默认 3 */
+  maxConcurrent?: number
+  thresholds?: Partial<ImageQualityThresholds>
+}
+
+export type ImageQualityFlag =
+  | 'overexposed'
+  | 'underexposed'
+  | 'lowContrast'
+  | 'subjectVeryCentered'
+  | 'subjectOffThirds'
+  | 'subjectNearEdge'
+  | 'blurry'
+  | 'noisy'
+  | 'colorCast'
+
+export interface ImageQualityScores {
+  meanLuma: number
+  lumaStd: number
+  highlightClipRatio: number
+  shadowClipRatio: number
+  gridEntropy: number
+  centroidOffsetNorm: number
+  centerCellEnergyRatio: number
+  minThirdsDistance: number
+  sharpnessLapMean: number
+  noiseLevel: number
+  colorCastScore: number
+}
+
+export interface ImageQualityItemResult {
+  filePath: string
+  ok: boolean
+  error?: string
+  width: number
+  height: number
+  flags: ImageQualityFlag[]
+  compositionHints: string[]
+  scores: ImageQualityScores
+}
+
+export interface ImageQualityScanProgress {
+  current: number
+  total: number
+  currentFile?: string
+  status: 'scanning' | 'analyzing' | 'completed' | 'error' | 'cancelled'
+}
+
+export interface ImageQualityScanResult {
+  items: ImageQualityItemResult[]
+  skipped: Array<{ path: string; reason: string }>
+  totalImages: number
+  scanTime: number
+}
+
+/** 批量复制/移动时的重名策略 */
+export type FileConflictAction = 'skip' | 'overwrite' | 'rename'
+
+export interface BatchFileOpResult {
+  filePath: string
+  success: boolean
+  newPath?: string
+  error?: string
+}
+
+export interface BatchRelocateEntry {
+  from: string
+  to: string
+}
+
+/** 快速筛选：用户整理意图档位（非 EXIF 星级） */
+export type QuickFilterTier = 'high' | 'medium' | 'low'
+
+/** 图片内容分类（9 大类：CLIP 零样本 + ImageNet 聚合） */
 export type ImageContentCategory =
-  // 人物类
-  | 'person'           // 人物
-  | 'portrait'         // 人像
-  | 'selfie'           // 自拍
-  // 动物类
-  | 'dog'              // 狗
-  | 'cat'              // 猫
-  | 'bird'             // 鸟类
-  | 'wild_animal'      // 野生动物
-  | 'marine_animal'    // 海洋生物
-  | 'insect'           // 昆虫
-  | 'pet'              // 宠物
-  // 风景类
-  | 'landscape'        // 风景
-  | 'mountain'         // 山脉
-  | 'beach'            // 海滩
-  | 'sunset'           // 日落
-  | 'forest'           // 森林
-  | 'cityscape'        // 城市风光
-  | 'night_scene'      // 夜景
-  // 建筑类
-  | 'building'         // 建筑
-  | 'landmark'         // 地标
-  | 'interior'         // 室内
-  | 'street'           // 街道
-  // 食物类
-  | 'food'             // 食物
-  | 'drink'            // 饮品
-  | 'dessert'          // 甜点
-  // 交通类
-  | 'vehicle'          // 车辆
-  | 'aircraft'         // 飞机
-  | 'ship'             // 船舶
-  // 其他
-  | 'art'              // 艺术
-  | 'technology'       // 科技产品
-  | 'document'         // 文档图片
-  | 'other'            // 其他
+  | 'person'
+  | 'animal'
+  | 'landscape'
+  | 'urban'
+  | 'indoor'
+  | 'food'
+  | 'vehicle'
+  | 'document'
+  | 'other'
+
+export const IMAGE_CATEGORY_ORDER: readonly ImageContentCategory[] = [
+  'person',
+  'animal',
+  'landscape',
+  'urban',
+  'indoor',
+  'food',
+  'vehicle',
+  'document',
+  'other'
+] as const
+
+export const IMAGE_CATEGORY_LABELS: Record<ImageContentCategory, string> = {
+  person: '人物',
+  animal: '动物',
+  landscape: '自然风景',
+  urban: '城市建筑',
+  indoor: '室内',
+  food: '食物',
+  vehicle: '交通工具',
+  document: '截图',
+  other: '其他'
+}
+
+export const IMAGE_CATEGORY_COLORS: Record<ImageContentCategory, string> = {
+  person: 'purple',
+  animal: 'green',
+  landscape: 'cyan',
+  urban: 'geekblue',
+  indoor: 'lime',
+  food: 'red',
+  vehicle: 'blue',
+  document: 'gold',
+  other: 'default'
+}
+
+/** 将旧版细分类结果映射到 9 大类（用于 localStorage 迁移） */
+export function migrateLegacyImageCategory(raw: string): ImageContentCategory {
+  const table: Record<string, ImageContentCategory> = {
+    person: 'person',
+    portrait: 'person',
+    selfie: 'person',
+    dog: 'animal',
+    cat: 'animal',
+    bird: 'animal',
+    wild_animal: 'animal',
+    marine_animal: 'animal',
+    insect: 'animal',
+    pet: 'animal',
+    landscape: 'landscape',
+    mountain: 'landscape',
+    beach: 'landscape',
+    sunset: 'landscape',
+    forest: 'landscape',
+    cityscape: 'urban',
+    night_scene: 'urban',
+    building: 'urban',
+    landmark: 'urban',
+    street: 'urban',
+    interior: 'indoor',
+    food: 'food',
+    drink: 'food',
+    dessert: 'food',
+    vehicle: 'vehicle',
+    aircraft: 'vehicle',
+    ship: 'vehicle',
+    art: 'document',
+    technology: 'document',
+    document: 'document',
+    other: 'other'
+  }
+  if (table[raw]) return table[raw]
+  if (IMAGE_CATEGORY_ORDER.includes(raw as ImageContentCategory)) return raw as ImageContentCategory
+  return 'other'
+}
 
 export interface ImageClassificationResult {
   filePath: string
   category: ImageContentCategory
   confidence: number // 置信度 0-1
+  /** 曝光/对比度/构图启发式档位，与快速筛选一致；批量或单张分类时由主进程写入 */
+  quality?: QuickFilterTier
   topPredictions?: Array<{
     category: ImageContentCategory
     confidence: number
@@ -198,7 +397,8 @@ export interface ImageClassificationBatchResult {
   successCount: number
   errorCount: number
   classificationTime: number // 分类耗时（毫秒）
-}// ͼƬ�༭�������
+}
+
 export interface ImageEditSettings {
   brightness?: number // 百分比，100为原始
   contrast?: number
@@ -223,7 +423,59 @@ export interface ImageEditSettings {
   shadows?: number // -100 到 100
   highlights?: number // -100 到 100
   clarity?: number // -100 到 100
-  tint?: number // -100 到 100
+  tint?: number // -100 到 100（绿/品红）
+  temperature?: number // -100 到 100（冷/暖）
+  gamma?: number // 50-200，100 为原始
+  vignette?: number // 0-100 暗角
+  fade?: number // 0-100 褪色
+  grain?: number // 0-100 颗粒
+  denoise?: number // 0-100 降噪
+  /** 色阶：黑点/白点 0–255，中间调 gamma 50–200（100=原始） */
+  levels?: { black: number; white: number; gamma: number }
+  /** 色调曲线：主曲线与 R/G/B 分通道（x/y 归一化 0–1） */
+  toneCurve?: {
+    master?: Array<{ x: number; y: number }>
+    red?: Array<{ x: number; y: number }>
+    green?: Array<{ x: number; y: number }>
+    blue?: Array<{ x: number; y: number }>
+  }
+  /** 去雾 0–100 */
+  dehaze?: number
+  /** 鲜明度 -100–100 */
+  vibrance?: number
+  /** HSL 分色相 8 色微调（h/s/l 各 -100–100） */
+  hslHueAdjust?: Partial<Record<HslHueRegionId, HslHueRegionAdjust>>
+}
+
+/** HSL 分色相 8 色区域 */
+export type HslHueRegionId =
+  | 'red'
+  | 'orange'
+  | 'yellow'
+  | 'green'
+  | 'cyan'
+  | 'blue'
+  | 'purple'
+  | 'magenta'
+
+export interface HslHueRegionAdjust {
+  h?: number
+  s?: number
+  l?: number
+}
+
+export interface FormatConversionOptions {
+  // supported formats including common image types and PDF
+  targetFormat: string // e.g. 'jpeg','png','webp','bmp','tiff','pdf'
+  quality?: number // 1-100 (ignored for PDF)
+  /** 最长边上限（像素），与 scalePercent 二选一优先 maxEdge */
+  maxEdge?: number
+  /** 相对原图缩放 1–100% */
+  scalePercent?: number
+  /** 导出前应用的编辑参数（编辑器内导出） */
+  editSettings?: ImageEditSettings
+  /** 导出时叠加水印 */
+  watermark?: WatermarkOptions
 }
 
 export interface PresetGroup {
@@ -239,11 +491,6 @@ export interface ImagePreset {
   groupId?: string // 所属分组ID
 }
 
-export interface FormatConversionOptions {
-  targetFormat: string // e.g. 'jpeg','png','webp','bmp'
-  quality?: number // 1-100
-}
-
 export interface CompressionOptions {
   qualityPercentage: number // 1-100
 }
@@ -252,6 +499,7 @@ export interface BatchOperationResult {
   filePath: string
   success: boolean
   error?: string
+  newPath?: string // when operation succeeded but original file couldn't be overwritten, result saved to this path
 }
 
 // ==================== 实用工具类型定义 ====================
@@ -294,6 +542,10 @@ export interface WatermarkOptions {
   position: 'top-left' | 'top-center' | 'top-right' | 'middle-left' | 'middle-center' | 'middle-right' | 'bottom-left' | 'bottom-center' | 'bottom-right'
   margin: number
   tile?: boolean
+  /**
+   * optional directory to write watermarked files. if omitted, originals' dirs are used
+   */
+  outputPath?: string
 }
 
 export interface StitchOptions {
@@ -336,6 +588,7 @@ export interface ThumbnailOptions {
   format: 'jpeg' | 'png' | 'webp'
   quality: number
   outputDir: 'same' | 'custom'
+  customOutputDir?: string
   naming: 'prefix' | 'suffix' | 'custom'
   prefix?: string
   suffix?: string
@@ -364,5 +617,29 @@ export interface EnhanceOptions {
     denoise: number
   }
   scale?: 1 | 2 | 4
+  outputPath?: string
+}
+
+/** 图片查看器：人脸/主体对焦点（相对坐标 0–1） */
+export interface PhotoFocusPoint {
+  x: number
+  y: number
+  weight?: number
+}
+
+export interface PhotoFocusPointsResult {
+  points: PhotoFocusPoint[]
+}
+
+export type FocusAdjustMode = 'subjectRecover' | 'regionSharpen'
+
+export interface FocusAdjustOptions {
+  mode: FocusAdjustMode
+  focusX: number
+  focusY: number
+  radius: number
+  sharpenStrength: number
+  backgroundBlur: number
+  feather: number
   outputPath?: string
 }

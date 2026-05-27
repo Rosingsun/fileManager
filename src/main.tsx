@@ -1,9 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { ConfigProvider } from 'antd'
-import zhCN from 'antd/locale/zh_CN'
-import App from './App'
+import ThemedApp from './components/ThemedApp'
 import './styles/index.css'
+import { readStoredPreference, resolveThemeFromPreference } from './stores'
 
 const checkElectronAPI = (): Promise<boolean> => {
   if (typeof window === 'undefined' || window.electronAPI) {
@@ -43,11 +42,12 @@ checkElectronAPI().then((isAvailable) => {
     return
   }
   
+  const initialTheme = resolveThemeFromPreference(readStoredPreference())
+  document.documentElement.setAttribute('data-app-theme', initialTheme)
+
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-      <ConfigProvider locale={zhCN}>
-        <App />
-      </ConfigProvider>
+      <ThemedApp />
     </React.StrictMode>
   )
 })

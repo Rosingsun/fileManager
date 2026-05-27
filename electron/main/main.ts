@@ -1,20 +1,116 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
-import { join } from 'path'
-import { mkdirSync } from 'fs'
+import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, Menu, protocol } from 'electron'
+import { basename, dirname, join, normalize, parse } from 'path'
+import { mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync as nodeFileExistsSync, unlinkSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
 import sharp from 'sharp'
 import crypto from 'crypto'
-import { InferenceSession, Tensor } from 'onnxruntime-node'
-import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanProgress, SimilarityScanResult, ImageContentCategory, ImageClassificationResult, ImageClassificationConfig, ImageClassificationProgress, ImageClassificationBatchResult } from '../../src/types'
+import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanProgress, SimilarityScanResult, ImageContentCategory, ImageClassificationResult, ImageClassificationConfig, ImageClassificationProgress, ImageClassificationBatchResult, ImageQualityScanConfig, ImageQualityScanResult, ImageQualityScanProgress, BatchFileOpResult, BatchRelocateEntry, FileConflictAction } from '../../src/types'
+import { scanImageQuality, computePhotoQualityTierForImage } from './services/imageQualityService'
+import type { ClassificationModelId } from './utils/classificationModels'
+export type { ClassificationModelId } from './utils/classificationModels'
+import { CLASSIFICATION_MODELS, getClassificationModelPath, MODEL_FILE_NAMES, modelIdFromOnnxBasename } from './utils/classificationModels'
+import { classifyImage as runClassifyImage, clearImagenetSessionCache } from './services/imageClassificationService'
+import { clearClipModelCache } from './utils/clipClassifier'
+import { clearCognivisionMobilenetCache } from './services/cognivisionTfClassifier'
+import { readShutterCountFromFile, shutdownExiftool } from './utils/shutterCount'
+import { IMAGE_EXTENSIONS } from './utils/fileUtils'
+import { probeMediaAsset, shutdownMediaAssetCache } from './services/mediaAssetService'
+import { getMainCacheOverview, clearMainCache, type MainCacheScope } from './services/cacheService'
+import { registerMediaLocalProtocol } from './utils/mediaLocalProtocol'
 
-const IMAGENET_CLASSES: string[] = [
-  'tench', 'goldfish', 'great white shark', 'tiger shark', 'hammerhead shark', 'electric ray', 'stingray', 'rooster', 'hen', 'ostrich', 'brambling', 'goldfinch', 'house finch', 'junco', 'indigo bunting', 'American robin', 'bulbul', 'jay', 'magpie', 'chickadee', 'American dipper', 'kite', 'bald eagle', 'vulture', 'great grey owl', 'European fire salamander', 'common newt', 'eft', 'spotted salamander', 'axolotl', 'American bullfrog', 'tree frog', 'tailed frog', 'loggerhead sea turtle', 'leatherback sea turtle', 'mud turtle', 'terrapin', 'banded gecko', 'common iguana', 'American chameleon', 'whiptail', 'agama', 'frilled lizard', 'alligator lizard', 'Gila monster', 'green lizard', 'African chameleon', 'Komodo dragon', 'African crocodile', 'American alligator', 'triceratops', 'worm snake', 'ring-necked snake', 'hognose snake', 'smooth green snake', 'king snake', 'garter snake', 'water snake', 'vine snake', 'night snake', 'boa constrictor', 'African rock python', 'Indian cobra', 'green mamba', 'sea snake', 'Saharan horned viper', 'diamondback', 'sidewinder', 'Europan cockroach', 'termite', 'beetle', 'fly', 'bee', 'ant', 'grasshopper', 'cricket', 'walking stick', 'cockroach', 'mantis', 'cicada', 'leafhopper', 'lacewing', 'dragonfly', 'damselfly', 'red admiral', 'ringlet', 'monarch butterfly', 'cabbage white', 'lycaenid', 'starfish', 'sea urchin', 'sea cucumber', 'cottontail rabbit', 'hare', 'Angora rabbit', 'hamster', 'porcupine', 'fox squirrel', 'marmot', 'beaver', 'guinea pig', 'common sorrel', 'zebra', 'pig', 'wild boar', 'warthog', 'hippopotamus', 'ox', 'water buffalo', 'bison', 'ram', 'bighorn sheep', 'ibex', 'hartebeest', 'impala', 'gazelle', 'dromedary', 'llama', 'weasel', 'mink', 'polecat', 'black-footed ferret', 'otter', 'skunk', 'badger', 'armadillo', 'three-toed sloth', 'orangutan', 'gorilla', 'chimpanzee', 'gibbon', 'siamang', 'guenon', 'patas monkey', 'baboon', 'macaque', 'langur', 'colobus monkey', 'proboscis monkey', 'marmoset', 'tamarin', 'capuchin', 'howler monkey', 'titi monkey', 'spider monkey', 'squirrel monkey', 'indri', 'Indian elephant', 'African elephant', 'platypus', 'wallaby', 'koala', 'wombat', 'jellyfish', 'sea anemone', 'brain coral', 'flatworm', 'nematode', 'conch', 'snail', 'slug', 'sea slug', 'chiton', 'chambered nautilus', 'Dungeness crab', 'rock crab', 'fiddler crab', 'king crab', 'American lobster', 'spiny lobster', 'crayfish', 'shrimp', 'barnacle', 'turkey', 'groundhog', 'woodchuck', 'chipmunk', 'prairie dog', 'coyote', 'grey wolf', 'Alaskan malamute', 'Siberian husky', 'African hunting dog', 'dingo', 'dhole', 'collie', 'Border collie', 'Bouvier des Flandres', 'Rottweiler', 'German shepherd', 'Doberman', 'miniature pinscher', 'Greater Swiss Mountain Dog', 'Bernese mountain dog', 'Appenzeller dog', 'EntleBucher dog', 'boxer', 'bull mastiff', 'Tibetan mastiff', 'French bulldog', 'Great Dane', 'Saint Bernard', 'Eskimo dog', 'malamute', 'Siberian husky', 'dalmatian', 'poodle', 'Toy poodle', 'miniature poodle', 'water dog', 'German pointer', 'German shorthaired pointer', 'vizsla', 'English setter', 'Irish setter', 'Gordon setter', 'Brittany dog', 'clumber', 'English springer', 'Welsh springer spaniel', 'cocker spaniel', 'Sussex spaniel', 'English foxhound', 'redbone', 'borzoi', 'Irish wolfhound', 'Italian greyhound', 'whippet', 'Irish terrier', 'Kerry blue terrier', 'Bedlington terrier', 'Border terrier', 'Dandie Dinmont terrier', 'Cesky terrier', 'Australian terrier', 'Dachshund', 'norfolk terrier', 'norwich terrier', 'Yorkshire terrier', 'wire fox terrier', 'Lakeland terrier', 'Sealyham terrier', 'Airedale terrier', 'cairn terrier', 'Australian terrier', 'staffordshire bull terrier', 'American Staffordshire terrier', 'Weimaraner', 'Standard Schnauzer', 'miniature schnauzer', 'giant schnauzer', 'schipperke', 'groenendael', 'malinois', 'briard', 'kelpie', 'komondor', 'Old English sheepdog', 'Shetland sheepdog', 'collie', 'Bordet', 'German shepherd', 'miniature pinscher', 'pug', 'Leonberg', 'Newfoundland', 'Great Pyrenees', 'Samoyed', 'Pomeranian', 'chow', 'keeshond', 'Brabancon griffon', 'Pembroke Welsh Corgi', 'Cardigan Welsh Corgi', 'toy poodle', 'miniature poodle', 'standard poodle', 'tabby cat', 'tiger cat', 'Persian cat', 'Siamese cat', 'Egyptian Mau', 'cougar', 'lynx', 'leopard', 'snow leopard', 'jaguar', 'lion', 'tiger', 'cheetah', 'brown bear', 'American black bear', 'polar bear', 'sloth bear', 'mongoose', 'meerkat', 'tiger beetle', 'ladybug', 'ground beetle', 'longhorn beetle', 'leaf beetle', 'dung beetle', 'rhinoceros beetle', 'weevil', 'fly', 'bee', 'wasp', 'cricket', 'cicada', 'leafhopper', 'dragonfly', 'damselfly', 'praying mantis', 'cockroach', 'moth', 'butterfly', 'starfish', 'sea cucumber', 'sea urchin', 'hedgehog', 'echidna', 'platypus', 'wallaby', 'kangaroo', 'koala', 'wombat', 'badger', 'otter', 'skunk', 'beaver', 'guinea pig', 'sorrel', 'zebra', 'pig', 'hog', 'wild boar', 'hippopotamus', 'ox', 'water buffalo', 'bison', 'ram', 'bighorn sheep', 'ibex', 'hartebeest', 'impala', 'gazelle', 'dromedary', 'llama', 'alpaca', 'vicuna', 'camel', 'llama', 'rat', 'mouse', 'hare', 'rabbit', 'chipmunk', 'squirrel', 'marmot', 'beaver', 'guinea pig', 'dog', 'cat', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'lion', 'tiger', 'fox', 'wolf', 'rabbit', 'squirrel', 'pig', 'goat', 'deer', 'camel', 'llama', 'kangaroo', 'koala', 'panda', 'penguin', 'seal', 'whale', 'dolphin', 'shark', 'frog', 'turtle', 'snake', 'lizard', 'crocodile', 'spider', 'insect', 'butterfly', 'bee', 'ant', 'bird', 'chicken', 'duck', 'goose', 'eagle', 'owl', 'hawk', 'falcon', 'parrot', 'swan', 'ostrich', 'flamingo', 'penguin', 'seagull', 'crow', 'raven', 'robin', 'sparrow', 'finch', 'canary', 'cardinal', 'blue jay', 'cardinal', 'lark', 'swallow', 'swift', 'hummingbird', 'woodpecker', 'duck', 'goose', 'swan', 'turkey', 'pheasant', 'quail', 'parrot', 'pigeon', 'dove', 'eagle', 'vulture', 'falcon', 'hawk', 'owl', 'car', 'truck', 'bus', 'motorcycle', 'bicycle', 'airplane', 'ship', 'boat', 'train', 'taxi', 'van', 'suv', 'pickup', 'ambulance', 'fire truck', 'police van', 'jeep', 'tractor', 'harvester', 'crane', 'bulldozer', 'forklift', 'trailer', 'wagon', 'cart', 'stroller', 'motor scooter', 'go-kart', 'dune buggy', 'snowmobile', 'airship', 'balloon', 'helicopter', 'fighter jet', 'rocket', 'space shuttle', 'missile', 'person', 'man', 'woman', 'child', 'baby', 'boy', 'girl', 'teenager', 'adult', 'elderly', 'crowd', 'family', 'couple', 'group', 'mountain', 'hill', 'valley', 'canyon', 'beach', 'coast', 'shore', 'island', 'forest', 'woods', 'jungle', 'desert', 'field', 'meadow', 'prairie', 'grassland', 'lake', 'river', 'waterfall', 'stream', 'ocean', 'sea', 'volcano', 'glacier', 'iceberg', 'snow', 'cliff', 'cave', 'waterhole', 'reef', 'building', 'house', 'home', 'cottage', 'mansion', 'palace', 'castle', 'tower', 'skyscraper', 'office building', 'church', 'cathedral', 'temple', 'mosque', 'synagogue', 'bridge', 'viaduct', 'arch', 'monument', 'statue', 'fountain', 'lighthouse', 'windmill', 'barn', 'stadium', 'theater', 'cinema', 'library', 'museum', 'school', 'university', 'hospital', 'factory', 'warehouse', 'garage', 'shed', 'shop', 'store', 'market', 'restaurant', 'hotel', 'bank', 'post office', 'station', 'airport', 'port', 'harbor', 'dome', 'pyramid', 'obelisk', 'apple', 'banana', 'orange', 'lemon', 'lime', 'grapefruit', 'mango', 'pineapple', 'watermelon', 'strawberry', 'blueberry', 'raspberry', 'grape', 'peach', 'pear', 'cherry', 'plum', 'kiwi', 'tomato', 'potato', 'carrot', 'onion', 'garlic', 'pepper', 'cucumber', 'lettuce', 'spinach', 'broccoli', 'cauliflower', 'cabbage', 'mushroom', 'corn', 'wheat', 'rice', 'bread', 'sandwich', 'burger', 'pizza', 'pasta', 'noodle', 'soup', 'salad', 'meat', 'beef', 'pork', 'chicken', 'fish', 'seafood', 'shrimp', 'crab', 'lobster', 'sushi', 'egg', 'cheese', 'milk', 'coffee', 'tea', 'juice', 'wine', 'beer', 'cake', 'pie', 'cookie', 'ice cream', 'candy', 'chocolate', 'pudding', 'doughnut', 'bagel', 'croissant', 'waffle', 'pancake', 'bacon', 'sausage', 'ham', 'hot dog', 'taco', 'burrito', 'quesadilla', 'nachos', 'popcorn', 'pretzel', 'chips', 'nuts', 'seeds', 'honey', 'jam', 'butter', 'yogurt', 'cereal', 'oatmeal', 'pudding', 'custard', 'gelatin', 'syrup', 'sauce', 'ketchup', 'mustard', 'mayonnaise', 'vinegar', 'oil'
-]
-console.log('[Main] 使用硬编码的 ImageNet 类别列表，共 ' + IMAGENET_CLASSES.length + ' 个类别')
-let imagenetClasses: string[] = IMAGENET_CLASSES
+function authRefreshTokenPath(): string {
+  return join(app.getPath('userData'), 'auth-refresh.enc')
+}
+
+let mainProcessCurrentUserId: string | null = null
+
+function operationLogsRoot(): string {
+  return join(app.getPath('userData'), 'operation-logs')
+}
+
+function operationLogFile(userId: string): string {
+  return join(operationLogsRoot(), `${userId}.jsonl`)
+}
+
+function appendOperationLogLine(
+  userId: string,
+  entry: { id: string; ts: number; action: string; summary?: string; detail?: string }
+): void {
+  try {
+    mkdirSync(operationLogsRoot(), { recursive: true })
+    appendFileSync(operationLogFile(userId), `${JSON.stringify(entry)}\n`, 'utf8')
+  } catch (e) {
+    console.error('[oplog] append failed', e)
+  }
+}
+
+function readOperationLogEntries(userId: string, limit: number): Array<{
+  id: string
+  ts: number
+  action: string
+  summary?: string
+  detail?: string
+}> {
+  const p = operationLogFile(userId)
+  if (!nodeFileExistsSync(p)) return []
+  try {
+    const raw = readFileSync(p, 'utf8')
+    const lines = raw.split(/\r?\n/).filter(Boolean)
+    const parsed: Array<{ id: string; ts: number; action: string; summary?: string; detail?: string }> = []
+    for (const line of lines) {
+      try {
+        const o = JSON.parse(line) as Record<string, unknown>
+        if (typeof o.id === 'string' && typeof o.ts === 'number' && typeof o.action === 'string') {
+          parsed.push({
+            id: o.id,
+            ts: o.ts,
+            action: o.action,
+            summary: typeof o.summary === 'string' ? o.summary : undefined,
+            detail: typeof o.detail === 'string' ? o.detail : undefined,
+          })
+        }
+      } catch {
+        /* skip bad line */
+      }
+    }
+    parsed.sort((a, b) => b.ts - a.ts)
+    return parsed.slice(0, Math.max(1, Math.min(limit, 500)))
+  } catch (e) {
+    console.error('[oplog] read failed', e)
+    return []
+  }
+}
+
+function clearOperationLogFile(userId: string): void {
+  const p = operationLogFile(userId)
+  if (nodeFileExistsSync(p)) {
+    try {
+      unlinkSync(p)
+    } catch (e) {
+      console.error('[oplog] clear failed', e)
+    }
+  }
+}
 
 const { readdir, stat, mkdir, move, existsSync } = fs
+
+/** 开发环境主进程热重载会重复执行本模块，须先移除旧 invoke handler 再注册 */
+function ipcHandle(channel: string, listener: (...args: unknown[]) => unknown): void {
+  ipcMain.removeHandler(channel)
+  ipcMain.handle(channel, listener as Parameters<typeof ipcMain.handle>[1])
+}
+
+function uniqueFilePathInDir(dir: string, filename: string): string {
+  let candidate = join(dir, filename)
+  let n = 1
+  const { name, ext } = parse(filename)
+  while (existsSync(candidate)) {
+    candidate = join(dir, `${name}_${n}${ext}`)
+    n += 1
+  }
+  return candidate
+}
 
 // 获取文件的 MIME 类型
 function getMimeType(filePath: string): string {
@@ -28,21 +124,6 @@ function getMimeType(filePath: string): string {
     'bmp': 'image/bmp',
     'svg': 'image/svg+xml',
     'webp': 'image/webp',
-    // RAW图片类型
-    'raw': 'image/x-raw',
-    'cr2': 'image/x-canon-cr2',
-    'cr3': 'image/x-canon-cr3',
-    'nef': 'image/x-nikon-nef',
-    'dng': 'image/x-adobe-dng',
-    'arw': 'image/x-sony-arw',
-    'rw2': 'image/x-panasonic-rw2',
-    'orf': 'image/x-olympus-orf',
-    'sr2': 'image/x-sony-sr2',
-    'srw': 'image/x-samsung-srw',
-    'pef': 'image/x-pentax-pef',
-    'raf': 'image/x-fujifilm-raf',
-    'x3f': 'image/x-sigma-x3f',
-    'mrw': 'image/x-minolta-mrw',
     // 视频类型
     'mp4': 'video/mp4',
     'avi': 'video/x-msvideo',
@@ -91,6 +172,19 @@ function getPreloadPath(): string {
   console.error('[Main]', errorMsg)
   throw new Error(errorMsg)
 }
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'media-local',
+    privileges: {
+      standard: true,
+      secure: true,
+      stream: true,
+      supportFetchAPI: true,
+      corsEnabled: true
+    }
+  }
+])
 
 // 设置缓存目录，避免权限问题
 // 必须在 app.whenReady() 之前调用
@@ -178,6 +272,18 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '../../dist/index.html'))
   }
 
+  mainWindow.on('close', () => {
+    const uid = mainProcessCurrentUserId
+    if (uid) {
+      appendOperationLogLine(uid, {
+        id: crypto.randomUUID(),
+        ts: Date.now(),
+        action: 'app_closed',
+        summary: '关闭应用',
+      })
+    }
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = undefined
     if (fileWatcher) {
@@ -187,7 +293,39 @@ function createWindow() {
   })
 }
 
+/** 未打包时提供菜单/F12，便于在关掉自动打开的 DevTools 后仍能查看 Network */
+function setupDevToolsMenu(): void {
+  if (app.isPackaged) return
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: '开发',
+        submenu: [
+          {
+            label: '切换开发者工具',
+            accelerator: 'F12',
+            click: () => {
+              const w = BrowserWindow.getFocusedWindow()
+              if (w) w.webContents.toggleDevTools()
+            },
+          },
+          { type: 'separator' },
+          {
+            label: '重新加载界面',
+            accelerator: 'Ctrl+R',
+            click: () => {
+              BrowserWindow.getFocusedWindow()?.reload()
+            },
+          },
+        ],
+      },
+    ])
+  )
+}
+
 app.whenReady().then(() => {
+  registerMediaLocalProtocol()
+  setupDevToolsMenu()
   createWindow()
 
   app.on('activate', () => {
@@ -203,8 +341,13 @@ app.on('window-all-closed', () => {
   }
 })
 
+app.on('before-quit', () => {
+  void shutdownExiftool()
+  void shutdownMediaAssetCache()
+})
+
 // IPC 处理器：打开文件
-ipcMain.handle('file:open', async (_event, filePath: string): Promise<boolean> => {
+ipcHandle('file:open', async (_event, filePath: string): Promise<boolean> => {
   try {
     // 使用系统默认程序打开文件
     const result = await shell.openPath(filePath)
@@ -221,7 +364,7 @@ ipcMain.handle('file:open', async (_event, filePath: string): Promise<boolean> =
 })
 
 // IPC 处理器：打开目录选择对话框
-ipcMain.handle('dialog:openDirectory', async () => {
+ipcHandle('dialog:openDirectory', async () => {
   if (!mainWindow) return null
   
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -236,7 +379,7 @@ ipcMain.handle('dialog:openDirectory', async () => {
 })
 
 // IPC 处理器：打开外部链接
-ipcMain.handle('shell:openExternal', async (_event, url: string): Promise<boolean> => {
+ipcHandle('shell:openExternal', async (_event, url: string): Promise<boolean> => {
   try {
     const { shell } = await import('electron')
     await shell.openExternal(url)
@@ -248,7 +391,7 @@ ipcMain.handle('shell:openExternal', async (_event, url: string): Promise<boolea
 })
 
 // IPC 处理器：读取目录内容
-ipcMain.handle('fs:readDirectory', async (_event, path: string): Promise<FileInfo[]> => {
+ipcHandle('fs:readDirectory', async (_event, path: string): Promise<FileInfo[]> => {
   try {
     if (!existsSync(path)) {
       return []
@@ -351,7 +494,7 @@ async function readDirectoryRecursive(dirPath: string): Promise<FileInfo[]> {
 }
 
 // IPC 处理器：递归读取目录
-ipcMain.handle('fs:readDirectoryRecursive', async (_event, path: string): Promise<FileInfo[]> => {
+ipcHandle('fs:readDirectoryRecursive', async (_event, path: string): Promise<FileInfo[]> => {
   try {
     if (!existsSync(path)) {
       return []
@@ -364,7 +507,7 @@ ipcMain.handle('fs:readDirectoryRecursive', async (_event, path: string): Promis
 })
 
 // IPC 处理器：提取文件（将子目录中的指定类型文件提取到当前目录）
-ipcMain.handle('fs:extractFiles', async (_event, targetPath: string, filters: { extensions: string[]; minSize?: number; maxSize?: number; category?: string }, conflictAction: 'skip' | 'overwrite' | 'rename') => {
+ipcHandle('fs:extractFiles', async (_event, targetPath: string, filters: { extensions: string[]; minSize?: number; maxSize?: number; category?: string }, conflictAction: 'skip' | 'overwrite' | 'rename') => {
   try {
     if (!existsSync(targetPath)) {
       throw new Error('目标目录不存在')
@@ -454,7 +597,7 @@ ipcMain.handle('fs:extractFiles', async (_event, targetPath: string, filters: { 
 })
 
 // IPC 处理器：整理文件
-ipcMain.handle('fs:organize', async (_event, config: OrganizeConfig) => {
+ipcHandle('fs:organize', async (_event, config: OrganizeConfig) => {
   try {
     const { sourcePath, rules, options } = config
     const results: Array<{ from: string; to: string; success: boolean; error?: string }> = []
@@ -554,13 +697,103 @@ ipcMain.handle('fs:organize', async (_event, config: OrganizeConfig) => {
 })
 
 // IPC 处理器：获取应用版本
-ipcMain.handle('app:getVersion', () => {
+ipcHandle('app:getVersion', () => {
   return app.getVersion()
 })
 
 // IPC 处理器：获取平台信息
-ipcMain.handle('app:getPlatform', () => {
+ipcHandle('app:getPlatform', () => {
   return process.platform
+})
+
+ipcHandle('cache:getOverview', async () => {
+  return await getMainCacheOverview()
+})
+
+ipcHandle('cache:clear', async (_event, scopes: unknown) => {
+  const list = Array.isArray(scopes)
+    ? scopes.filter((s): s is MainCacheScope => s === 'previewDisk' || s === 'chromiumDisk' || s === 'modelSessions')
+    : []
+  if (list.length === 0) return
+  await clearMainCache(list)
+})
+
+ipcHandle('auth:saveRefreshToken', async (_event, token: string): Promise<{ ok: boolean; error?: string }> => {
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ok: false, error: 'encryption_unavailable' }
+  }
+  try {
+    const buf = safeStorage.encryptString(token)
+    writeFileSync(authRefreshTokenPath(), buf)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: (e as Error).message }
+  }
+})
+
+ipcHandle('auth:loadRefreshToken', async (): Promise<string | null> => {
+  if (!safeStorage.isEncryptionAvailable()) {
+    return null
+  }
+  const p = authRefreshTokenPath()
+  if (!nodeFileExistsSync(p)) {
+    return null
+  }
+  try {
+    const buf = readFileSync(p)
+    return safeStorage.decryptString(buf)
+  } catch {
+    return null
+  }
+})
+
+ipcHandle('auth:clearRefreshToken', async (): Promise<void> => {
+  const p = authRefreshTokenPath()
+  if (nodeFileExistsSync(p)) {
+    try {
+      unlinkSync(p)
+    } catch {
+      /* ignore */
+    }
+  }
+})
+
+ipcHandle('app:setCurrentUserId', async (_event, userId: unknown): Promise<void> => {
+  mainProcessCurrentUserId = typeof userId === 'string' && userId.length > 0 ? userId : null
+})
+
+ipcHandle(
+  'oplog:append',
+  async (
+    _event,
+    payload: { userId?: string; action?: string; summary?: string; detail?: string }
+  ): Promise<void> => {
+    const userId = typeof payload?.userId === 'string' ? payload.userId.trim() : ''
+    const action = typeof payload?.action === 'string' ? payload.action.trim() : ''
+    if (!userId || !action) return
+    appendOperationLogLine(userId, {
+      id: crypto.randomUUID(),
+      ts: Date.now(),
+      action,
+      summary: typeof payload.summary === 'string' ? payload.summary : undefined,
+      detail: typeof payload.detail === 'string' ? payload.detail : undefined,
+    })
+  }
+)
+
+ipcHandle('oplog:list', async (_event, userId: unknown, limit = 200): Promise<
+  Array<{ id: string; ts: number; action: string; summary?: string; detail?: string }>
+> => {
+  const uid = typeof userId === 'string' ? userId.trim() : ''
+  if (!uid) return []
+  const n = typeof limit === 'number' && Number.isFinite(limit) ? Math.floor(limit) : 200
+  return readOperationLogEntries(uid, n)
+})
+
+ipcHandle('oplog:clear', async (_event, userId: unknown): Promise<void> => {
+  const uid = typeof userId === 'string' ? userId.trim() : ''
+  if (!uid) return
+  clearOperationLogFile(uid)
 })
 
 // IPC 处理器：窗口控制
@@ -607,96 +840,53 @@ ipcMain.on('file:preview', (_event, filePath: string, fileList?: FileInfo[], cur
   const fileName = filePath.split('\\').pop() || filePath.split('/').pop() || ''
   const fileExt = fileName.split('.').pop()?.toLowerCase() || ''
   
-  const RAW_EXTENSIONS = ['raw', 'cr2', 'cr3', 'nef', 'dng', 'arw', 'rw2', 'orf', 'sr2', 'srw', 'pef', 'raf', 'x3f', 'mrw']
-  const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp', ...RAW_EXTENSIONS]
-  
   let content = ''
-  if (IMAGE_EXTENSIONS.includes(fileExt)) {
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(fileExt)) {
     // 图片预览
-    let imageSrc = ''
-    
-    if (RAW_EXTENSIONS.includes(fileExt)) {
-      const base64Data = await ipcMain.handle('file:getImageBase64', async () => {
-        try {
-          const raw = await import('rawkit')
-          const image = await raw.decode(filePath)
-          const { data, width, height } = image
-          const buffer = Buffer.from(data)
-          const jpegBuffer = await sharp(buffer, {
-            raw: { width, height, channels: 3 }
-          }).jpeg({ quality: 90 }).toBuffer()
-          return `data:image/jpeg;base64,${jpegBuffer.toString('base64')}`
-        } catch (error) {
-          console.error('[Main] RAW图片预览失败:', error)
-          return ''
-        }
-      })
-      imageSrc = await base64Data()
-    } else {
-      const normalizedPath = filePath.replace(/\\/g, '/')
-      imageSrc = `file:///${normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/')}`
-    }
+    const normalizedPath = filePath.replace(/\\/g, '/')
+    const encodedPath = normalizedPath.split('/').map(segment => encodeURIComponent(segment)).join('/')
 
-    const isLivePhoto = ['jpg', 'jpeg'].includes(fileExt)
-    let livePhotoVideoPath = ''
-    if (isLivePhoto) {
-      const dir = filePath.substring(0, filePath.lastIndexOf('\\') || filePath.lastIndexOf('/'))
-      const nameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'))
-      const movPath = `${dir}\\${nameWithoutExt}.mov`
-      if (existsSync(movPath)) {
-        const normalizedMovPath = movPath.replace(/\\/g, '/')
-        livePhotoVideoPath = `file:///${normalizedMovPath.split('/').map(segment => encodeURIComponent(segment)).join('/')}`
+    // 准备导航数据
+    let prevImage: FileInfo | null = null
+    let nextImage: FileInfo | null = null
+    let prevIndex = -1
+    let nextIndex = -1
+
+    if (fileList && currentIndex !== undefined) {
+      // 过滤出图片文件
+      const imageFiles = fileList.filter(f => !f.isDirectory && ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].includes(f.name.split('.').pop()?.toLowerCase() || ''))
+      const currentImageIndex = imageFiles.findIndex(f => f.path === filePath)
+      if (currentImageIndex > 0) {
+        prevImage = imageFiles[currentImageIndex - 1]
+        prevIndex = currentImageIndex - 1
+      }
+      if (currentImageIndex < imageFiles.length - 1) {
+        nextImage = imageFiles[currentImageIndex + 1]
+        nextIndex = currentImageIndex + 1
       }
     }
 
     content = `
-      <div style="position: relative; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0;">
-        <img id="previewImg" src="${imageSrc}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${fileName}" />
-        ${livePhotoVideoPath ? `
-          <button id="playLiveBtn" style="position: absolute; bottom: 30px; right: 30px; padding: 12px 24px; background: rgba(0,0,0,0.7); color: white; border: none; border-radius: 30px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z"/>
-            </svg>
-            播放实况
-          </button>
-          <video id="liveVideo" style="display: none; position: absolute; max-width: 100%; max-height: 100%; object-fit: contain;" muted loop>
-            <source src="${livePhotoVideoPath}" type="video/quicktime">
-          </video>
-          <button id="closeVideoBtn" style="display: none; position: absolute; top: 20px; right: 20px; padding: 8px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 18px;">×</button>
-        ` : ''}
+      <div style="position: relative; height: 100vh; background: #f0f0f0; display: flex; flex-direction: column;">
+        ${prevImage ? `<button id="prevBtn" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); z-index: 10; padding: 10px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 5px; cursor: pointer;">◀ 上一张</button>` : ''}
+        ${nextImage ? `<button id="nextBtn" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); z-index: 10; padding: 10px; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 5px; cursor: pointer;">下一张 ▶</button>` : ''}
+        <div style="flex: 1; display: flex; justify-content: center; align-items: center;">
+          <img id="previewImg" src="file:///${encodedPath}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${fileName}" />
+        </div>
       </div>
       <script>
-        ${livePhotoVideoPath ? `
-          const playBtn = document.getElementById('playLiveBtn');
-          const closeBtn = document.getElementById('closeVideoBtn');
-          const img = document.getElementById('previewImg');
-          const video = document.getElementById('liveVideo');
-          
-          playBtn.addEventListener('click', () => {
-            img.style.display = 'none';
-            playBtn.style.display = 'none';
-            video.style.display = 'block';
-            closeBtn.style.display = 'block';
-            video.play();
-          });
-          
-          closeBtn.addEventListener('click', () => {
-            video.pause();
-            video.style.display = 'none';
-            closeBtn.style.display = 'none';
-            img.style.display = 'block';
-            playBtn.style.display = 'flex';
-          });
-          
-          video.addEventListener('click', () => {
-            if (video.paused) {
-              video.play();
-            } else {
-              video.pause();
-            }
-          });
-        ` : ''}
+        ${prevImage ? `document.getElementById('prevBtn').addEventListener('click', () => {
+          window.electronAPI.previewFile('${prevImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${prevIndex})
+        })` : ''}
+        ${nextImage ? `document.getElementById('nextBtn').addEventListener('click', () => {
+          window.electronAPI.previewFile('${nextImage.path.replace(/\\/g, '\\\\')}', ${JSON.stringify(fileList)}, ${nextIndex})
+        })` : ''}
       </script>
+    `
+    content = `
+      <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f0f0;">
+        <img src="file:///${encodedPath}" style="max-width: 100%; max-height: 100%; object-fit: contain;" alt="${fileName}" />
+      </div>
     `
   } else if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'mkv'].includes(fileExt)) {
     // 视频预览
@@ -755,7 +945,7 @@ ipcMain.on('file:preview', (_event, filePath: string, fileList?: FileInfo[], cur
 })
 
 // IPC 处理器：文件重命名
-ipcMain.handle('file:rename', async (_event, oldPath: string, newName: string): Promise<boolean> => {
+ipcHandle('file:rename', async (_event, oldPath: string, newName: string): Promise<boolean> => {
   try {
     const dir = oldPath.substring(0, oldPath.lastIndexOf('\\') || oldPath.lastIndexOf('/'))
     const newPath = `${dir}/${newName}`
@@ -769,7 +959,7 @@ ipcMain.handle('file:rename', async (_event, oldPath: string, newName: string): 
 })
 
 // IPC 处理器：删除文件或文件夹
-ipcMain.handle('file:delete', async (_event, filePath: string): Promise<boolean> => {
+ipcHandle('file:delete', async (_event, filePath: string): Promise<boolean> => {
   try {
     const stats = await stat(filePath)
     if (stats.isDirectory()) {
@@ -786,190 +976,160 @@ ipcMain.handle('file:delete', async (_event, filePath: string): Promise<boolean>
   }
 })
 
-// IPC 处理器：获取图片base64用于预览
-ipcMain.handle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
+ipcHandle('file:move', async (_event, oldPath: string, newPath: string): Promise<boolean> => {
   try {
-    const buffer = await fs.readFile(filePath)
-    const mimeType = getMimeType(filePath)
-    const base64 = buffer.toString('base64')
-    return `data:${mimeType};base64,${base64}`
+    const destDir = dirname(newPath)
+    await mkdir(destDir, { recursive: true })
+    await move(oldPath, newPath, { overwrite: false })
+    console.log('[Main] 文件移动成功:', oldPath, '->', newPath)
+    return true
   } catch (error) {
-    console.error('[Main] 获取图片base64失败:', error)
-    return ''
+    console.error('[Main] 移动失败:', error)
+    return false
   }
 })
+
+ipcHandle(
+  'files:batchCopyToDirectory',
+  async (
+    _event,
+    sources: string[],
+    destDir: string,
+    conflictAction: FileConflictAction
+  ): Promise<BatchFileOpResult[]> => {
+    const out: BatchFileOpResult[] = []
+    try {
+      await mkdir(destDir, { recursive: true })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return sources.map(s => ({ filePath: s, success: false, error: msg }))
+    }
+    for (const src of sources) {
+      const base = basename(src)
+      let dest = join(destDir, base)
+      try {
+        if (!existsSync(src)) {
+          out.push({ filePath: src, success: false, error: '源文件不存在' })
+          continue
+        }
+        if (existsSync(dest)) {
+          if (conflictAction === 'skip') {
+            out.push({ filePath: src, success: false, error: '目标已存在' })
+            continue
+          }
+          if (conflictAction === 'rename') {
+            dest = uniqueFilePathInDir(destDir, base)
+          }
+        }
+        await fs.copy(src, dest, { overwrite: conflictAction === 'overwrite' })
+        out.push({ filePath: src, success: true, newPath: dest })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        out.push({ filePath: src, success: false, error: msg })
+      }
+    }
+    return out
+  }
+)
+
+ipcHandle(
+  'files:batchRelocate',
+  async (_event, moves: BatchRelocateEntry[], conflictAction: FileConflictAction): Promise<BatchFileOpResult[]> => {
+    const out: BatchFileOpResult[] = []
+    for (const { from, to } of moves) {
+      try {
+        if (!existsSync(from)) {
+          out.push({ filePath: from, success: false, error: '源文件不存在' })
+          continue
+        }
+        const dir = dirname(to)
+        await mkdir(dir, { recursive: true })
+        let dest = to
+        if (existsSync(dest)) {
+          if (conflictAction === 'skip') {
+            out.push({ filePath: from, success: false, error: '目标已存在' })
+            continue
+          }
+          if (conflictAction === 'rename') {
+            dest = uniqueFilePathInDir(dir, basename(to))
+          }
+        }
+        await move(from, dest, { overwrite: conflictAction === 'overwrite' })
+        out.push({ filePath: from, success: true, newPath: dest })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        out.push({ filePath: from, success: false, error: msg })
+      }
+    }
+    return out
+  }
+)
+
+// IPC 处理器：获取图片base64用于预览
+ipcHandle(
+  'file:getShutterCount',
+  async (_event, filePath: string): Promise<{ count: number | null; message?: string }> => {
+    return readShutterCountFromFile(filePath)
+  }
+)
+
+ipcHandle('file:getPhotoFocusPoints', async (_event, filePath: string) => {
+  const { readPhotoFocusPointsFromFile } = await import('./utils/photoFocusPoints')
+  return readPhotoFocusPointsFromFile(filePath)
+})
+
+ipcHandle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
+  const { getImageBase64 } = await import('./utils/imageUtils')
+  return getImageBase64(filePath)
+})
+
+ipcHandle('file:probeMediaAsset', async (_event, filePath: string) => {
+  return probeMediaAsset(filePath)
+})
+
+ipcHandle(
+  'file:getFileStats',
+  async (
+    _event,
+    filePath: string
+  ): Promise<{ size: number; createdTime: number; modifiedTime: number } | null> => {
+    try {
+      const stats = await stat(filePath)
+      if (!stats.isFile()) return null
+      return {
+        size: stats.size,
+        createdTime: stats.birthtime.getTime(),
+        modifiedTime: stats.mtime.getTime()
+      }
+    } catch (error) {
+      console.error('[Main] 读取文件属性失败:', error)
+      return null
+    }
+  }
+)
 
 // IPC 处理器：获取图片尺寸信息
-ipcMain.handle('file:getImageDimensions', async (_event, filePath: string): Promise<{ width: number; height: number } | null> => {
-  try {
-    const metadata = await sharp(filePath).metadata()
-    if (metadata.width && metadata.height) {
-      return {
-        width: metadata.width,
-        height: metadata.height
-      }
-    }
-    return null
-  } catch (error) {
-    console.error('[Main] 获取图片尺寸失败:', error)
-    return null
-  }
+ipcHandle('file:getImageDimensions', async (_event, filePath: string): Promise<{ width: number; height: number } | null> => {
+  const { getImageDimensions } = await import('./utils/imageUtils')
+  return getImageDimensions(filePath)
 })
 
-// IPC 处理器：获取图片缩略图base64用于预览（使用sharp，动态质量压缩）
-ipcMain.handle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 60): Promise<string> => {
-  try {
-    // 获取文件大小，确保只处理50MB及以下的图片（包括50MB）
-    const stats = await stat(filePath)
-    const MAX_THUMBNAIL_SIZE = 50 * 1024 * 1024 // 50MB
-    
-    // 只有超过50MB的图片才跳过，小于等于50MB的都应该处理
-    if (stats.size > MAX_THUMBNAIL_SIZE) {
-      console.warn(`[Main] 跳过大于50MB的图片缩略图生成: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`)
-      return ''
-    }
-    
-    const mimeType = getMimeType(filePath)
-    const isPng = mimeType === 'image/png'||mimeType === 'image/jpeg'||mimeType === 'image/jpg'
-    const isWebp = mimeType === 'image/webp'
-    const isGif = mimeType === 'image/gif'
-    const isBmp = mimeType === 'image/bmp'
-    const isSvg = mimeType === 'image/svg+xml'
-    
-    // 根据传入的quality参数动态调整质量，默认60（中等质量）
-    // 提供更好的视觉效果，特别是在相似度检测页面
-    const effectiveQuality = Math.max(Math.min(quality || 60, 100), 1)
-    const sharpInstance = sharp(filePath)
-      .resize(size, size, {
-        fit: 'cover',
-        position: 'center'
-      })
-    
-    let buffer: Buffer
-    
-    // 针对不同图片格式进行优化处理，使用动态质量
-    if (isPng) {
-      // PNG格式转换为JPEG以减小体积（PNG不支持质量参数，转换为JPEG）
-      buffer = await sharpInstance.jpeg({
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else if (isWebp) {
-      // WebP格式使用动态质量
-      buffer = await sharpInstance.webp({
-        quality: effectiveQuality,
-        lossless: effectiveQuality === 100
-      }).toBuffer()
-    } else if (isGif) {
-      // 对于GIF，使用Sharp生成静态缩略图（保留第一帧），使用动态质量
-      buffer = await sharpInstance.jpeg({ 
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else if (isBmp) {
-      // BMP格式转换为JPEG以减小体积，使用动态质量
-      buffer = await sharpInstance.jpeg({ 
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else if (isSvg) {
-      // SVG格式转换为JPEG以减小体积，使用动态质量
-      buffer = await sharpInstance.jpeg({ 
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    } else {
-      // 默认使用JPEG，适用于JPEG等格式，使用动态质量
-      buffer = await sharpInstance.jpeg({
-        quality: effectiveQuality,
-        progressive: effectiveQuality > 80,
-        chromaSubsampling: effectiveQuality > 80 ? '4:4:4' : '4:2:0'
-      }).toBuffer()
-    }
-    
-    const base64 = buffer.toString('base64')
-    // 统一输出为JPEG格式以减小体积
-    return `data:image/jpeg;base64,${base64}`
-  } catch (error) {
-    console.error('[Main] 生成图片缩略图失败:', error)
-    // 优化回退方法：尝试使用更低质量或更小尺寸
-    try {
-      // 检查文件大小，确保只处理50MB及以下的图片
-      const stats = await stat(filePath)
-      const MAX_THUMBNAIL_SIZE = 50 * 1024 * 1024 // 50MB
-      
-      // 只有超过50MB的图片才跳过，小于等于50MB的都应该尝试处理
-      if (stats.size > MAX_THUMBNAIL_SIZE) {
-        console.warn(`[Main] 回退方法：跳过大于50MB的图片: ${filePath} (${(stats.size / 1024 / 1024).toFixed(2)}MB)`)
-        return ''
-      }
-      
-      // 尝试使用最低质量和更小尺寸重新生成
-      const sharpInstance = sharp(filePath)
-        .resize(50, 50, { // 使用更小的尺寸
-          fit: 'cover',
-          position: 'center'
-        })
-        .jpeg({ 
-          quality: 1, // 使用最低质量
-          progressive: false,
-          chromaSubsampling: '4:2:0'
-        })
-      
-      const buffer = await sharpInstance.toBuffer()
-      const base64 = buffer.toString('base64')
-      return `data:image/jpeg;base64,${base64}`
-    } catch (fallbackError) {
-      console.error('[Main] 回退方法也失败:', fallbackError)
-      return ''
-    }
-  }
+ipcHandle('file:getImageThumbnail', async (_event, filePath: string, size: number = 100, quality: number = 60): Promise<string> => {
+  const { getImageThumbnail } = await import('./utils/imageUtils')
+  return getImageThumbnail(filePath, size, quality)
 })
 
 // ==================== 相似照片检测功能 ====================
-
-// 支持的图片格式（包含RAW格式）
-const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic', 'heif', 'tiff', 'tif', 'raw', 'cr2', 'cr3', 'nef', 'dng', 'arw', 'rw2', 'orf', 'sr2', 'srw', 'pef', 'raf', 'x3f', 'mrw']
 
 // 计算文件MD5哈希
 function calculateFileHash(fileBuffer: Buffer): string {
   return crypto.createHash('md5').update(fileBuffer).digest('hex')
 }
 
-const RAW_EXTENSIONS_SET = new Set(['raw', 'cr2', 'cr3', 'nef', 'dng', 'arw', 'rw2', 'orf', 'sr2', 'srw', 'pef', 'raf', 'x3f', 'mrw'])
-
-async function processImageBuffer(imageBuffer: Buffer, filePath: string): Promise<Buffer> {
-  const ext = filePath.split('.').pop()?.toLowerCase() || ''
-  if (RAW_EXTENSIONS_SET.has(ext)) {
-    try {
-      const raw = await import('rawkit')
-      const image = await raw.decode(filePath)
-      const { data, width, height } = image
-      const rawBuffer = Buffer.from(data)
-      return sharp(rawBuffer, {
-        raw: { width, height, channels: 3 }
-      }).jpeg({ quality: 90 }).toBuffer()
-    } catch (error) {
-      console.error('[Main] RAW图片处理失败:', error)
-      return imageBuffer
-    }
-  }
-  return imageBuffer
-}
-
 // 计算感知哈希（pHash）
-async function calculatePerceptualHash(imageBuffer: Buffer, filePath?: string): Promise<string> {
+async function calculatePerceptualHash(imageBuffer: Buffer): Promise<string> {
   try {
-    let processedBuffer = imageBuffer
-    if (filePath) {
-      processedBuffer = await processImageBuffer(imageBuffer, filePath)
-    }
-    
-    const resized = await sharp(processedBuffer)
+    const resized = await sharp(imageBuffer)
       .resize(8, 8, { fit: 'fill' })
       .greyscale()
       .raw()
@@ -1124,7 +1284,7 @@ async function scanImageFiles(config: SimilarityScanConfig): Promise<string[]> {
 // IPC 处理器：扫描相似照片
 let currentScanWindow: BrowserWindow | null = null
 
-ipcMain.handle('similarity:scan', async (event, config: SimilarityScanConfig): Promise<SimilarityScanResult> => {
+ipcHandle('similarity:scan', async (event, config: SimilarityScanConfig): Promise<SimilarityScanResult> => {
   const startTime = Date.now()
   let currentProgress = 0
   let totalFiles = 0
@@ -1185,23 +1345,10 @@ ipcMain.handle('similarity:scan', async (event, config: SimilarityScanConfig): P
 
         if (usePerceptualHash) {
           try {
-            const ext = filePath.split('.').pop()?.toLowerCase() || ''
-            let processedBuffer = fileBuffer
-            
-            if (RAW_EXTENSIONS_SET.has(ext)) {
-              const raw = await import('rawkit')
-              const image = await raw.decode(filePath)
-              const { data, width: rawWidth, height: rawHeight } = image
-              processedBuffer = Buffer.from(data)
-              width = rawWidth
-              height = rawHeight
-            } else {
-              const metadata = await sharp(fileBuffer).metadata()
-              width = metadata.width
-              height = metadata.height
-            }
-            
-            perceptualHash = await calculatePerceptualHash(processedBuffer, filePath)
+            const metadata = await sharp(fileBuffer).metadata()
+            width = metadata.width
+            height = metadata.height
+            perceptualHash = await calculatePerceptualHash(fileBuffer)
           } catch (error) {
             console.warn(`[Main] 无法处理图片 ${filePath}:`, error)
           }
@@ -1266,615 +1413,63 @@ ipcMain.on('similarity:cancel', () => {
   currentScanWindow = null
 })
 
-// ==================== 图片内容分类功能（升级版） ====================
+let imageQualityScanCancelled = false
+let currentImageQualityWindow: BrowserWindow | null = null
 
-// 支持的分类模型列表
-const CLASSIFICATION_MODELS = [
-  {
-    id: 'mobilenetv2',
-    name: 'MobileNetV2',
-    description: '轻量级模型，速度快，精度适中',
-    sizeMB: 14,
-    inputSize: 224,
-    downloadUrls: [
-      'https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx',
-      'https://github.com/onnx/models/raw/master/vision/classification/mobilenet/model/mobilenetv2-7.onnx',
-      'https://github.com/onnx/models/raw/main/vision/classification/mobilenet_v2/mobilenetv2-7.onnx'
-    ]
-  },
-  {
-    id: 'efficientnet_b0',
-    name: 'EfficientNet-B0',
-    description: '高效模型，精度与速度平衡好',
-    sizeMB: 20,
-    inputSize: 224,
-    downloadUrls: [
-      'https://github.com/onnx/models/raw/main/vision/classification/efficientnet/model/efficientnet-b0.onnx',
-      'https://github.com/onnx/models/raw/master/vision/classification/efficientnet/model/efficientnet-b0.onnx'
-    ]
-  },
-  {
-    id: 'efficientnet_b4',
-    name: 'EfficientNet-B4',
-    description: '高精度模型，适合对精度要求高的场景',
-    sizeMB: 75,
-    inputSize: 380,
-    downloadUrls: [
-      'https://github.com/onnx/models/raw/main/vision/classification/efficientnet/model/efficientnet-b4.onnx',
-      'https://github.com/onnx/models/raw/master/vision/classification/efficientnet/model/efficientnet-b4.onnx'
-    ]
-  }
-] as const
+ipcHandle('imageQuality:scan', async (event, config: ImageQualityScanConfig): Promise<ImageQualityScanResult> => {
+  imageQualityScanCancelled = false
+  currentImageQualityWindow = BrowserWindow.fromWebContents(event.sender) || null
 
-export type ClassificationModelId = typeof CLASSIFICATION_MODELS[number]['id']
-
-// 模型会话缓存（按模型 ID 缓存）
-const classificationModels: Map<ClassificationModelId, InferenceSession> = new Map()
-let modelLoading = false
-
-// ImageNet 1000 类到自定义 25 细分类的映射
-const categoryMapping: Array<{ keywords: Array<{ word: string; weight?: number }>; category: ImageContentCategory }> = [
-  // ===== 人物类 =====
-  { category: 'person', keywords: [
-    { word: 'person', weight: 10 }, { word: 'people', weight: 10 }, { word: 'human', weight: 10 },
-    { word: 'man', weight: 8 }, { word: 'woman', weight: 8 }, { word: 'men', weight: 8 },
-    { word: 'women', weight: 8 }, { word: 'adult', weight: 8 }, { word: 'child', weight: 9 },
-    { word: 'children', weight: 9 }, { word: 'baby', weight: 9 }, { word: 'boy', weight: 7 },
-    { word: 'girl', weight: 7 }, { word: 'bridegroom', weight: 8 }, { word: 'scuba diver', weight: 8 },
-    { word: 'actor', weight: 7 }, { word: 'actress', weight: 7 }
-  ]},
-  { category: 'portrait', keywords: [
-    { word: 'portrait', weight: 10 }, { word: 'face', weight: 9 }, { word: 'head', weight: 7 },
-    { word: 'bride', weight: 9 }, { word: 'groom', weight: 9 }, { word: 'model', weight: 8 }
-  ]},
-  { category: 'selfie', keywords: [
-    { word: 'selfie', weight: 10 }, { word: 'self-portrait', weight: 10 }
-  ]},
-  // ===== 动物类 =====
-  { category: 'dog', keywords: [
-    { word: 'dog', weight: 10 }, { word: 'puppy', weight: 10 }, { word: 'retriever', weight: 10 },
-    { word: 'terrier', weight: 9 }, { word: 'beagle', weight: 10 }, { word: 'boxer', weight: 10 },
-    { word: 'husky', weight: 10 }, { word: 'poodle', weight: 10 }, { word: 'bulldog', weight: 10 },
-    { word: 'sheepdog', weight: 10 }, { word: 'corgi', weight: 10 }, { word: 'dachshund', weight: 10 }
-  ]},
-  { category: 'cat', keywords: [
-    { word: 'cat', weight: 10 }, { word: 'kitten', weight: 10 }, { word: 'kitty', weight: 10 },
-    { word: 'tabby', weight: 10 }, { word: 'Persian cat', weight: 10 }, { word: 'Siamese cat', weight: 10 }
-  ]},
-  { category: 'bird', keywords: [
-    { word: 'bird', weight: 10 }, { word: 'parrot', weight: 10 }, { word: 'eagle', weight: 10 },
-    { word: 'owl', weight: 10 }, { word: 'hawk', weight: 9 }, { word: 'falcon', weight: 9 },
-    { word: 'swan', weight: 10 }, { word: 'flamingo', weight: 10 }, { word: 'penguin', weight: 10 },
-    { word: 'peacock', weight: 10 }, { word: 'dove', weight: 9 }, { word: 'pigeon', weight: 8 }
-  ]},
-  { category: 'wild_animal', keywords: [
-    { word: 'lion', weight: 10 }, { word: 'tiger', weight: 10 }, { word: 'elephant', weight: 10 },
-    { word: 'zebra', weight: 10 }, { word: 'giraffe', weight: 10 }, { word: 'bear', weight: 10 },
-    { word: 'wolf', weight: 10 }, { word: 'fox', weight: 9 }, { word: 'deer', weight: 9 },
-    { word: 'antelope', weight: 10 }, { word: 'gazelle', weight: 10 }, { word: 'bison', weight: 10 },
-    { word: 'camel', weight: 10 }, { word: 'kangaroo', weight: 10 }, { word: 'koala', weight: 10 },
-    { word: 'panda', weight: 10 }, { word: 'raccoon', weight: 10 }, { word: 'leopard', weight: 10 },
-    { word: 'cheetah', weight: 10 }, { word: 'jaguar', weight: 10 }, { word: 'hyena', weight: 10 }
-  ]},
-  { category: 'marine_animal', keywords: [
-    { word: 'whale', weight: 10 }, { word: 'dolphin', weight: 10 }, { word: 'shark', weight: 10 },
-    { word: 'seal', weight: 9 }, { word: 'otter', weight: 9 }, { word: 'turtle', weight: 9 },
-    { word: 'crab', weight: 8 }, { word: 'lobster', weight: 9 }, { word: 'jellyfish', weight: 10 },
-    { word: 'starfish', weight: 10 }, { word: 'octopus', weight: 10 }, { word: 'squid', weight: 9 },
-    { word: 'stingray', weight: 9 }, { word: 'seahorse', weight: 10 }
-  ]},
-  { category: 'insect', keywords: [
-    { word: 'butterfly', weight: 10 }, { word: 'bee', weight: 10 }, { word: 'moth', weight: 9 },
-    { word: 'dragonfly', weight: 10 }, { word: 'beetle', weight: 9 }, { word: 'spider', weight: 8 },
-    { word: 'ladybug', weight: 10 }, { word: 'grasshopper', weight: 10 }, { word: 'mantis', weight: 10 },
-    { word: 'cricket', weight: 9 }, { word: 'ant', weight: 8 }, { word: 'wasp', weight: 8 }
-  ]},
-  { category: 'pet', keywords: [
-    { word: 'pet', weight: 10 }, { word: 'hamster', weight: 10 }, { word: 'rabbit', weight: 9 },
-    { word: 'guinea pig', weight: 10 }, { word: 'parakeet', weight: 10 }, { word: 'goldfish', weight: 10 }
-  ]},
-  // ===== 风景类 =====
-  { category: 'landscape', keywords: [
-    { word: 'landscape', weight: 10 }, { word: 'scenery', weight: 10 }, { word: 'nature', weight: 8 },
-    { word: 'outdoor', weight: 6 }, { word: 'panorama', weight: 10 }, { word: 'horizon', weight: 8 }
-  ]},
-  { category: 'mountain', keywords: [
-    { word: 'mountain', weight: 10 }, { word: 'peak', weight: 9 }, { word: 'hill', weight: 8 },
-    { word: 'volcano', weight: 10 }, { word: 'alp', weight: 9 }, { word: 'canyon', weight: 9 },
-    { word: 'cliff', weight: 9 }, { word: 'valley', weight: 9 }
-  ]},
-  { category: 'beach', keywords: [
-    { word: 'beach', weight: 10 }, { word: 'coast', weight: 9 }, { word: 'shore', weight: 8 },
-    { word: 'seashore', weight: 10 }, { word: 'ocean', weight: 9 }, { word: 'sea', weight: 8 },
-    { word: 'sand', weight: 7 }, { word: 'island', weight: 9 }
-  ]},
-  { category: 'sunset', keywords: [
-    { word: 'sunset', weight: 10 }, { word: 'sunrise', weight: 10 }, { word: 'dusk', weight: 10 },
-    { word: 'golden hour', weight: 10 }
-  ]},
-  { category: 'forest', keywords: [
-    { word: 'forest', weight: 10 }, { word: 'woods', weight: 9 }, { word: 'jungle', weight: 10 },
-    { word: 'tree', weight: 7 }, { word: 'meadow', weight: 9 }, { word: 'grove', weight: 9 }
-  ]},
-  { category: 'cityscape', keywords: [
-    { word: 'cityscape', weight: 10 }, { word: 'urban', weight: 9 }, { word: 'skyline', weight: 10 },
-    { word: 'downtown', weight: 10 }, { word: 'metropolitan', weight: 10 }
-  ]},
-  { category: 'night_scene', keywords: [
-    { word: 'night', weight: 10 }, { word: 'nighttime', weight: 10 }, { word: 'stars', weight: 9 },
-    { word: 'milky way', weight: 10 }, { word: 'astro', weight: 10 }
-  ]},
-  // ===== 建筑类 =====
-  { category: 'building', keywords: [
-    { word: 'building', weight: 10 }, { word: 'house', weight: 8 }, { word: 'structure', weight: 8 },
-    { word: 'architecture', weight: 9 }, { word: 'skyscraper', weight: 10 }, { word: 'tower', weight: 9 }
-  ]},
-  { category: 'landmark', keywords: [
-    { word: 'landmark', weight: 10 }, { word: 'monument', weight: 10 }, { word: 'statue', weight: 9 },
-    { word: 'fountain', weight: 9 }, { word: 'lighthouse', weight: 10 }, { word: 'obelisk', weight: 10 },
-    { word: 'pyramid', weight: 10 }, { word: 'memorial', weight: 10 }
-  ]},
-  { category: 'interior', keywords: [
-    { word: 'interior', weight: 10 }, { word: 'room', weight: 9 }, { word: 'indoor', weight: 9 },
-    { word: 'furniture', weight: 8 }
-  ]},
-  { category: 'street', keywords: [
-    { word: 'street', weight: 10 }, { word: 'road', weight: 8 }, { word: 'avenue', weight: 9 },
-    { word: 'highway', weight: 8 }, { word: 'alley', weight: 9 }
-  ]},
-  // ===== 食物类 =====
-  { category: 'food', keywords: [
-    { word: 'food', weight: 10 }, { word: 'dish', weight: 9 }, { word: 'cuisine', weight: 9 },
-    { word: 'meal', weight: 8 }, { word: 'breakfast', weight: 9 }, { word: 'lunch', weight: 9 },
-    { word: 'dinner', weight: 9 }, { word: 'sandwich', weight: 10 }, { word: 'burger', weight: 10 },
-    { word: 'pizza', weight: 10 }, { word: 'pasta', weight: 9 }, { word: 'salad', weight: 9 },
-    { word: 'soup', weight: 9 }, { word: 'meat', weight: 8 }, { word: 'seafood', weight: 9 },
-    { word: 'vegetable', weight: 8 }, { word: 'fruit', weight: 8 }, { word: 'sushi', weight: 10 },
-    { word: 'ramen', weight: 10 }, { word: 'curry', weight: 9 }
-  ]},
-  { category: 'drink', keywords: [
-    { word: 'drink', weight: 10 }, { word: 'beverage', weight: 10 }, { word: 'coffee', weight: 10 },
-    { word: 'tea', weight: 9 }, { word: 'juice', weight: 9 }, { word: 'wine', weight: 9 },
-    { word: 'beer', weight: 9 }, { word: 'cocktail', weight: 10 }, { word: 'milkshake', weight: 10 }
-  ]},
-  { category: 'dessert', keywords: [
-    { word: 'dessert', weight: 10 }, { word: 'cake', weight: 10 }, { word: 'cookie', weight: 10 },
-    { word: 'chocolate', weight: 10 }, { word: 'ice cream', weight: 10 }, { word: 'pie', weight: 9 },
-    { word: 'pastry', weight: 9 }, { word: 'sweet', weight: 8 }, { word: 'pancake', weight: 9 },
-    { word: 'waffle', weight: 9 }
-  ]},
-  // ===== 交通类 =====
-  { category: 'vehicle', keywords: [
-    { word: 'car', weight: 10 }, { word: 'automobile', weight: 10 }, { word: 'vehicle', weight: 9 },
-    { word: 'truck', weight: 9 }, { word: 'bus', weight: 8 }, { word: 'motorcycle', weight: 10 },
-    { word: 'bicycle', weight: 9 }, { word: 'van', weight: 8 }, { word: 'taxicab', weight: 10 },
-    { word: 'race car', weight: 10 }, { word: 'sports car', weight: 10 }, { word: 'jeep', weight: 9 },
-    { word: 'convertible', weight: 9 }, { word: 'minivan', weight: 9 }
-  ]},
-  { category: 'aircraft', keywords: [
-    { word: 'airplane', weight: 10 }, { word: 'airliner', weight: 10 }, { word: 'helicopter', weight: 10 },
-    { word: 'jet', weight: 9 }, { word: 'drone', weight: 10 }, { word: 'balloon', weight: 8 },
-    { word: 'airship', weight: 9 }
-  ]},
-  { category: 'ship', keywords: [
-    { word: 'ship', weight: 10 }, { word: 'boat', weight: 9 }, { word: 'yacht', weight: 10 },
-    { word: 'sailboat', weight: 10 }, { word: 'submarine', weight: 10 }, { word: 'ferry', weight: 9 },
-    { word: 'speedboat', weight: 10 }
-  ]},
-  // ===== 其他 =====
-  { category: 'art', keywords: [
-    { word: 'art', weight: 10 }, { word: 'painting', weight: 10 }, { word: 'drawing', weight: 9 },
-    { word: 'sculpture', weight: 10 }, { word: 'graffiti', weight: 10 }, { word: 'mural', weight: 10 },
-    { word: 'illustration', weight: 9 }, { word: 'sketch', weight: 9 }
-  ]},
-  { category: 'technology', keywords: [
-    { word: 'technology', weight: 10 }, { word: 'computer', weight: 10 }, { word: 'phone', weight: 10 },
-    { word: 'laptop', weight: 10 }, { word: 'tablet', weight: 9 }, { word: 'keyboard', weight: 8 },
-    { word: 'monitor', weight: 8 }, { word: 'electronic', weight: 9 }, { word: 'gadget', weight: 10 }
-  ]},
-  { category: 'document', keywords: [
-    { word: 'document', weight: 10 }, { word: 'text', weight: 8 }, { word: 'book', weight: 9 },
-    { word: 'paper', weight: 7 }, { word: 'letter', weight: 8 }, { word: 'poster', weight: 8 },
-    { word: 'menu', weight: 9 }
-  ]}
-]
-
-// 加载指定模型的函数
-async function loadClassificationModel(modelId: ClassificationModelId = 'mobilenetv2'): Promise<InferenceSession | null> {
-  const cachedModel = classificationModels.get(modelId)
-  if (cachedModel) {
-    return cachedModel
-  }
-
-  if (modelLoading) {
-    while (modelLoading) {
-      await new Promise(resolve => setTimeout(resolve, 100))
+  const sendProgress = (progress: Partial<ImageQualityScanProgress>) => {
+    if (currentImageQualityWindow && !currentImageQualityWindow.isDestroyed()) {
+      currentImageQualityWindow.webContents.send('imageQuality:progress', {
+        current: 0,
+        total: 0,
+        status: 'analyzing',
+        ...progress
+      } as ImageQualityScanProgress)
     }
-    return classificationModels.get(modelId) || null
-  }
-
-  const modelInfo = CLASSIFICATION_MODELS.find(m => m.id === modelId)
-  if (!modelInfo) {
-    console.error('[Main] 未知的模型 ID:', modelId)
-    return null
   }
 
   try {
-    modelLoading = true
-    
-    // 根据模型 ID 确定文件名
-    const modelFileNameMap: Record<ClassificationModelId, string> = {
-      'mobilenetv2': 'mobilenetv2-7.onnx',
-      'efficientnet_b0': 'efficientnet-b0.onnx',
-      'efficientnet_b4': 'efficientnet-b4.onnx'
-    }
-    
-    const modelFileName = modelFileNameMap[modelId] || `${modelId}.onnx`
-    const modelPath = join(process.cwd(), 'models', modelFileName)
-
-    console.log('[Main] 尝试加载模型，路径:', modelPath)
-    console.log('[Main] 模型文件是否存在:', existsSync(modelPath))
-
-    if (!existsSync(modelPath)) {
-      console.warn('[Main] 分类模型文件不存在:', modelPath)
-      console.warn('[Main] 当前工作目录:', process.cwd())
-      console.warn('[Main] models 目录内容:', existsSync(join(process.cwd(), 'models')) ? '存在' : '不存在')
-      modelLoading = false
-      return null
-    }
-
-    console.log('[Main] 正在加载分类模型:', modelPath, '(', modelInfo.name, ')')
-    const model = await InferenceSession.create(modelPath, {
-      executionProviders: ['cpu'],
-    })
-
-    console.log('[Main] ====== 模型信息 ======')
-    console.log('[Main] 模型名称:', modelInfo.name)
-    console.log('[Main] 输入名称:', JSON.stringify(model.inputNames))
-    console.log('[Main] 输出名称:', JSON.stringify(model.outputNames))
-
-    if (model.inputNames.length > 0) {
-      console.log('[Main] 主要输入:', model.inputNames[0])
-    }
-
-    classificationModels.set(modelId, model)
-    console.log('[Main] 分类模型加载成功')
-    modelLoading = false
-    return model
+    const result = await scanImageQuality(config, sendProgress, () => imageQualityScanCancelled)
+    currentImageQualityWindow = null
+    return result
   } catch (error) {
-    console.error('[Main] 加载分类模型失败:', error)
-    modelLoading = false
-    return null
-  }
-}
-
-// 清除模型缓存
-function clearModelCache(modelId?: ClassificationModelId): void {
-  if (modelId) {
-    const model = classificationModels.get(modelId)
-    if (model) {
-      classificationModels.delete(modelId)
-      console.log('[Main] 已清除模型缓存:', modelId)
-    }
-  } else {
-    classificationModels.clear()
-    console.log('[Main] 已清除所有模型缓存')
-  }
-}
-
-// 根据图片辅助信息判断类别
-function inferCategoryFromImageInfo(info: { width?: number; height?: number; format?: string; exif?: Record<string, any> }): ImageContentCategory | null {
-  const { width, height, exif } = info
-
-  if (width && height && exif) {
-    const aspectRatio = width / height
-    if (aspectRatio > 1.5 && exif.camera) {
-      return 'landscape'
-    }
-  }
-
-  if (width && height) {
-    const aspectRatio = width / height
-    if (aspectRatio < 0.8) {
-      return 'person'
-    }
-  }
-
-  return null
-}
-
-// 读取图片基本信息辅助分类
-async function getImageInfo(imagePath: string): Promise<{
-  width?: number
-  height?: number
-  format?: string
-  exif?: Record<string, any>
-}> {
-  try {
-    const imageBuffer = await fs.promises.readFile(imagePath)
-    const metadata = await sharp(imageBuffer).metadata()
-
-    const info: any = {
-      width: metadata.width,
-      height: metadata.height,
-      format: metadata.format
-    }
-
-    if (metadata.exif) {
-      try {
-        const exifData = metadata.exif.toString('latin1')
-        const exifObj: Record<string, any> = {}
-        const exifPatterns: Record<string, RegExp> = {
-          camera: /Camera|Make|Model/i,
-          lens: /Lens/i,
-          datetime: /DateTime/i,
-          gps: /GPS/i,
-          software: /Software/i
-        }
-        for (const [key, pattern] of Object.entries(exifPatterns)) {
-          if (pattern.test(exifData)) {
-            exifObj[key] = true
-          }
-        }
-        if (Object.keys(exifObj).length > 0) {
-          info.exif = exifObj
-        }
-      } catch {
-      }
-    }
-
-    return info
-  } catch (error) {
-    return {}
-  }
-}
-
-// 预处理图片：调整大小、归一化等
-async function preprocessImage(imagePath: string, inputSize: number = 224): Promise<Float32Array> {
-  try {
-    const imageBuffer = await fs.promises.readFile(imagePath)
-    const image = sharp(imageBuffer)
-
-    const metadata = await image.metadata()
-    console.log(`[分类] 图片信息: ${metadata.width}x${metadata.height}, 格式: ${metadata.format}`)
-
-    const resized = await image
-      .resize(inputSize, inputSize, {
-        fit: 'fill',
-        background: { r: 0, g: 0, b: 0, alpha: 1 }
-      })
-      .raw()
-      .toBuffer()
-
-    const expectedLength = inputSize * inputSize * 3
-    if (resized.length !== expectedLength) {
-      console.error(`[分类] 像素数据长度错误: ${resized.length}, 期望: ${expectedLength}`)
-    }
-
-    const pixels = new Float32Array(3 * inputSize * inputSize)
-    for (let i = 0; i < resized.length; i += 3) {
-      const r = resized[i] / 255.0
-      const g = resized[i + 1] / 255.0
-      const b = resized[i + 2] / 255.0
-
-      const pixelIndex = Math.floor(i / 3)
-      pixels[pixelIndex] = r
-      pixels[inputSize * inputSize + pixelIndex] = g
-      pixels[2 * inputSize * inputSize + pixelIndex] = b
-    }
-
-    console.log(`[分类] 预处理完成，像素数: ${pixels.length}`)
-    return pixels
-  } catch (error) {
-    console.error('[Main] 图片预处理失败:', error)
+    console.error('[Main] 图片质量扫描失败:', error)
+    sendProgress({ status: 'error', currentFile: `错误: ${error}` })
+    currentImageQualityWindow = null
     throw error
   }
+})
+
+ipcMain.on('imageQuality:cancel', () => {
+  imageQualityScanCancelled = true
+})
+
+// ==================== 图片内容分类（CLIP + ImageNet 九大类）====================
+
+function clearModelCache(modelId?: ClassificationModelId): void {
+  clearImagenetSessionCache(modelId)
+  clearClipModelCache()
+  clearCognivisionMobilenetCache()
 }
 
-// 将 ImageNet 类别映射到自定义类别（带权重）
-function mapToCustomCategory(imagenetClass: string): { category: ImageContentCategory; confidence: number } {
-  const lowerClass = imagenetClass.toLowerCase().trim()
-  const words = lowerClass.split(/\s+/).filter(w => w.length >= 2)
-
-  const categoryScores: Record<ImageContentCategory, number> = {
-    person: 0, portrait: 0, selfie: 0,
-    dog: 0, cat: 0, bird: 0, wild_animal: 0, marine_animal: 0, insect: 0, pet: 0,
-    landscape: 0, mountain: 0, beach: 0, sunset: 0, forest: 0, cityscape: 0, night_scene: 0,
-    building: 0, landmark: 0, interior: 0, street: 0,
-    food: 0, drink: 0, dessert: 0,
-    vehicle: 0, aircraft: 0, ship: 0,
-    art: 0, technology: 0, document: 0, other: 0
-  }
-
-  for (const mapping of categoryMapping) {
-    for (const keyword of mapping.keywords) {
-      const keywordStr = typeof keyword === 'string' ? keyword : keyword.word
-      const weight = typeof keyword === 'string' ? 1 : (keyword.weight || 1)
-      const lowerKeyword = keywordStr.toLowerCase().trim()
-
-      // 精确匹配（最佳）
-      if (lowerClass === lowerKeyword) {
-        categoryScores[mapping.category] += weight * 10
-        continue
-      }
-
-      // 完整包含匹配
-      if (lowerClass.includes(lowerKeyword) && lowerKeyword.length >= 4) {
-        categoryScores[mapping.category] += weight * 5
-        continue
-      }
-
-      // 单词边界匹配 - 检查每个单词
-      for (const word of words) {
-        // 精确单词匹配
-        if (word === lowerKeyword) {
-          categoryScores[mapping.category] += weight * 8
-        }
-        // 关键词包含单词（且关键词更长，更有可能是正确的）
-        else if (lowerKeyword.includes(word) && lowerKeyword.length > word.length && word.length >= 3) {
-          categoryScores[mapping.category] += weight * 6
-        }
-        // 单词包含关键词（单词更长，可能不准确）
-        else if (word.includes(lowerKeyword) && word.length > lowerKeyword.length && lowerKeyword.length >= 3) {
-          categoryScores[mapping.category] += weight * 3
-        }
-      }
-    }
-  }
-
-  // 找出得分最高的类别
-  let maxScore = 0
-  let bestCategory: ImageContentCategory = 'other'
-
-  for (const [category, score] of Object.entries(categoryScores)) {
-    if (score > maxScore) {
-      maxScore = score
-      bestCategory = category as ImageContentCategory
-    }
-  }
-
-  // 计算置信度（0-1之间）
-  const confidence = Math.min(1, maxScore / 50)
-
-  if (maxScore < 3) {
-    console.log(`[分类] 未识别类别: "${imagenetClass}" -> 其他 (得分: ${maxScore})`)
-    return { category: 'other', confidence: 0 }
-  }
-
-  console.log(`[分类] 类别映射: "${imagenetClass}" -> ${bestCategory} (得分: ${maxScore}, 置信度: ${confidence.toFixed(2)})`)
-  return { category: bestCategory, confidence }
-}
-
-// 分类单张图片
-async function classifyImage(imagePath: string, modelId: ClassificationModelId = 'mobilenetv2'): Promise<ImageClassificationResult> {
-  const fileName = imagePath.split(/[/\\]/).pop() || imagePath
-  console.log(`\n[分类] ========== 开始分类 ==========`)
-  console.log(`[分类] 文件: ${fileName}`)
-  console.log(`[分类] 使用模型: ${modelId}`)
-
+async function classifyImage(
+  imagePath: string,
+  modelId: ClassificationModelId = 'clip_vit_b32_quant'
+): Promise<ImageClassificationResult> {
+  const base = await runClassifyImage(imagePath, process.cwd(), modelId)
   try {
-    const model = await loadClassificationModel(modelId)
-    if (!model) {
-      console.error(`[分类] 模型未加载`)
-      throw new Error('分类模型未加载')
-    }
-
-    console.log(`[分类] 模型已加载`)
-
-    const modelInfo = CLASSIFICATION_MODELS.find(m => m.id === modelId)
-    const inputSize = modelInfo?.inputSize || 224
-
-    const imageInfo = await getImageInfo(imagePath)
-    console.log(`[分类] 图片信息: ${imageInfo.width}x${imageInfo.height}, 格式: ${imageInfo.format}`)
-    if (imageInfo.exif) {
-      console.log(`[分类] EXIF信息:`, imageInfo.exif)
-    }
-
-    const preprocessed = await preprocessImage(imagePath, inputSize)
-    console.log(`[分类] 预处理完成`)
-
-    const inputName = model.inputNames[0] || 'input'
-    console.log(`[分类] 使用输入名称: ${inputName}`)
-    const inputTensor = new Tensor('float32', preprocessed, [1, 3, inputSize, inputSize])
-
-    // 模拟延迟（便于观察进度）
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // 运行推理
-    console.log(`[分类] 开始推理...`)
-    const feeds: Record<string, Tensor> = {}
-    feeds[inputName] = inputTensor
-    console.log(`[分类] feeds keys: ${Object.keys(feeds)}`)
-    const results = await model.run(feeds)
-
-    console.log(`[分类] results keys: ${Object.keys(results)}`)
-
-    // 获取输出张量
-    const outputName = model.outputNames[0] || 'output'
-    const output = results[outputName] as Tensor
-    console.log(`[分类] 使用输出名称: ${outputName}`)
-
-    // 获取输出数据
-    const outputData = output.data as Float32Array
-    console.log(`[分类] 推理完成，输出长度: ${outputData.length}`)
-
-    // 检查输出是否有效
-    const maxConfidence = Math.max(...outputData)
-    const maxIndex = outputData.indexOf(maxConfidence)
-    console.log(`[分类] 最大置信度: ${maxConfidence.toFixed(6)}, 索引: ${maxIndex}`)
-
-    // 找到 top 5 预测
-    const predictions: Array<{ index: number; confidence: number }> = []
-    for (let i = 0; i < outputData.length; i++) {
-      predictions.push({ index: i, confidence: outputData[i] })
-    }
-    predictions.sort((a, b) => b.confidence - a.confidence)
-
-    // 获取 ImageNet 类别名称
-    const topPrediction = predictions[0]
-    const imagenetClass = imagenetClasses[topPrediction.index] || `class_${topPrediction.index}`
-    console.log(`[分类] Top预测: "${imagenetClass}" (置信度: ${topPrediction.confidence.toFixed(6)})`)
-
-    const mappedResult = mapToCustomCategory(imagenetClass)
-
-    // 备用：尝试根据图片信息推断类别
-    let inferredCategory: ImageContentCategory | null = null
-    if (mappedResult.category === 'other') {
-      inferredCategory = inferCategoryFromImageInfo(imageInfo)
-      if (inferredCategory) {
-        console.log(`[分类] 根据图片信息推断类别: ${inferredCategory}`)
-      }
-    }
-
-    const finalCategory = inferredCategory || mappedResult.category
-
-    // 调试日志：输出 top 5 预测
-    const top5Debug = predictions.slice(0, 5).map((p, idx) => ({
-      rank: idx + 1,
-      class: imagenetClasses[p.index] || `class_${p.index}`,
-      confidence: p.confidence.toFixed(6)
-    }))
-    console.log(`[分类] Top 5:`, top5Debug)
-    console.log(`[分类] 最终结果: "${imagenetClass}" -> ${finalCategory}`)
-
-    // 模拟延迟（便于观察进度）
-    await new Promise(resolve => setTimeout(resolve, 50))
-
-    // 计算同类别的总置信度
-    let categoryConfidence = mappedResult.confidence
-    const topPredictions: Array<{ category: ImageContentCategory; confidence: number }> = []
-
-    for (let i = 0; i < Math.min(5, predictions.length); i++) {
-      const pred = predictions[i]
-      const predClass = imagenetClasses[pred.index] || `class_${pred.index}`
-      const predResult = mapToCustomCategory(predClass)
-      topPredictions.push({ category: predResult.category, confidence: pred.confidence })
-
-      if (predResult.category === finalCategory && i > 0) {
-        categoryConfidence += pred.confidence
-      }
-    }
-
-    console.log(`[分类] ========== 分类完成 ==========\n`)
-
-    return {
-      filePath: imagePath,
-      category: finalCategory,
-      confidence: Math.min(1.0, categoryConfidence),
-      topPredictions: topPredictions.slice(0, 3)
-    }
-  } catch (error) {
-    console.error(`[分类] 分类失败 (${fileName}):`, error)
-    return {
-      filePath: imagePath,
-      category: 'other',
-      confidence: 0,
-    }
+    const quality = await computePhotoQualityTierForImage(imagePath)
+    return { ...base, quality }
+  } catch (e) {
+    console.warn('[Main] 照片质量档位计算失败:', imagePath, e)
+    return { ...base, quality: 'low' }
   }
 }
 
-// IPC 处理器：分类单张图片
-ipcMain.handle('image:classify', async (_event, imagePath: string): Promise<ImageClassificationResult> => {
+ipcHandle('image:classify', async (_event, imagePath: string): Promise<ImageClassificationResult> => {
   return await classifyImage(imagePath)
 })
 
@@ -1882,7 +1477,7 @@ ipcMain.handle('image:classify', async (_event, imagePath: string): Promise<Imag
 let currentClassificationWindow: BrowserWindow | null = null
 let classificationCancelled = false
 
-ipcMain.handle('image:classifyBatch', async (event, config: ImageClassificationConfig): Promise<ImageClassificationBatchResult> => {
+ipcHandle('image:classifyBatch', async (event, config: ImageClassificationConfig): Promise<ImageClassificationBatchResult> => {
   const startTime = Date.now()
   currentClassificationWindow = BrowserWindow.fromWebContents(event.sender) || null
   classificationCancelled = false
@@ -1960,7 +1555,7 @@ ipcMain.handle('image:classifyBatch', async (event, config: ImageClassificationC
             total: totalImages,
             currentFile: imagePath
           })
-          const modelId = (config.modelId as ClassificationModelId) || 'mobilenetv2'
+          const modelId = (config.modelId as ClassificationModelId) || 'clip_vit_b32_quant'
           return await classifyImage(imagePath, modelId)
         } catch (error) {
           console.error('[Main] 分类失败:', imagePath, error)
@@ -2008,29 +1603,66 @@ ipcMain.on('image:cancelClassification', () => {
   currentClassificationWindow = null
 })
 
+// IPC：编辑预览（降采样 base64）
+ipcHandle('image:previewEdits', async (_event, filePath: string, settings: any): Promise<string> => {
+  const imageUtils = await import('./utils/imageUtils')
+  return imageUtils.previewEdits(filePath, settings)
+})
+
+ipcHandle('image:getHistogram', async (_event, filePath: string): Promise<any> => {
+  const imageUtils = await import('./utils/imageUtils')
+  const result = await imageUtils.getImageHistogram(filePath)
+  return {
+    bins: Array.from(result.bins),
+    total: result.total,
+    peak: result.peak,
+    clipShadow: result.clipShadow,
+    clipHighlight: result.clipHighlight,
+    rgbBins: result.rgbBins
+      ? {
+          r: Array.from(result.rgbBins.r),
+          g: Array.from(result.rgbBins.g),
+          b: Array.from(result.rgbBins.b),
+        }
+      : undefined,
+  }
+})
+
+// IPC：分析建议编辑参数
+ipcHandle('image:analyzeForEdit', async (_event, filePath: string): Promise<any> => {
+  const imageUtils = await import('./utils/imageUtils')
+  return imageUtils.analyzeForEdit(filePath)
+})
+
 // IPC 处理器：应用编辑设置（可用于单图或批量）
-ipcMain.handle('image:applyEdits', async (_event, paths: string[] | string, settings: any): Promise<BatchOperationResult[]> => {
+ipcHandle('image:applyEdits', async (_event, paths: string[] | string, settings: any): Promise<BatchOperationResult[]> => {
   const filePaths = Array.isArray(paths) ? paths : [paths]
   const results: BatchOperationResult[] = []
+  const imageUtils = await import('./utils/imageUtils')
   for (const p of filePaths) {
     try {
-      await import('./utils/imageUtils').then(mod => mod.applyEdits(p, settings))
-      results.push({ filePath: p, success: true })
+      console.log('[Main] applyEdits request for', p)
+      const outPath = await imageUtils.applyEdits(p, settings)
+      results.push({ filePath: p, success: true, newPath: outPath })
     } catch (err: any) {
-      results.push({ filePath: p, success: false, error: err.message })
+      const msg = err?.message || ''
+      console.error('[Main] applyEdits error for', p, msg)
+      results.push({ filePath: p, success: false, error: msg })
     }
   }
   return results
 })
 
 // IPC 处理器：格式转换
-ipcMain.handle('image:convertFormat', async (_event, paths: string[] | string, options: any): Promise<BatchOperationResult[]> => {
+ipcHandle('image:convertFormat', async (_event, paths: string[] | string, options: any, outputPath?: string): Promise<BatchOperationResult[]> => {
   const filePaths = Array.isArray(paths) ? paths : [paths]
   const results: BatchOperationResult[] = []
   for (const p of filePaths) {
     try {
-      await import('./utils/imageUtils').then(mod => mod.convertFormat(p, options))
-      results.push({ filePath: p, success: true })
+      const newPath = await import('./utils/imageUtils').then(mod =>
+        mod.convertFormat(p, options, outputPath)
+      )
+      results.push({ filePath: p, success: true, newPath })
     } catch (err: any) {
       results.push({ filePath: p, success: false, error: err.message })
     }
@@ -2039,7 +1671,7 @@ ipcMain.handle('image:convertFormat', async (_event, paths: string[] | string, o
 })
 
 // IPC 处理器：压缩图片
-ipcMain.handle('image:compress', async (_event, paths: string[] | string, options: any): Promise<BatchOperationResult[]> => {
+ipcHandle('image:compress', async (_event, paths: string[] | string, options: any): Promise<BatchOperationResult[]> => {
   const filePaths = Array.isArray(paths) ? paths : [paths]
   const results: BatchOperationResult[] = []
   for (const p of filePaths) {
@@ -2054,7 +1686,7 @@ ipcMain.handle('image:compress', async (_event, paths: string[] | string, option
 })
 
 // IPC 处理器：预估压缩大小，仅返回单张结果
-ipcMain.handle('image:estimateCompressedSize', async (_event, path: string, options: any): Promise<number> => {
+ipcHandle('image:estimateCompressedSize', async (_event, path: string, options: any): Promise<number> => {
   try {
     const size = await import('./utils/imageUtils').then(mod => mod.estimateCompressedSize(path, options))
     return size
@@ -2074,24 +1706,41 @@ function getModelInfo(modelId: ClassificationModelId) {
 }
 
 // IPC 处理器：获取可用模型列表
-ipcMain.handle('model:getAvailableModels', async (): Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>> => {
+ipcHandle('model:getAvailableModels', async (): Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>> => {
   return CLASSIFICATION_MODELS.map(({ downloadUrls, ...rest }) => rest)
 })
 
 // IPC 处理器：检查指定模型文件是否存在
-ipcMain.handle('model:checkExists', async (_event, modelId?: string): Promise<boolean> => {
-  const id: ClassificationModelId = (modelId as ClassificationModelId) || 'mobilenetv2'
-  const modelPath = join(process.cwd(), 'models', `${id}.onnx`)
+ipcHandle('model:checkExists', async (_event, modelId?: string): Promise<boolean> => {
+  const id: ClassificationModelId = (modelId as ClassificationModelId) || 'clip_vit_b32_quant'
+  const cwd = process.cwd()
+  // CLIP 方案依赖 MobileNet 做 ImageNet 聚合；CLIP 视觉 ONNX 与 prompts 为可选增强
+  if (id === 'clip_vit_b32_quant') {
+    const mnPath = getClassificationModelPath(cwd, 'mobilenetv2')
+    return existsSync(mnPath)
+  }
+  if (id === 'cognivision') {
+    return existsSync(join(cwd, 'models', 'imagenet1000.json'))
+  }
+  const modelPath = getClassificationModelPath(cwd, id)
   return existsSync(modelPath)
 })
 
 // IPC 处理器：下载模型文件
-ipcMain.handle('model:download', async (_event, modelId?: string): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
-  const id: ClassificationModelId = (modelId as ClassificationModelId) || 'mobilenetv2'
+ipcHandle('model:download', async (_event, modelId?: string): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
+  let id: ClassificationModelId = (modelId as ClassificationModelId) || 'clip_vit_b32_quant'
+  // 选择 CLIP 方案时先拉取 MobileNet（分类必需），CLIP 视觉 ONNX 可单独再下
+  if (id === 'clip_vit_b32_quant' && !existsSync(getClassificationModelPath(process.cwd(), 'mobilenetv2'))) {
+    id = 'mobilenetv2'
+  }
   const modelInfo = getModelInfo(id)
 
   if (!modelInfo) {
     return { success: false, error: '未知的模型 ID', downloadUrls: [] }
+  }
+
+  if (id === 'cognivision') {
+    return { success: true }
   }
 
   const https = await import('https')
@@ -2100,12 +1749,7 @@ ipcMain.handle('model:download', async (_event, modelId?: string): Promise<{ suc
 
   const modelUrls = modelInfo.downloadUrls
   
-  const modelFileNameMap: Record<ClassificationModelId, string> = {
-    'mobilenetv2': 'mobilenetv2-7.onnx',
-    'efficientnet_b0': 'efficientnet-b0.onnx',
-    'efficientnet_b4': 'efficientnet-b4.onnx'
-  }
-  const modelFileName = modelFileNameMap[id] || `${id}.onnx`
+  const modelFileName = MODEL_FILE_NAMES[id] || `${id}.onnx`
   const modelPath = join(process.cwd(), 'models', modelFileName)
   const tempPath = join(process.cwd(), 'models', `${modelFileName}.tmp`)
 
@@ -2259,7 +1903,7 @@ ipcMain.on('model:cancelDownload', () => {
 })
 
 // IPC 处理器：选择并保存模型文件
-ipcMain.handle('model:selectAndSave', async (): Promise<string | null> => {
+ipcHandle('model:selectAndSave', async (): Promise<string | null> => {
   const { dialog } = await import('electron')
 
   console.log('[Main] 打开文件选择器...')
@@ -2290,18 +1934,14 @@ ipcMain.handle('model:selectAndSave', async (): Promise<string | null> => {
 })
 
 // IPC 处理器：保存模型文件
-ipcMain.handle('model:saveFile', async (_event, sourcePath: string): Promise<string | null> => {
+ipcHandle('model:saveFile', async (_event, sourcePath: string): Promise<string | null> => {
   try {
     const filename = sourcePath.split(/[/\\]/).pop()
     if (!filename) return null
     
-    const modelId = filename.replace('.onnx', '').toLowerCase() as ClassificationModelId
-    const modelFileNameMap: Record<ClassificationModelId, string> = {
-      'mobilenetv2': 'mobilenetv2-7.onnx',
-      'efficientnet_b0': 'efficientnet-b0.onnx',
-      'efficientnet_b4': 'efficientnet-b4.onnx'
-    }
-    const modelFileName = modelFileNameMap[modelId] || `${modelId}.onnx`
+    const resolvedId = modelIdFromOnnxBasename(filename)
+    const modelId = resolvedId || (filename.replace('.onnx', '').toLowerCase() as ClassificationModelId)
+    const modelFileName = MODEL_FILE_NAMES[modelId] || filename
     const targetPath = join(process.cwd(), 'models', modelFileName)
 
     const modelsDir = join(process.cwd(), 'models')
@@ -2334,14 +1974,9 @@ async function saveModelFile(sourcePath: string): Promise<string | null> {
   }
 
   const filename = sourcePath.split(/[/\\]/).pop() || ''
-  const modelId = filename.replace('.onnx', '').toLowerCase() as ClassificationModelId
-  
-  const modelFileNameMap: Record<ClassificationModelId, string> = {
-    'mobilenetv2': 'mobilenetv2-7.onnx',
-    'efficientnet_b0': 'efficientnet-b0.onnx',
-    'efficientnet_b4': 'efficientnet-b4.onnx'
-  }
-  const modelFileName = modelFileNameMap[modelId] || filename
+  const resolvedId = modelIdFromOnnxBasename(filename)
+  const modelId = resolvedId || (filename.replace('.onnx', '').toLowerCase() as ClassificationModelId)
+  const modelFileName = MODEL_FILE_NAMES[modelId] || filename
   
   const targetDir = join(process.cwd(), 'models')
   const targetPath = join(targetDir, modelFileName)
@@ -2374,7 +2009,7 @@ async function saveModelFile(sourcePath: string): Promise<string | null> {
 // ==================== 实用工具功能 ====================
 
 // IPC 处理器：批量重命名
-ipcMain.handle('tools:batchRename', async (_event, files: string[], options: any): Promise<any[]> => {
+ipcHandle('tools:batchRename', async (_event, files: string[], options: any): Promise<any[]> => {
   try {
     const { batchRename } = await import('./services/imageToolService')
     return await batchRename(files, options)
@@ -2385,7 +2020,7 @@ ipcMain.handle('tools:batchRename', async (_event, files: string[], options: any
 })
 
 // IPC 处理器：添加水印
-ipcMain.handle('tools:addWatermark', async (_event, files: string[], options: any): Promise<any[]> => {
+ipcHandle('tools:addWatermark', async (_event, files: string[], options: any): Promise<any[]> => {
   try {
     const { addWatermark } = await import('./services/imageToolService')
     return await addWatermark(files, options)
@@ -2395,8 +2030,19 @@ ipcMain.handle('tools:addWatermark', async (_event, files: string[], options: an
   }
 })
 
+// IPC 处理器：水印预览
+ipcHandle('tools:previewWatermark', async (_event, filePath: string, options: any): Promise<string> => {
+  try {
+    const { previewWatermark } = await import('./services/imageToolService')
+    return await previewWatermark(filePath, options)
+  } catch (error) {
+    console.error('[Main] 水印预览失败:', error)
+    throw error
+  }
+})
+
 // IPC 处理器：图片拼接
-ipcMain.handle('tools:stitchImages', async (_event, images: string[], options: any): Promise<string> => {
+ipcHandle('tools:stitchImages', async (_event, images: string[], options: any): Promise<string> => {
   try {
     const { stitchImages } = await import('./services/imageToolService')
     return await stitchImages(images, options)
@@ -2407,7 +2053,7 @@ ipcMain.handle('tools:stitchImages', async (_event, images: string[], options: a
 })
 
 // IPC 处理器：GIF制作
-ipcMain.handle('tools:createGif', async (_event, frames: any[], options: any): Promise<string> => {
+ipcHandle('tools:createGif', async (_event, frames: any[], options: any): Promise<string> => {
   try {
     const { createGif } = await import('./services/imageToolService')
     return await createGif(frames, options)
@@ -2418,7 +2064,7 @@ ipcMain.handle('tools:createGif', async (_event, frames: any[], options: any): P
 })
 
 // IPC 处理器：图片转PDF
-ipcMain.handle('tools:imagesToPdf', async (_event, images: string[], options: any): Promise<string> => {
+ipcHandle('tools:imagesToPdf', async (_event, images: string[], options: any): Promise<string> => {
   try {
     const { imagesToPdf } = await import('./services/imageToolService')
     return await imagesToPdf(images, options)
@@ -2429,7 +2075,7 @@ ipcMain.handle('tools:imagesToPdf', async (_event, images: string[], options: an
 })
 
 // IPC 处理器：生成缩略图
-ipcMain.handle('tools:generateThumbnails', async (_event, files: string[], options: any): Promise<any[]> => {
+ipcHandle('tools:generateThumbnails', async (_event, files: string[], options: any): Promise<any[]> => {
   try {
     const { generateThumbnails } = await import('./services/imageToolService')
     return await generateThumbnails(files, options)
@@ -2440,7 +2086,7 @@ ipcMain.handle('tools:generateThumbnails', async (_event, files: string[], optio
 })
 
 // IPC 处理器：图片增强
-ipcMain.handle('tools:enhanceImage', async (_event, file: string, options: any): Promise<string> => {
+ipcHandle('tools:enhanceImage', async (_event, file: string, options: any): Promise<string> => {
   try {
     const { enhanceImage } = await import('./services/imageToolService')
     return await enhanceImage(file, options)
@@ -2450,8 +2096,45 @@ ipcMain.handle('tools:enhanceImage', async (_event, file: string, options: any):
   }
 })
 
+ipcHandle(
+  'tools:previewFocusAdjust',
+  async (_event, filePath: string, options: import('../../src/types').FocusAdjustOptions): Promise<string> => {
+    try {
+      const { previewFocusAdjust } = await import('./utils/focusAdjustProcessor')
+      return await previewFocusAdjust(filePath, options)
+    } catch (error) {
+      console.error('[Main] 对焦调整预览失败:', error)
+      throw error
+    }
+  }
+)
+
+ipcHandle(
+  'tools:applyFocusAdjust',
+  async (_event, filePath: string, options: import('../../src/types').FocusAdjustOptions): Promise<string> => {
+    try {
+      const { applyFocusAdjust } = await import('./utils/focusAdjustProcessor')
+      return await applyFocusAdjust(filePath, options)
+    } catch (error) {
+      console.error('[Main] 对焦调整导出失败:', error)
+      throw error
+    }
+  }
+)
+
+// IPC 处理器：图片格式转换
+ipcHandle('tools:convertImageFormat', async (_event, images: string[], options: any, outputPath: string): Promise<any> => {
+  try {
+    const { convertImageFormat } = await import('./services/imageToolService')
+    return await convertImageFormat(images, options, outputPath)
+  } catch (error) {
+    console.error('[Main] 图片格式转换失败:', error)
+    throw error
+  }
+})
+
 // IPC 处理器：选择文件
-ipcMain.handle('dialog:selectFiles', async (_event, filter?: string): Promise<string[] | null> => {
+ipcHandle('dialog:selectFiles', async (_event, filter?: string): Promise<string[] | null> => {
   try {
     const win = mainWindow
     const result = await (dialog.showOpenDialog as any)(win, {

@@ -6,14 +6,20 @@ import React from 'react'
 import FileInfoSection from './FileInfoSection'
 import ExifInfoSection from './ExifInfoSection'
 import ColorPalette from './ColorPalette'
-import DescriptionEditor from './DescriptionEditor'
-import TagManager from './TagManager'
 import Toolbar from './Toolbar'
+import LivePhotoControls from './LivePhotoControls'
+import type { LivePlaybackMode } from './LivePhotoPlayer'
 import type { Image } from '../types'
 import './InfoPanel.css'
 
 export interface InfoPanelProps {
   image: Image | null
+  /** 本地文件绝对路径（由 file:// URL 解析），用于主进程读取快门次数等 */
+  imageFilePath?: string | null
+  /** 与画布一致的可采样 URL（如 data:/blob:），用于主色提取；勿传未转换的 file:// */
+  paletteImageUrl?: string | null
+  /** file:// 转 blob/base64 过程中为 true，避免误判为「无法提取」 */
+  paletteSourceLoading?: boolean
   currentIndex: number
   totalCount: number
   rotation: number
@@ -21,22 +27,21 @@ export interface InfoPanelProps {
   flipVertical: boolean
   backgroundColor: string | null
   onBackgroundColorChange: (color: string | null) => void
-  onDescriptionSave: (description: string) => void
-  onTagsChange: (tags: string[]) => void
   onPrev: () => void
   onNext: () => void
   onRotate: () => void
   onFlipHorizontal: () => void
   onFlipVertical: () => void
   onReset: () => void
-  onDelete?: () => void
-  onDownload?: () => void
-  onFavorite?: () => void
-  tagSuggestions?: string[]
+  livePlaybackMode?: LivePlaybackMode
+  onLivePlaybackModeChange?: (mode: LivePlaybackMode) => void
 }
 
 const InfoPanel: React.FC<InfoPanelProps> = ({
   image,
+  imageFilePath,
+  paletteImageUrl,
+  paletteSourceLoading,
   currentIndex,
   totalCount,
   rotation,
@@ -44,18 +49,14 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
   flipVertical,
   backgroundColor,
   onBackgroundColorChange,
-  onDescriptionSave,
-  onTagsChange,
   onPrev,
   onNext,
   onRotate,
   onFlipHorizontal,
   onFlipVertical,
   onReset,
-  onDelete,
-  onDownload,
-  onFavorite,
-  tagSuggestions
+  livePlaybackMode = 'once',
+  onLivePlaybackModeChange
 }) => {
   if (!image) {
     return (
@@ -69,22 +70,24 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
     <div className="info-panel">
       <div className="info-panel-content">
         <FileInfoSection image={image} />
-        <ExifInfoSection image={image} />
-        <ColorPalette 
-            imageUrl={image.url} 
+        <ExifInfoSection
+          image={image}
+          imageFilePath={imageFilePath}
+          exifSourceUrl={paletteImageUrl}
+          exifSourceLoading={paletteSourceLoading}
+        />
+        <ColorPalette
+            imageUrl={paletteImageUrl ?? image.url}
+            sourceLoading={paletteSourceLoading}
             backgroundColor={backgroundColor}
             onBackgroundColorChange={onBackgroundColorChange}
           />
-        <DescriptionEditor
-          description={image.description || ''}
-          onSave={onDescriptionSave}
-          classification={image.classification}
-        />
-        <TagManager
-          tags={image.tags || []}
-          onTagsChange={onTagsChange}
-          suggestions={tagSuggestions}
-        />
+        {image.mediaKind === 'live' && image.liveVideoPath && onLivePlaybackModeChange && (
+          <LivePhotoControls
+            playbackMode={livePlaybackMode}
+            onPlaybackModeChange={onLivePlaybackModeChange}
+          />
+        )}
         <Toolbar
           currentIndex={currentIndex}
           totalCount={totalCount}
@@ -97,9 +100,6 @@ const InfoPanel: React.FC<InfoPanelProps> = ({
           onFlipHorizontal={onFlipHorizontal}
           onFlipVertical={onFlipVertical}
           onReset={onReset}
-          onDelete={onDelete}
-          onDownload={onDownload}
-          onFavorite={onFavorite}
         />
       </div>
     </div>

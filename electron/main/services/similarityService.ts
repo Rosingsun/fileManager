@@ -1,6 +1,5 @@
 import { join } from 'path'
 import fs from 'fs-extra'
-import { stat, readdir } from 'fs-extra'
 import { calculateFileHash, calculatePerceptualHash, calculateSimilarity, recommendKeepImage } from '../utils/similarityUtils'
 import { IMAGE_EXTENSIONS } from '../utils/fileUtils'
 import type { SimilarityScanConfig, ImageHash, SimilarityGroup, SimilarityScanResult, SimilarityScanProgress } from '../../../src/types'
@@ -65,11 +64,11 @@ export async function scanImageFiles(config: SimilarityScanConfig): Promise<stri
 
   async function traverse(currentPath: string) {
     try {
-      const items = await readdir(currentPath)
+      const items = await fs.readdir(currentPath)
       
       for (const item of items) {
         const fullPath = join(currentPath, item)
-        const stats = await stat(fullPath)
+        const stats = await fs.stat(fullPath)
         
         if (stats.isDirectory()) {
           if (!excludedPaths.has(fullPath) && config.includeSubdirectories) {
@@ -133,7 +132,7 @@ export async function scanSimilarImages(
     try {
       const fileBuffer = await fs.readFile(filePath)
       const fileHash = calculateFileHash(fileBuffer)
-      const stats = await stat(filePath)
+      const stats = await fs.stat(filePath)
 
       let perceptualHash: string | undefined
       let width: number | undefined

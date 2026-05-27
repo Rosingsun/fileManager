@@ -13,14 +13,18 @@ export function useExifParser(exif: ExifData | null | undefined, imageUrl?: stri
   useEffect(() => {
     let isMounted = true
 
-    // 如果已经提供了exif数据，直接使用
-    if (exif) {
+    // 若传入 exif 且能格式化为可展示字段，直接使用；否则继续尝试从 URL 解析
+    if (exif != null) {
       const formatted = formatExifData(exif)
-      setFormattedExif(formatted)
-      return
+      if (Object.keys(formatted).length > 0) {
+        setFormattedExif(formatted)
+        setIsLoading(false)
+        return () => {
+          isMounted = false
+        }
+      }
     }
 
-    // 如果没有提供exif数据但有图片URL，尝试从URL中提取
     if (imageUrl) {
       const fetchExifData = async () => {
         setIsLoading(true)
@@ -45,6 +49,7 @@ export function useExifParser(exif: ExifData | null | undefined, imageUrl?: stri
       fetchExifData()
     } else {
       setFormattedExif({})
+      setIsLoading(false)
     }
 
     return () => {

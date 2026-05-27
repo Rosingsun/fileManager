@@ -2,17 +2,22 @@
  * 图片查看器相关类型定义
  */
 
-import type { ImageClassificationResult } from '../../types'
+import type { ImageClassificationResult, MediaAssetKind } from '../../types'
 
 export interface Image {
   id: string
   url: string // 图片URL
+  /** 本地绝对路径（与 url 对应）；用于主进程读取快门次数等，避免仅依赖 file:// 解析 */
+  filePath?: string
   thumbnailUrl?: string // 缩略图URL
   filename: string
   width: number
   height: number
   size: number // 字节
   format: string
+  mediaKind?: MediaAssetKind
+  liveVideoPath?: string
+  rawUsesEmbeddedPreview?: boolean
   createdAt: string
   modifiedAt: string
   description?: string
@@ -49,10 +54,6 @@ export interface ImageViewerProps {
   // 可选参数
   onIndexChange?: (index: number) => void // 图片切换回调
   onClose?: () => void // 关闭查看器
-  onImageEdit?: (imageId: string, updates: ImageUpdates) => void // 图片编辑回调
-  onTagsUpdate?: (imageId: string, tags: string[]) => void // 标签更新回调
-  onDescriptionUpdate?: (imageId: string, description: string) => void // 描述更新回调
-  onImageDelete?: (imageId: string) => void // 删除图片回调
   onImageRotate?: (imageId: string, rotation: number) => void // 旋转图片回调
   onImageFlip?: (imageId: string, direction: 'horizontal' | 'vertical') => void // 翻转图片回调
 }
