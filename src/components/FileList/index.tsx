@@ -19,7 +19,11 @@ import {
   logSignedInUserAction
 } from '../../utils'
 import type { MediaPreviewKind } from '../../utils'
-import type { MediaAssetInfo } from '../../types'
+import type { MediaAssetInfo, ClassificationPresetId } from '../../types'
+import {
+  CLASSIFICATION_PRESET_STORAGE_KEY,
+  DEFAULT_CLASSIFICATION_PRESET_ID
+} from '../../types'
 import { useFilePreview } from './useFilePreview'
 import { FileListHeader } from './FileListHeader'
 import { FileListTable } from './FileListTable'
@@ -507,14 +511,23 @@ const FileList: React.FC = () => {
       message.error('图片分析不可用')
       return
     }
+    let presetId: ClassificationPresetId = DEFAULT_CLASSIFICATION_PRESET_ID
+    try {
+      const saved = localStorage.getItem(CLASSIFICATION_PRESET_STORAGE_KEY)
+      if (saved === 'accuracy_light' || saved === 'accuracy_balanced' || saved === 'accuracy_max') {
+        presetId = saved
+      }
+    } catch {
+      /* ignore */
+    }
     let modelOk = true
     try {
-      modelOk = (await window.electronAPI.checkModelExists?.()) ?? false
+      modelOk = (await window.electronAPI.checkModelExists?.(presetId)) ?? false
     } catch {
       modelOk = false
     }
     if (!modelOk) {
-      message.warning('请先下载图片分类模型（可在「图片分类」页下载）')
+      message.warning('请先下载图片分类模型（可在「图片分类」页选择精准度预设并下载）')
       return
     }
     setIsAnalyzingImages(true)
@@ -522,7 +535,7 @@ const FileList: React.FC = () => {
       const result = await window.electronAPI.classifyImagesBatch({
         imagePaths,
         batchSize: 8,
-        modelId: 'clip_vit_b32_quant'
+        presetId
       })
       const prev = new Map(useImageClassificationStore.getState().results)
       for (const r of result.results) {

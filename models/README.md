@@ -1,45 +1,60 @@
 # 图片分类相关文件
 
-本目录存放 **ImageNet 辅助模型**、**CLIP 视觉 ONNX**（可选）及 **预计算文本向量**。
+本目录存放 **ImageNet 辅助模型**、**CLIP 视觉 ONNX** 及 **预计算文本向量**。
+
+## 精准度预设与依赖
+
+| 预设 ID | 显示名 | 需下载 ONNX | prompts 文件 |
+|---------|--------|-------------|--------------|
+| `accuracy_light` | 轻量精准 | mobilenetv2 + clip-vit-b32-vision-quant | clip-prompts.json |
+| `accuracy_balanced` | 平衡精准 | efficientnet-b4 + clip-vit-b32-vision-quant | clip-prompts.json |
+| `accuracy_max` | 最高精准 | efficientnet-b4 + clip-vit-l14-vision-quant | clip-prompts-l14.json |
+
+`clip-prompts.json` / `clip-prompts-l14.json` 应随仓库提供；缺失时运行下方生成脚本。
 
 ## 必需
 
 | 文件 | 说明 |
 |------|------|
-| `imagenet1000.json` | ImageNet 1000 类英文标签（与 `mobilenetv2-7.onnx` 等输出顺序一致），随仓库提供。 |
-| `mobilenetv2-7.onnx` | 轻量分类模型；选择「CLIP ViT-B/32」方案时，主进程仍用其做 ImageNet 聚合并与 CLIP 融合。 |
+| `imagenet1000.json` | ImageNet 1000 类英文标签，随仓库提供。 |
 
-在应用内选择模型并下载，或从 [ONNX Model Zoo](https://github.com/onnx/models/tree/main/validated/vision/classification/mobilenet) 手动放置上述 ONNX。
+在应用内选择精准度预设并下载，或手动放置 ONNX 至本目录。
 
-## 可选（完整 CLIP 零样本）
+国内网络默认会通过 **hf-mirror.com** 镜像 Hugging Face 链接；也可在终端执行：
+
+```bash
+npm run download:models
+# 或指定预设：node scripts/download-classification-models.mjs accuracy_light
+```
+
+环境变量 `FILEDEAL_HF_ENDPOINT` 可改为其他 Hugging Face 镜像根地址。
+
+## CLIP prompts
 
 | 文件 | 说明 |
 |------|------|
-| `clip-vit-b32-vision-quant.onnx` | Xenova / Hugging Face 上的 CLIP ViT-B/32 **视觉**量化模型。 |
-| `clip-prompts.json` | 每类多条文本 prompt 的 **512 维 L2 归一化向量**（与 ViT-B/32 文本塔一致）。 |
+| `clip-prompts.json` | ViT-B/32，512 维，含 9 类 + 消歧 prompt 嵌入 |
+| `clip-prompts-l14.json` | ViT-L/14，768 维（最高精准档） |
 
-若缺少 `clip-prompts.json` 或视觉 ONNX，应用会自动退化为 **仅 ImageNet → 9 大类** 聚合。
-
-### 生成 `clip-prompts.json`
-
-在可联网环境执行（需 Node，首次会拉取 `@xenova/transformers` 与模型权重）：
+### 生成 prompts
 
 ```bash
 cd scripts/_clip_text_gen
 npm install
-node generate-prompts.mjs
+node generate-prompts.mjs --model b32
+node generate-prompts.mjs --model l14
+node generate-prompts.mjs --model all
 ```
 
-生成结果写入仓库根目录 `models/clip-prompts.json`。
+## ONNX 文件名
 
-## 其他 ImageNet 模型
+| 模型 ID | 文件名 |
+|---------|--------|
+| clip_vit_b32_quant | clip-vit-b32-vision-quant.onnx |
+| clip_vit_l14_quant | clip-vit-l14-vision-quant.onnx |
+| mobilenetv2 | mobilenetv2-7.onnx |
+| efficientnet_b4 | efficientnet-b4.onnx |
 
-- `efficientnet-b0.onnx`、`efficientnet-b4.onnx`：可在应用内切换；输入尺寸分别为 224 / 380，同样依赖 `imagenet1000.json`。
+## 九大类映射
 
-## CogniVision（TensorFlow.js MobileNet）
-
-应用内选项 **CogniVision（TensorFlow MobileNet）** 使用 `@tensorflow/tfjs` + `@tensorflow-models/mobilenet`（与 npm 包 `cognivision` 相同的推理栈），**不需要**向 `models/` 放置 ONNX；仅需上述 `imagenet1000.json`。首次分类时会自动下载 TensorFlow.js MobileNet 权重（需联网）。
-
-## 九大类映射说明
-
-索引 **0–397** 视为生物类，聚合为 **动物**；其余类别按英文标签关键词归入人物、食物、交通工具、截图、自然风景、城市建筑、室内等（见 `electron/main/utils/imagenetNine.ts`）。
+索引 **0–397** 默认视为 **动物**；植物/珊瑚等标签例外归入 **自然风景**（见 `electron/main/utils/imagenetNine.ts`）。索引 ≥398 按英文标签关键词映射。

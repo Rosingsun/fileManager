@@ -75,13 +75,14 @@ declare global {
       scanImageQuality: (config: import('./index').ImageQualityScanConfig) => Promise<import('./index').ImageQualityScanResult>
       onImageQualityScanProgress: (callback: (progress: import('./index').ImageQualityScanProgress) => void) => () => void
       cancelImageQualityScan: () => void
-      classifyImage: (imagePath: string) => Promise<import('./index').ImageClassificationResult>
+      classifyImage: (imagePath: string, presetOrModelId?: string) => Promise<import('./index').ImageClassificationResult>
       classifyImagesBatch: (config: import('./index').ImageClassificationConfig) => Promise<import('./index').ImageClassificationBatchResult>
       onImageClassificationProgress: (callback: (progress: import('./index').ImageClassificationProgress) => void) => () => void
       cancelImageClassification: () => void
-      checkModelExists: (modelId?: string) => Promise<boolean>
+      checkModelExists: (modelOrPresetId?: string) => Promise<boolean>
       getAvailableModels: () => Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>>
-      downloadModel: (modelId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal) => Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }>
+      getAvailablePresets: () => Promise<import('./index').ClassificationPresetInfo[]>
+      downloadModel: (modelOrPresetId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal) => Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }>
       openExternalLink: (url: string) => Promise<boolean>
       saveRefreshToken: (token: string) => Promise<{ ok: boolean; error?: string }>
       loadRefreshToken: () => Promise<string | null>

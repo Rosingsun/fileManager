@@ -1,5 +1,4 @@
-import { existsSync } from 'fs'
-import { readFileSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { InferenceSession, Tensor } from 'onnxruntime-node'
 import type { ImageClassificationResult } from '../../../src/types'
@@ -9,7 +8,7 @@ import {
   getClassificationModelPath,
   getModelsDir
 } from '../utils/classificationModels'
-import { preprocessLetterbox } from '../utils/classificationPreprocess'
+import { preprocessLetterbox, preprocessMultiCrop } from '../utils/classificationPreprocess'
 import {
   softmax,
   aggregateImagenetToNine,
@@ -23,8 +22,15 @@ import {
   getClipSession,
   encodeClipImagePixels,
   scoreClipZeroShot,
-  loadPromptsFile
+  loadPromptsFile,
+  averageClipEmbeddings
 } from '../utils/clipClassifier'
+import {
+  getPresetById,
+  legacyModelIdToPreset,
+  type ClassificationPresetId
+} from '../utils/classificationPresets'
+import { applyCategoryDisambiguation, applyConfidenceGate } from '../utils/categoryDisambiguation'
 import { classifyWithCognivisionTf } from './cognivisionTfClassifier'
 
 let imagenetLabelsCache: string[] | null = null
@@ -53,7 +59,7 @@ async function getImagenetSession(
   cwd: string,
   modelId: ClassificationModelId
 ): Promise<InferenceSession | null> {
-  if (modelId === 'clip_vit_b32_quant') return null
+  if (modelId === 'clip_vit_b32_quant' || modelId === 'clip_vit_l14_quant') return null
   const cached = imagenetSessions.get(modelId)
   if (cached) return cached
 
@@ -64,7 +70,7 @@ async function getImagenetSession(
     return imagenetSessions.get(modelId) || null
   }
 
-  const path = getClassificationModelPath(cwd, modelId)
+  const path = getClassificationModelPath(modelId, cwd)
   if (!existsSync(path)) {
     console.warn('[分类] ImageNet 模型不存在:', path)
     return null
@@ -74,7 +80,7 @@ async function getImagenetSession(
     imagenetLoading = true
     const session = await InferenceSession.create(path, { executionProviders: ['cpu'] })
     imagenetSessions.set(modelId, session)
-    console.log('[分类] ImageNet 模型已加载', modelId, session.inputNames, session.outputNames)
+    console.log('[分类] ImageNet 模型已加载', modelId)
     return session
   } catch (e) {
     console.error('[分类] ImageNet 加载失败', e)
@@ -93,90 +99,161 @@ export function clearImagenetSessionCache(modelId?: ClassificationModelId): void
   }
 }
 
-function imagenetBranchModelId(selected: ClassificationModelId): ClassificationModelId {
-  if (selected === 'clip_vit_b32_quant') return 'mobilenetv2'
-  return selected
+function resolvePresetId(presetOrModelId?: string): ClassificationPresetId {
+  if (!presetOrModelId) return legacyModelIdToPreset()
+  return legacyModelIdToPreset(presetOrModelId)
+}
+
+async function runImagenetBranch(
+  imagePath: string,
+  cwd: string,
+  imagenetModelId: ClassificationModelId,
+  labels: string[],
+  ttaCropCount: number
+): Promise<{ imagenetNine: ReturnType<typeof aggregateImagenetToNine>; probs: Float32Array }> {
+  const branchInfo = CLASSIFICATION_MODELS.find(m => m.id === imagenetModelId)
+  const inputSize = branchInfo?.inputSize || 224
+  const imagenetModel = await getImagenetSession(cwd, imagenetModelId)
+  if (!imagenetModel) {
+    throw new Error(`ImageNet 模型未加载（请先下载 ${imagenetModelId}）`)
+  }
+
+  const cropPixels =
+    ttaCropCount > 1
+      ? await preprocessMultiCrop(imagePath, inputSize, 'imagenet', ttaCropCount)
+      : [await preprocessLetterbox(imagePath, inputSize, 'imagenet')]
+
+  const inName = imagenetModel.inputNames[0] || 'input'
+  const outName = imagenetModel.outputNames[0] || 'output'
+  const n = labels.length
+  const avgLogits = new Float32Array(n)
+
+  for (const pixels of cropPixels) {
+    const inputTensor = new Tensor('float32', pixels, [1, 3, inputSize, inputSize])
+    const outputs = await imagenetModel.run({ [inName]: inputTensor })
+    const outputTensor = outputs[outName] as Tensor
+    const logits = outputTensor.data as Float32Array
+    const len = Math.min(logits.length, n)
+    for (let i = 0; i < len; i++) avgLogits[i] += logits[i]
+  }
+
+  for (let i = 0; i < n; i++) avgLogits[i] /= cropPixels.length
+  const probs = softmax(avgLogits)
+
+  let imagenetNine = aggregateImagenetToNine(probs, labels)
+  imagenetNine = rebalancePersonAnimalFromTopPredictions(probs, labels, imagenetNine)
+  return { imagenetNine, probs }
+}
+
+async function runClipBranch(
+  imagePath: string,
+  cwd: string,
+  clipModelId: ClassificationModelId,
+  promptsFile: string,
+  ttaCropCount: number
+): Promise<{ clipNine: ReturnType<typeof scoreClipZeroShot>; imageEmb: Float32Array } | null> {
+  const modelsDir = getModelsDir(cwd)
+  const prompts = loadPromptsFile(modelsDir, promptsFile)
+  const clipPath = getClassificationModelPath(clipModelId, cwd)
+  const clipSession = await getClipSession(clipPath)
+
+  if (!clipSession || !prompts) return null
+
+  const clipSize = 224
+  const cropPixels =
+    ttaCropCount > 1
+      ? await preprocessMultiCrop(imagePath, clipSize, 'clip', ttaCropCount)
+      : [await preprocessLetterbox(imagePath, clipSize, 'clip')]
+
+  const embeddings: Float32Array[] = []
+  for (const pixels of cropPixels) {
+    const emb = await encodeClipImagePixels(clipSession, pixels, clipSize)
+    if (emb) embeddings.push(emb)
+  }
+
+  const imageEmb = averageClipEmbeddings(embeddings)
+  if (!imageEmb) return null
+
+  const clipNine = scoreClipZeroShot(imageEmb, prompts)
+  return { clipNine, imageEmb }
 }
 
 export async function classifyImage(
   imagePath: string,
   cwd: string,
-  modelId: ClassificationModelId = 'clip_vit_b32_quant'
+  presetOrModelId?: string
 ): Promise<ImageClassificationResult> {
-  if (modelId === 'cognivision') {
+  const preset = getPresetById(resolvePresetId(presetOrModelId))
+  const fileName = imagePath.split(/[/\\]/).pop() || imagePath
+
+  if (presetOrModelId === 'cognivision') {
     return classifyWithCognivisionTf(imagePath, cwd)
   }
 
-  const fileName = imagePath.split(/[/\\]/).pop() || imagePath
   const labels = loadImagenetLabels(cwd)
-  const branchId = imagenetBranchModelId(modelId)
-
-  const branchInfo = CLASSIFICATION_MODELS.find(m => m.id === branchId)
-  const inputSize = branchInfo?.inputSize || 224
 
   try {
-    const imagenetModel = await getImagenetSession(cwd, branchId)
-    if (!imagenetModel) {
-      throw new Error(`ImageNet 模型未加载（请先下载 ${branchId}）`)
+    const { imagenetNine } = await runImagenetBranch(
+      imagePath,
+      cwd,
+      preset.imagenetModelId,
+      labels,
+      preset.ttaCropCount
+    )
+
+    const clipResult = await runClipBranch(
+      imagePath,
+      cwd,
+      preset.clipModelId,
+      preset.promptsFile,
+      preset.ttaCropCount
+    )
+
+    if (!clipResult) {
+      throw new Error(
+        `CLIP 未就绪（需 ${preset.clipModelId} 与 ${preset.promptsFile}），请下载对应模型`
+      )
     }
 
-    const imagenetPixels = await preprocessLetterbox(imagePath, inputSize, 'imagenet')
-    const inName = imagenetModel.inputNames[0] || 'input'
-    const inputTensor = new Tensor('float32', imagenetPixels, [1, 3, inputSize, inputSize])
-    const feeds: Record<string, Tensor> = { [inName]: inputTensor }
-    const outputs = await imagenetModel.run(feeds)
-    const outName = imagenetModel.outputNames[0] || 'output'
-    const outputTensor = outputs[outName] as Tensor
-    const logits = outputTensor.data as Float32Array
-    const n = Math.min(logits.length, labels.length)
-    const probs = softmax(logits.slice(0, n))
-
-    if (logits.length !== labels.length) {
-      console.warn(`[分类] 输出维度 ${logits.length} 与标签 ${labels.length} 不一致，已截断聚合`)
-    }
-
-    let imagenetNine = aggregateImagenetToNine(probs, labels.slice(0, n))
-    imagenetNine = rebalancePersonAnimalFromTopPredictions(probs, labels.slice(0, n), imagenetNine)
-
-    let finalNine = { ...imagenetNine }
+    const { clipNine, imageEmb } = clipResult
     const modelsDir = getModelsDir(cwd)
+    const prompts = loadPromptsFile(modelsDir, preset.promptsFile)!
 
-    if (modelId === 'clip_vit_b32_quant') {
-      const prompts = loadPromptsFile(modelsDir)
-      const clipPath = getClassificationModelPath(cwd, 'clip_vit_b32_quant')
-      const clipSession = await getClipSession(clipPath)
+    let finalNine = fuseClipAndImagenetAdaptive(clipNine, imagenetNine, preset.fusionParams)
+    finalNine = disambiguatePersonAnimalWithClip(finalNine, clipNine, preset.fusionParams)
+    finalNine = applyCategoryDisambiguation(
+      finalNine,
+      imageEmb,
+      prompts,
+      undefined,
+      preset.disambiguationShiftStrength
+    )
 
-      if (clipSession && prompts) {
-        const clipSize = 224
-        const clipPixels = await preprocessLetterbox(imagePath, clipSize, 'clip')
-        const emb = await encodeClipImagePixels(clipSession, clipPixels, clipSize)
-        if (emb) {
-          const clipNine = scoreClipZeroShot(emb, prompts)
-          finalNine = fuseClipAndImagenetAdaptive(clipNine, imagenetNine)
-          finalNine = disambiguatePersonAnimalWithClip(finalNine, clipNine)
-          const sorted = (Object.entries(finalNine) as [keyof typeof finalNine, number][])
-            .sort((a, b) => b[1] - a[1])
-            .slice(0, 3)
-          console.log(
-            `[CLIP] top3 ${fileName}:`,
-            sorted.map(([k, v]) => `${k}=${(v * 100).toFixed(1)}%`).join(', ')
-          )
-        } else {
-          console.warn('[CLIP] 图像向量为空，使用 ImageNet 聚合')
-        }
-      } else {
-        console.warn('[CLIP] 未启用（缺少 vision ONNX 或 clip-prompts.json），使用 ImageNet 聚合')
-      }
-    }
+    const { nine: gatedNine, confidenceScale } = applyConfidenceGate(
+      finalNine,
+      preset.confidenceGate.confMin,
+      preset.confidenceGate.marginMin
+    )
 
-    const best = argmaxNine(finalNine)
-    const topPredictions = nineProbabilitiesToTopPredictions(finalNine, 3, 0.05, 0.02)
+    const best = argmaxNine(gatedNine)
+    const topPredictions = nineProbabilitiesToTopPredictions(gatedNine, 3, 0.05, 0.02)
+
+    const sorted = (Object.entries(gatedNine) as [keyof typeof gatedNine, number][])
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+    console.log(
+      `[分类][${preset.id}] top3 ${fileName}:`,
+      sorted.map(([k, v]) => `${k}=${(v * 100).toFixed(1)}%`).join(', ')
+    )
 
     return {
       filePath: imagePath,
       category: best.category,
-      confidence: best.confidence,
-      topPredictions
+      confidence: Math.min(1, Math.max(0, best.confidence * confidenceScale)),
+      topPredictions: topPredictions.map(tp => ({
+        ...tp,
+        confidence: Math.min(1, tp.confidence * confidenceScale)
+      }))
     }
   } catch (error) {
     console.error(`[分类] 失败 (${fileName}):`, error)

@@ -21,7 +21,58 @@ export function softmax(logits: Float32Array): Float32Array {
 
 /** 常见「人身/穿戴/肖像」类 ImageNet 标签（含索引 >397），用于与生物类区分 */
 const PERSON_IMAGENET_CUE =
-  /\b(academic gown|baseball player|bikini|bow tie|bridegroom|cowboy hat|cowboy boot|crash helmet|diaper|football helmet|gas mask|gown|kimono|lab coat|military cap|military uniform|miniskirt|neck brace|oxygen mask|poncho|poke bonnet|sarong|scuba diver|seat belt|ski mask|sombrero|sunglasses|swimming cap|wig|mask)\b/i
+  /\b(academic gown|baseball player|bikini|bow tie|bridegroom|cowboy hat|cowboy boot|crash helmet|diaper|football helmet|gas mask|gown|kimono|lab coat|military cap|military uniform|miniskirt|neck brace|oxygen mask|poncho|poke bonnet|sarong|scuba diver|seat belt|ski mask|sombrero|sunglasses|swimming cap|wig|mask|graduation|priest|sailor|shepherd|groom|nun|referee|ballplayer|matador|street performer|military officer)\b/i
+
+/** index 0–397 中实为自然风景/植物/珊瑚等，不应归入动物 */
+const LANDSCAPE_ORGANISM_LABEL =
+  /\b(brain coral|stony coral|sea anemone|coral fungus|mushroom|jellyfish|sea slug|sea urchin|starfish|conch|chiton|chambered nautilus|dungeness crab|rock crab|king crab|American lobster|spiny lobster|coral reef)\b/i
+
+export interface FusionParams {
+  clipWeightDefault: number
+  clipWeightLow: number
+  clipWeightMid: number
+  clipWeightHigh: number
+  topLow: number
+  marginLow: number
+  topMid: number
+  marginMid: number
+  topHigh: number
+  marginHigh: number
+  personAnimalClipMargin: number
+  personAnimalClipMin: number
+}
+
+export const FUSION_PARAMS_LIGHT: FusionParams = {
+  clipWeightDefault: 0.72,
+  clipWeightLow: 0.42,
+  clipWeightMid: 0.56,
+  clipWeightHigh: 0.64,
+  topLow: 0.28,
+  marginLow: 0.06,
+  topMid: 0.38,
+  marginMid: 0.1,
+  topHigh: 0.48,
+  marginHigh: 0.14,
+  personAnimalClipMargin: 0.045,
+  personAnimalClipMin: 0.13
+}
+
+export const FUSION_PARAMS_BALANCED: FusionParams = {
+  ...FUSION_PARAMS_LIGHT,
+  clipWeightDefault: 0.76,
+  clipWeightMid: 0.6,
+  clipWeightHigh: 0.68
+}
+
+export const FUSION_PARAMS_MAX: FusionParams = {
+  ...FUSION_PARAMS_BALANCED,
+  clipWeightDefault: 0.8,
+  clipWeightLow: 0.48,
+  clipWeightMid: 0.64,
+  clipWeightHigh: 0.72,
+  personAnimalClipMargin: 0.04,
+  personAnimalClipMin: 0.11
+}
 
 /**
  * 将 ImageNet 千类标签映射到 9 大类（仅用于索引 >= 397 的人造物/场景等）
@@ -63,14 +114,15 @@ export function imagenetLabelToNine(label: string): ImageContentCategory {
   }
 
   if (
-    /\b(library|restaurant|cinema|home theater|barbershop|bookstore|butcher shop|confectionery|shoe shop|tobacco shop|toy store|grocery store|palace|monastery|church|mosque|castle|triumphal arch|viaduct|dam|lighthouse|obelisk|bell tower|radio telescope|windmill|apiary|boathouse|greenhouse|tree house|yurt|mobile home)\b/.test(l) ||
-    /\b(street sign|traffic light|parking meter|fountain|maypole|maze)\b/.test(l)
+    /\b(library|restaurant|cinema|home theater|barbershop|bookstore|butcher shop|confectionery|shoe shop|tobacco shop|toy store|grocery store|palace|monastery|church|mosque|castle|triumphal arch|viaduct|dam|lighthouse|obelisk|bell tower|radio telescope|windmill|apiary|boathouse|greenhouse|tree house|yurt|mobile home|stadium|arena|theater curtain|ticket booth)\b/.test(l) ||
+    /\b(street sign|traffic light|parking meter|fountain|maypole|maze|pedestrian crossing|stop sign|street lamp)\b/.test(l)
   ) {
     return 'urban'
   }
 
   if (
-    /\b(bathtub|shower curtain|four-poster|microwave|oven|refrigerator|dishwasher|washer|iron|vacuum cleaner|sewing machine|toilet seat|cradle|crib|fireplace|studio couch|china cabinet|medicine chest|entertainment center|bookcase|wardrobe|window shade|sliding door|turnstile)\b/.test(l)
+    /\b(bathtub|shower curtain|four-poster|microwave|oven|refrigerator|dishwasher|washer|iron|vacuum cleaner|sewing machine|toilet seat|cradle|crib|fireplace|studio couch|china cabinet|medicine chest|entertainment center|bookcase|wardrobe|window shade|sliding door|turnstile|dining table|pool table|desk|chiffonier|file|folding chair|rocking chair|table lamp|wardrobe)\b/.test(l) ||
+    /\b(grocery store interior|supermarket aisle|indoor market)\b/.test(l)
   ) {
     return 'indoor'
   }
@@ -80,6 +132,7 @@ export function imagenetLabelToNine(label: string): ImageContentCategory {
 
 export function categoryForImagenetIndex(index: number, label: string): ImageContentCategory {
   if (index >= 0 && index <= IMAGENET_ORGANISM_MAX_INDEX) {
+    if (LANDSCAPE_ORGANISM_LABEL.test(label)) return 'landscape'
     return 'animal'
   }
   return imagenetLabelToNine(label)
@@ -154,7 +207,8 @@ export function fuseClipAndImagenet(
  */
 export function fuseClipAndImagenetAdaptive(
   clipNine: NineProbabilities,
-  imagenetNine: NineProbabilities
+  imagenetNine: NineProbabilities,
+  params: FusionParams = FUSION_PARAMS_LIGHT
 ): NineProbabilities {
   const keys = Object.keys(EMPTY_NINE) as ImageContentCategory[]
   const vals = keys.map(k => clipNine[k])
@@ -163,13 +217,13 @@ export function fuseClipAndImagenetAdaptive(
   const second = sorted[1]
   const margin = top - second
 
-  let clipWeight = 0.72
-  if (top < 0.28 || margin < 0.06) {
-    clipWeight = 0.42
-  } else if (top < 0.38 || margin < 0.1) {
-    clipWeight = 0.56
-  } else if (top < 0.48 || margin < 0.14) {
-    clipWeight = 0.64
+  let clipWeight = params.clipWeightDefault
+  if (top < params.topLow || margin < params.marginLow) {
+    clipWeight = params.clipWeightLow
+  } else if (top < params.topMid || margin < params.marginMid) {
+    clipWeight = params.clipWeightMid
+  } else if (top < params.topHigh || margin < params.marginHigh) {
+    clipWeight = params.clipWeightHigh
   }
 
   return fuseClipAndImagenet(clipNine, imagenetNine, clipWeight)
@@ -247,7 +301,8 @@ export function rebalancePersonAnimalFromTopPredictions(
  */
 export function disambiguatePersonAnimalWithClip(
   merged: NineProbabilities,
-  clipNine: NineProbabilities
+  clipNine: NineProbabilities,
+  params: FusionParams = FUSION_PARAMS_LIGHT
 ): NineProbabilities {
   const cp = clipNine.person
   const ca = clipNine.animal
@@ -261,8 +316,8 @@ export function disambiguatePersonAnimalWithClip(
     }
   }
 
-  const clipSaysPerson = cp >= ca + 0.045 && cp >= 0.13
-  const clipSaysAnimal = ca >= cp + 0.045 && ca >= 0.13
+  const clipSaysPerson = cp >= ca + params.personAnimalClipMargin && cp >= params.personAnimalClipMin
+  const clipSaysAnimal = ca >= cp + params.personAnimalClipMargin && ca >= params.personAnimalClipMin
 
   if (clipSaysPerson && out.animal > out.person && out.animal - out.person < 0.3) {
     const shift = Math.min(out.animal * 0.24, (cp - ca) * 0.42, 0.17)

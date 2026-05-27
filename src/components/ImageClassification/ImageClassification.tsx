@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { Card, Button, Progress, Table, Tag, Space, message, Alert, Modal, Typography, Select } from 'antd'
+import { Card, Button, Progress, Table, Tag, Space, message, Alert, Modal, Typography, Select, Radio, Collapse } from 'antd'
 import {
   ApiOutlined,
   DeleteOutlined,
@@ -10,11 +10,20 @@ import {
   FrownOutlined,
   AppstoreOutlined
 } from '@ant-design/icons'
-import type { ImageContentCategory, ImageClassificationResult, ImageClassificationProgress } from '../../types'
+import type {
+  ImageContentCategory,
+  ImageClassificationResult,
+  ImageClassificationProgress,
+  ClassificationPresetId,
+  ClassificationPresetInfo
+} from '../../types'
 import {
   IMAGE_CATEGORY_LABELS,
   IMAGE_CATEGORY_ORDER,
-  migrateLegacyImageCategory
+  migrateLegacyImageCategory,
+  DEFAULT_CLASSIFICATION_PRESET_ID as DEFAULT_PRESET,
+  CLASSIFICATION_PRESET_STORAGE_KEY as PRESET_STORAGE_KEY,
+  CLASSIFICATION_PRESET_UI_OPTIONS
 } from '../../types'
 import { useFileStore, useImageClassificationStore } from '../../stores'
 import ImageViewer from '../ImageViewer/ImageViewer'
@@ -244,16 +253,31 @@ const ImageClassification: React.FC = () => {
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'completed' | 'error'>('idle')
-  const [modelExists, setModelExists] = useState(false)
+  const [availableModels, setAvailableModels] = useState<ClassificationModel[]>([])
+  const [availablePresets, setAvailablePresets] = useState<ClassificationPresetInfo[]>([])
+  const [selectedPreset, setSelectedPreset] = useState<ClassificationPresetId>(() => {
+    try {
+      const saved = localStorage.getItem(PRESET_STORAGE_KEY)
+      if (saved === 'accuracy_light' || saved === 'accuracy_balanced' || saved === 'accuracy_max') {
+        return saved
+      }
+    } catch {
+      /* ignore */
+    }
+    return DEFAULT_PRESET
+  })
+  const [selectedModel, setSelectedModel] = useState<string>('clip_vit_b32_quant')
+  const [presetExistsMap, setPresetExistsMap] = useState<Record<string, boolean>>({})
+  const [modelExistsMap, setModelExistsMap] = useState<Record<string, boolean>>({})
+  const modelExists = presetExistsMap[selectedPreset] ?? false
+  const presetsForUi =
+    availablePresets.length > 0 ? availablePresets : CLASSIFICATION_PRESET_UI_OPTIONS
   const abortControllerRef = useRef<AbortController | null>(null)
   const [manualDownloadModalVisible, setManualDownloadModalVisible] = useState(false)
   const [failedDownloadUrls, setFailedDownloadUrls] = useState<string[]>([])
   const [viewerVisible, setViewerVisible] = useState(false)
   const [viewerImages, setViewerImages] = useState<Image[]>([])
   const [viewerCurrentIndex, setViewerCurrentIndex] = useState(0)
-  const [availableModels, setAvailableModels] = useState<ClassificationModel[]>([])
-  const [selectedModel, setSelectedModel] = useState<string>('clip_vit_b32_quant')
-  const [modelExistsMap, setModelExistsMap] = useState<Record<string, boolean>>({})
 
   // 分类图片选择器状态
   const [categorySelectorVisible, setCategorySelectorVisible] = useState(false)
@@ -285,26 +309,31 @@ const ImageClassification: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    const loadModels = async () => {
-      if (window.electronAPI && window.electronAPI.getAvailableModels) {
+    const loadPresetsAndModels = async () => {
+      if (!window.electronAPI) return
+
+      if (window.electronAPI.getAvailablePresets) {
+        const presets = await window.electronAPI.getAvailablePresets()
+        setAvailablePresets(presets)
+        const existsMap: Record<string, boolean> = {}
+        for (const preset of presets) {
+          existsMap[preset.id] = await window.electronAPI.checkModelExists(preset.id)
+        }
+        setPresetExistsMap(existsMap)
+      }
+
+      if (window.electronAPI.getAvailableModels) {
         const models = await window.electronAPI.getAvailableModels()
         setAvailableModels(models)
-
         const existsMap: Record<string, boolean> = {}
         for (const model of models) {
-          const exists = await window.electronAPI.checkModelExists(model.id)
-          existsMap[model.id] = exists
+          existsMap[model.id] = await window.electronAPI.checkModelExists(model.id)
         }
         setModelExistsMap(existsMap)
-        setModelExists(existsMap[selectedModel] || false)
-      } else if (window.electronAPI && window.electronAPI.checkModelExists) {
-        const exists = await window.electronAPI.checkModelExists()
-        setModelExists(exists)
-        setModelExistsMap({ mobilenetv2: exists })
       }
     }
 
-    loadModels()
+    loadPresetsAndModels()
 
     try {
       const saved = localStorage.getItem(IMAGE_CLASSIFICATION_RESULTS_KEY)
@@ -322,16 +351,21 @@ const ImageClassification: React.FC = () => {
     } catch (e) {
       console.warn('加载分类结果失败:', e)
     }
-  }, [selectedModel])
+  }, [selectedPreset])
+
+  const handlePresetChange = (presetId: ClassificationPresetId) => {
+    setSelectedPreset(presetId)
+    localStorage.setItem(PRESET_STORAGE_KEY, presetId)
+  }
 
   const handleDownloadModel = () => {
-    const model = availableModels.find(m => m.id === selectedModel) || availableModels[0]
-    const modelName = model?.name || 'MobileNetV2'
-    const modelSize = model?.sizeMB || 14
+    const preset = presetsForUi.find(p => p.id === selectedPreset)
+    const presetName = preset?.name || '分类模型'
+    const presetSize = preset?.totalSizeMB || 104
 
     Modal.confirm({
       title: '下载分类模型',
-      content: `确定要下载 ${modelName} 模型吗？模型文件约 ${modelSize}MB，需要联网下载。`,
+      content: `确定要下载「${presetName}」所需模型吗？合计约 ${presetSize}MB，需联网下载。国内网络可能较慢，单个文件 10–30 分钟属正常，请勿关闭应用。`,
       okText: '确定下载',
       cancelText: '取消',
       onOk: async () => {
@@ -344,7 +378,7 @@ const ImageClassification: React.FC = () => {
         try {
           if (window.electronAPI && window.electronAPI.downloadModel) {
             const result = await window.electronAPI.downloadModel(
-              selectedModel,
+              String(selectedPreset),
               (progress: number) => {
                 setDownloadProgress(progress)
               },
@@ -353,10 +387,14 @@ const ImageClassification: React.FC = () => {
 
             if (result.success) {
               setDownloadStatus('completed')
-              setModelExists(true)
-              setModelExistsMap(prev => ({ ...prev, [selectedModel]: true }))
-              message.success('模型下载成功！')
-              logSignedInUserAction('classification_model_download', '分类模型下载成功', selectedModel)
+              const exists = await window.electronAPI?.checkModelExists?.(selectedPreset)
+              setPresetExistsMap(prev => ({ ...prev, [selectedPreset]: exists === true }))
+              if (exists) {
+                message.success('模型下载成功！')
+                logSignedInUserAction('classification_model_download', '分类模型下载成功', selectedPreset)
+              } else {
+                message.warning('下载已完成，但仍有文件未就绪，请重试或手动导入 ONNX')
+              }
             } else if (result.cancelled) {
               setDownloadStatus('idle')
               message.info('下载已取消')
@@ -364,8 +402,16 @@ const ImageClassification: React.FC = () => {
               setDownloadStatus('error')
               const errorMsg = result.error || '未知错误'
               setFailedDownloadUrls(result.downloadUrls || [])
-              if (errorMsg.includes('无法找到模型文件') || errorMsg.includes('HTTP 404')) {
+              if (
+                errorMsg.includes('无法找到模型文件') ||
+                errorMsg.includes('HTTP 404') ||
+                errorMsg.includes('ECONNRESET') ||
+                errorMsg.includes('ETIMEDOUT') ||
+                errorMsg.includes('下载超时') ||
+                errorMsg.includes('手动导入')
+              ) {
                 setManualDownloadModalVisible(true)
+                message.error('下载失败: ' + errorMsg)
               } else {
                 message.error('下载失败: ' + errorMsg)
               }
@@ -410,7 +456,7 @@ const ImageClassification: React.FC = () => {
     console.log('[分类] handleClassify 被调用')
     console.log('[分类] modelExists:', modelExists)
     console.log('[分类] classificationPath:', classificationPath)
-    console.log('[分类] selectedModel:', selectedModel)
+    console.log('[分类] selectedPreset:', selectedPreset)
     
     if (!window.electronAPI?.classifyImagesBatch) {
       console.error('[分类] classifyImagesBatch 不可用')
@@ -471,7 +517,7 @@ const ImageClassification: React.FC = () => {
       const result = await window.electronAPI.classifyImagesBatch({
         imagePaths,
         batchSize: 10,
-        modelId: selectedModel
+        presetId: selectedPreset
       })
       console.log('[分类] classifyImagesBatch 返回:', result)
 
@@ -745,7 +791,9 @@ const ImageClassification: React.FC = () => {
       case 'error':
         return <Tag color="red" style={{ marginLeft: 8 }} icon={<FrownOutlined />}>下载失败</Tag>
       default:
-        return <Tag color="orange" style={{ marginLeft: 8 }} icon={<InboxOutlined />}>未下载</Tag>
+        return modelExists
+          ? <Tag color="green" style={{ marginLeft: 8 }} icon={<CheckCircleOutlined />}>已就绪</Tag>
+          : <Tag color="orange" style={{ marginLeft: 8 }} icon={<InboxOutlined />}>未下载</Tag>
     }
   }
 
@@ -766,22 +814,42 @@ const ImageClassification: React.FC = () => {
       }
       extra={
         <div className="classification-toolbar__actions">
-          <Select
-            value={selectedModel}
-            onChange={(value) => {
-              setSelectedModel(value)
-              setModelExists(modelExistsMap[value] || false)
-            }}
-            style={{ width: 160 }}
+          <Radio.Group
+            value={selectedPreset}
+            onChange={(e) => handlePresetChange(e.target.value)}
             disabled={isDownloading || isClassifying}
+            optionType="button"
+            buttonStyle="solid"
           >
-            {availableModels.map(model => (
-              <Select.Option key={model.id} value={model.id}>
-                {model.name}
-                {modelExistsMap[model.id] ? ' ✓' : ''}
-              </Select.Option>
+            {presetsForUi.map(preset => (
+              <Radio.Button key={preset.id} value={preset.id}>
+                {preset.name}
+                {presetExistsMap[preset.id] ? ' ✓' : ''}
+              </Radio.Button>
             ))}
-          </Select>
+          </Radio.Group>
+          <Collapse
+            ghost
+            items={[{
+              key: 'advanced',
+              label: '进阶模型',
+              children: (
+                <Select
+                  value={selectedModel}
+                  onChange={setSelectedModel}
+                  style={{ width: 220 }}
+                  disabled={isDownloading || isClassifying}
+                >
+                  {availableModels.map(model => (
+                    <Select.Option key={model.id} value={model.id}>
+                      {model.name}
+                      {modelExistsMap[model.id] ? ' ✓' : ''}
+                    </Select.Option>
+                  ))}
+                </Select>
+              )
+            }]}
+          />
           {renderModelStatusTag()}
           {results.size > 0 && (
             <Button icon={<DeleteOutlined />} onClick={handleClearResults}>
@@ -839,8 +907,11 @@ const ImageClassification: React.FC = () => {
               message="模型未下载"
               description={
                 <Space direction="vertical" size="small">
-                  <Text>分类功能需要下载 {availableModels.find(m => m.id === selectedModel)?.name || '模型'} 才能正常工作。</Text>
-                  <Text type="secondary">模型文件约 {availableModels.find(m => m.id === selectedModel)?.sizeMB || 14}MB，下载后保存在 models/ 目录下。</Text>
+                  <Text>分类功能需要下载「{presetsForUi.find(p => p.id === selectedPreset)?.name || '精准度预设'}」所需模型才能正常工作。</Text>
+                  <Text type="secondary">
+                    约 {presetsForUi.find(p => p.id === selectedPreset)?.totalSizeMB || 104}MB，
+                    预估耗时 {presetsForUi.find(p => p.id === selectedPreset)?.estimatedSpeedFactor ?? 1}x（相对轻量档）。
+                  </Text>
                 </Space>
               }
               type="info"
@@ -989,12 +1060,11 @@ const ImageClassification: React.FC = () => {
 
       <ManualDownloadModal
         visible={manualDownloadModalVisible}
-        modelId={selectedModel}
+        modelId={selectedPreset}
         downloadUrls={failedDownloadUrls}
         onClose={() => setManualDownloadModalVisible(false)}
         onSuccess={() => {
-          setModelExists(true)
-          setModelExistsMap(prev => ({ ...prev, [selectedModel]: true }))
+          setPresetExistsMap(prev => ({ ...prev, [selectedPreset]: true }))
           setManualDownloadModalVisible(false)
         }}
       />

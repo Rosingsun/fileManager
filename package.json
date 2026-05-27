@@ -15,6 +15,9 @@
     "make": "electron-forge make",
     "seed": "node seeds/seed.js",
     "eval:classify": "node scripts/eval-classification.mjs",
+    "eval:classify-run": "node scripts/run-classification-eval.mjs",
+    "bootstrap:clip-prompts": "node scripts/bootstrap-clip-prompts.mjs all",
+    "download:models": "node scripts/download-classification-models.mjs accuracy_balanced",
     "dev:auth-api": "npm run dev --prefix backend",
     "init:backend-env": "node scripts/init-backend-env.mjs",
     "check:auth-api": "node scripts/check-auth-api.mjs"

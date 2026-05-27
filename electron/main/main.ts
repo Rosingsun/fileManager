@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, Menu, protocol } from 'electron'
 import { basename, dirname, join, normalize, parse } from 'path'
+import { spawnSync } from 'child_process'
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync as nodeFileExistsSync, unlinkSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
@@ -9,7 +10,19 @@ import type { OrganizeConfig, FileInfo, SimilarityScanConfig, ImageHash, Similar
 import { scanImageQuality, computePhotoQualityTierForImage } from './services/imageQualityService'
 import type { ClassificationModelId } from './utils/classificationModels'
 export type { ClassificationModelId } from './utils/classificationModels'
-import { CLASSIFICATION_MODELS, getClassificationModelPath, MODEL_FILE_NAMES, modelIdFromOnnxBasename } from './utils/classificationModels'
+import { CLASSIFICATION_MODELS, getClassificationModelPath, getModelInfo, MODEL_FILE_NAMES, modelIdFromOnnxBasename, getModelsDir, ensureModelsDir } from './utils/classificationModels'
+import { resolveProjectRoot } from './utils/projectRoot'
+import { downloadModelFile } from './utils/modelDownload'
+import {
+  CLASSIFICATION_PRESETS,
+  getPresetById,
+  getPresetRequiredModelIds,
+  isPresetId,
+  isPresetDownloadId,
+  parseDownloadTargetId,
+  legacyModelIdToPreset,
+  type ClassificationPresetId
+} from './utils/classificationPresets'
 import { classifyImage as runClassifyImage, clearImagenetSessionCache } from './services/imageClassificationService'
 import { clearClipModelCache } from './utils/clipClassifier'
 import { clearCognivisionMobilenetCache } from './services/cognivisionTfClassifier'
@@ -1457,9 +1470,9 @@ function clearModelCache(modelId?: ClassificationModelId): void {
 
 async function classifyImage(
   imagePath: string,
-  modelId: ClassificationModelId = 'clip_vit_b32_quant'
+  presetOrModelId?: string
 ): Promise<ImageClassificationResult> {
-  const base = await runClassifyImage(imagePath, process.cwd(), modelId)
+  const base = await runClassifyImage(imagePath, resolveProjectRoot(), presetOrModelId)
   try {
     const quality = await computePhotoQualityTierForImage(imagePath)
     return { ...base, quality }
@@ -1469,8 +1482,8 @@ async function classifyImage(
   }
 }
 
-ipcHandle('image:classify', async (_event, imagePath: string): Promise<ImageClassificationResult> => {
-  return await classifyImage(imagePath)
+ipcHandle('image:classify', async (_event, imagePath: string, presetOrModelId?: string): Promise<ImageClassificationResult> => {
+  return await classifyImage(imagePath, presetOrModelId)
 })
 
 // IPC 处理器：批量分类图片
@@ -1555,8 +1568,9 @@ ipcHandle('image:classifyBatch', async (event, config: ImageClassificationConfig
             total: totalImages,
             currentFile: imagePath
           })
-          const modelId = (config.modelId as ClassificationModelId) || 'clip_vit_b32_quant'
-          return await classifyImage(imagePath, modelId)
+          const presetOrModel =
+            config.presetId ?? config.modelId ?? 'accuracy_balanced'
+          return await classifyImage(imagePath, presetOrModel)
         } catch (error) {
           console.error('[Main] 分类失败:', imagePath, error)
           return {
@@ -1705,200 +1719,194 @@ ipcHandle('image:estimateCompressedSize', async (_event, path: string, options: 
 
 let downloadCancelled = false
 
-// 获取模型信息
-function getModelInfo(modelId: ClassificationModelId) {
-  return CLASSIFICATION_MODELS.find(m => m.id === modelId)
-}
-
 // IPC 处理器：获取可用模型列表
 ipcHandle('model:getAvailableModels', async (): Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>> => {
   return CLASSIFICATION_MODELS.map(({ downloadUrls, ...rest }) => rest)
 })
 
-// IPC 处理器：检查指定模型文件是否存在
-ipcHandle('model:checkExists', async (_event, modelId?: string): Promise<boolean> => {
-  const id: ClassificationModelId = (modelId as ClassificationModelId) || 'clip_vit_b32_quant'
-  const cwd = process.cwd()
-  // CLIP 方案依赖 MobileNet 做 ImageNet 聚合；CLIP 视觉 ONNX 与 prompts 为可选增强
-  if (id === 'clip_vit_b32_quant') {
-    const mnPath = getClassificationModelPath(cwd, 'mobilenetv2')
-    return existsSync(mnPath)
-  }
-  if (id === 'cognivision') {
-    return existsSync(join(cwd, 'models', 'imagenet1000.json'))
-  }
-  const modelPath = getClassificationModelPath(cwd, id)
-  return existsSync(modelPath)
+// IPC 处理器：获取精准度预设列表
+ipcHandle('model:getAvailablePresets', async () => {
+  return CLASSIFICATION_PRESETS.map(({ fusionParams, confidenceGate, disambiguationShiftStrength, ...rest }) => rest)
 })
 
-// IPC 处理器：下载模型文件
-ipcHandle('model:download', async (_event, modelId?: string): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
-  let id: ClassificationModelId = (modelId as ClassificationModelId) || 'clip_vit_b32_quant'
-  // 选择 CLIP 方案时先拉取 MobileNet（分类必需），CLIP 视觉 ONNX 可单独再下
-  if (id === 'clip_vit_b32_quant' && !existsSync(getClassificationModelPath(process.cwd(), 'mobilenetv2'))) {
-    id = 'mobilenetv2'
+function checkSingleModelExists(cwd: string, modelId: ClassificationModelId): boolean {
+  if (modelId === 'cognivision') {
+    return existsSync(join(cwd, 'models', 'imagenet1000.json'))
   }
-  const modelInfo = getModelInfo(id)
+  return existsSync(getClassificationModelPath(modelId, cwd))
+}
 
-  if (!modelInfo) {
-    return { success: false, error: '未知的模型 ID', downloadUrls: [] }
+function checkPresetModelsReady(cwd: string, presetId: ClassificationPresetId): boolean {
+  const preset = getPresetById(presetId)
+  const modelsDir = getModelsDir(cwd)
+  const promptsPath = join(modelsDir, preset.promptsFile)
+  if (!existsSync(promptsPath)) return false
+  return getPresetRequiredModelIds(preset).every(id => checkSingleModelExists(cwd, id))
+}
+
+// IPC 处理器：检查指定模型或预设是否就绪
+ipcHandle('model:checkExists', async (_event, modelOrPresetId?: string): Promise<boolean> => {
+  const cwd = resolveProjectRoot()
+  const id = modelOrPresetId ?? 'accuracy_balanced'
+
+  if (isPresetDownloadId(id) || isPresetId(id)) {
+    return checkPresetModelsReady(cwd, id as ClassificationPresetId)
   }
 
-  if (id === 'cognivision') {
+  const modelId = id as ClassificationModelId
+  if (modelId === 'clip_vit_b32_quant') {
+    return checkPresetModelsReady(cwd, 'accuracy_light')
+  }
+  if (modelId === 'clip_vit_l14_quant') {
+    return checkPresetModelsReady(cwd, 'accuracy_max')
+  }
+  return checkSingleModelExists(cwd, modelId)
+})
+
+function ensurePromptsFile(promptsFile: string): boolean {
+  const root = resolveProjectRoot()
+  const promptsPath = join(getModelsDir(root), promptsFile)
+  if (existsSync(promptsPath)) return true
+
+  const bootstrapScript = join(root, 'scripts', 'bootstrap-clip-prompts.mjs')
+  if (!existsSync(bootstrapScript)) {
+    console.warn('[Main] 缺少 prompts 且未找到 bootstrap 脚本:', bootstrapScript)
+    return false
+  }
+
+  try {
+    const key = promptsFile.includes('l14') ? 'l14' : 'b32'
+    console.log('[Main] 自动生成 prompts:', promptsFile)
+    const result = spawnSync(process.execPath, [bootstrapScript, key], {
+      cwd: root,
+      stdio: 'pipe',
+      timeout: 120_000,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+    })
+    if (result.status !== 0) {
+      console.warn('[Main] bootstrap prompts 失败:', result.stderr?.toString())
+    }
+  } catch (e) {
+    console.warn('[Main] bootstrap prompts 异常:', e)
+  }
+
+  return existsSync(promptsPath)
+}
+
+async function downloadSingleModelInternal(
+  modelId: ClassificationModelId,
+  onProgress?: (progress: number) => void
+): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> {
+  downloadCancelled = false
+  return downloadModelFile(modelId, {
+    isCancelled: () => downloadCancelled,
+    onProgress: p => onProgress?.(p.progress),
+    onSaved: id => clearModelCache(id),
+    sendIpcProgress: p => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('model:downloadProgress', p)
+      }
+    }
+  })
+}
+
+async function downloadPresetBundle(
+  presetId: ClassificationPresetId
+): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> {
+  const cwd = resolveProjectRoot()
+  const preset = getPresetById(presetId)
+
+  if (!ensurePromptsFile(preset.promptsFile)) {
+    return {
+      success: false,
+      error: `缺少 ${preset.promptsFile}，请在项目根目录执行: npm run bootstrap:clip-prompts`,
+      downloadUrls: []
+    }
+  }
+
+  const required = getPresetRequiredModelIds(preset)
+  const missing = required.filter(mid => !checkSingleModelExists(cwd, mid))
+  if (missing.length === 0) {
     return { success: true }
   }
 
-  const https = await import('https')
-  const http = await import('http')
-  const nodeFs = await import('fs')
+  console.log('[Main] 预设下载', presetId, '缺失模型:', missing.join(', '))
 
-  const modelUrls = modelInfo.downloadUrls
-  
-  const modelFileName = MODEL_FILE_NAMES[id] || `${id}.onnx`
-  const modelPath = join(process.cwd(), 'models', modelFileName)
-  const tempPath = join(process.cwd(), 'models', `${modelFileName}.tmp`)
-
-  downloadCancelled = false
-
-  const modelsDir = join(process.cwd(), 'models')
-  if (!existsSync(modelsDir)) {
-    mkdirSync(modelsDir, { recursive: true })
+  for (let i = 0; i < missing.length; i++) {
+    const modelId = missing[i]
+    if (!getModelInfo(modelId)) {
+      return {
+        success: false,
+        error: `预设 ${presetId} 包含无效模型引用: ${modelId}`,
+        downloadUrls: []
+      }
+    }
+    const result = await downloadSingleModelInternal(modelId, p => {
+      const base = Math.round((i / missing.length) * 100)
+      const slice = Math.round(p / missing.length)
+      const combined = Math.min(99, base + slice)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('model:downloadProgress', {
+          progress: combined,
+          bytesDownloaded: 0,
+          totalBytes: 0
+        })
+      }
+    })
+    if (!result.success) {
+      return {
+        ...result,
+        error: result.error ? `下载 ${modelId} 失败: ${result.error}` : `下载 ${modelId} 失败`
+      }
+    }
   }
 
-  if (existsSync(tempPath)) {
-    nodeFs.unlinkSync(tempPath)
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('model:downloadProgress', {
+      progress: 100,
+      bytesDownloaded: 0,
+      totalBytes: 0
+    })
   }
+  return { success: true }
+}
 
-  return new Promise((resolve) => {
-    const tryDownload = (urlIndex: number): void => {
-      if (downloadCancelled) {
-        resolve({ success: false, cancelled: true })
-        return
-      }
+// IPC 处理器：下载模型文件（支持 presetId，按序下载缺失模型）
+ipcHandle('model:download', async (_event, modelOrPresetId?: unknown): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
+  try {
+    const rawId = parseDownloadTargetId(modelOrPresetId)
+    console.log('[Main] model:download 目标:', rawId, '根目录:', resolveProjectRoot(), '原始参数:', modelOrPresetId)
 
-      if (urlIndex >= modelUrls.length) {
-        console.error('[Main] 所有下载 URL 均失败')
-        resolve({ success: false, error: '无法找到模型文件，请手动下载', downloadUrls: [...modelUrls] })
-        return
-      }
-
-      const modelUrl = modelUrls[urlIndex]
-      console.log(`[Main] 尝试下载 (${urlIndex + 1}/${modelUrls.length}): ${modelUrl}`)
-
-      const protocol = modelUrl.startsWith('https') ? https : http
-
-      const handleRedirectResponse = (response: any) => {
-        if (response.statusCode !== 200) {
-          if (response.statusCode === 404) {
-            console.log('[Main] URL 不可用，尝试下一个:', modelUrl)
-            tryDownload(urlIndex + 1)
-            return
-          }
-          console.error('[Main] 下载失败，HTTP 状态码:', response.statusCode)
-          resolve({ success: false, error: `HTTP ${response.statusCode}` })
-          return
-        }
-
-        const totalBytes = parseInt(response.headers['content-length'] || '0', 10)
-        console.log('[Main] 模型文件大小:', (totalBytes / 1024 / 1024).toFixed(2), 'MB')
-
-        const fileStream = nodeFs.createWriteStream(tempPath)
-        let downloadedBytes = 0
-
-        response.on('data', (chunk: Buffer) => {
-          if (downloadCancelled) {
-            fileStream.destroy()
-            response.destroy()
-            return
-          }
-
-          downloadedBytes += chunk.length
-
-          if (totalBytes > 0) {
-            const progress = Math.round((downloadedBytes / totalBytes) * 100)
-
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('model:downloadProgress', {
-                progress,
-                bytesDownloaded: downloadedBytes,
-                totalBytes
-              })
-            }
-          }
-        })
-
-        response.on('end', () => {
-          if (downloadCancelled) {
-            if (existsSync(tempPath)) {
-              nodeFs.unlinkSync(tempPath)
-            }
-            resolve({ success: false, cancelled: true })
-            return
-          }
-
-          fileStream.close()
-
-          try {
-            nodeFs.renameSync(tempPath, modelPath)
-            clearModelCache(id)
-            console.log('[Main] 模型下载完成:', modelPath, `(${modelInfo.name})`)
-            resolve({ success: true })
-          } catch (error: any) {
-            console.error('[Main] 重命名文件失败:', error)
-            if (existsSync(tempPath)) {
-              nodeFs.unlinkSync(tempPath)
-            }
-            resolve({ success: false, error: error.message })
-          }
-        })
-
-        response.on('error', (error: any) => {
-          console.error('[Main] 下载流错误:', error)
-          fileStream.destroy()
-          if (existsSync(tempPath)) {
-            nodeFs.unlinkSync(tempPath)
-          }
-          resolve({ success: false, error: error.message })
-        })
-
-        fileStream.on('error', (error: any) => {
-          console.error('[Main] 写入文件错误:', error)
-          if (existsSync(tempPath)) {
-            nodeFs.unlinkSync(tempPath)
-          }
-          resolve({ success: false, error: error.message })
-        })
-      }
-
-      const request = protocol.get(modelUrl, (response: any) => {
-        if (response.statusCode === 302 || response.statusCode === 301) {
-          const redirectUrl = response.headers.location
-          if (redirectUrl) {
-            console.log('[Main] 重定向到:', redirectUrl)
-            const redirectProtocol = redirectUrl.startsWith('https') ? https : http
-            redirectProtocol.get(redirectUrl, handleRedirectResponse)
-            return
-          }
-        }
-
-        handleRedirectResponse(response)
-      })
-
-      request.on('error', (error: any) => {
-        console.error('[Main] 下载请求失败:', error)
-        tryDownload(urlIndex + 1)
-      })
-
-      request.setTimeout(30000, () => {
-        console.error('[Main] 下载请求超时，尝试下一个 URL')
-        request.destroy()
-        tryDownload(urlIndex + 1)
-      })
+    if (isPresetDownloadId(rawId)) {
+      return await downloadPresetBundle(rawId)
     }
 
-    console.log('[Main] 开始下载模型...')
-    tryDownload(0)
-  })
+    if (rawId === 'clip_vit_b32_quant' || rawId === 'clip_vit_l14_quant' || rawId === 'efficientnet_b4') {
+      const presetId = legacyModelIdToPreset(rawId)
+      console.log('[Main] 旧版模型选项映射为预设下载:', rawId, '->', presetId)
+      return await downloadPresetBundle(presetId)
+    }
+
+    const cwd = resolveProjectRoot()
+    let modelId = rawId as ClassificationModelId
+
+    if (!getModelInfo(modelId)) {
+      return {
+        success: false,
+        error: `未知的下载目标「${rawId}」。请在上方选择「轻量 / 平衡 / 最高」精准度；进阶区请选 MobileNet / EfficientNet 等具体模型。`,
+        downloadUrls: []
+      }
+    }
+
+    if (modelId === 'clip_vit_b32_quant' && !existsSync(getClassificationModelPath('mobilenetv2', cwd))) {
+      modelId = 'mobilenetv2'
+    }
+    return await downloadSingleModelInternal(modelId)
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('[Main] model:download 未捕获异常:', error)
+    return { success: false, error: msg || '下载过程发生未知错误', downloadUrls: [] }
+  }
 })
 
 // IPC 处理器：取消下载
@@ -1947,12 +1955,10 @@ ipcHandle('model:saveFile', async (_event, sourcePath: string): Promise<string |
     const resolvedId = modelIdFromOnnxBasename(filename)
     const modelId = resolvedId || (filename.replace('.onnx', '').toLowerCase() as ClassificationModelId)
     const modelFileName = MODEL_FILE_NAMES[modelId] || filename
-    const targetPath = join(process.cwd(), 'models', modelFileName)
+    const root = resolveProjectRoot()
+    const targetPath = getClassificationModelPath(modelId, root)
 
-    const modelsDir = join(process.cwd(), 'models')
-    if (!existsSync(modelsDir)) {
-      mkdirSync(modelsDir, { recursive: true })
-    }
+    ensureModelsDir(root)
 
     fs.copyFileSync(sourcePath, targetPath)
     clearModelCache(modelId)
@@ -1983,16 +1989,14 @@ async function saveModelFile(sourcePath: string): Promise<string | null> {
   const modelId = resolvedId || (filename.replace('.onnx', '').toLowerCase() as ClassificationModelId)
   const modelFileName = MODEL_FILE_NAMES[modelId] || filename
   
-  const targetDir = join(process.cwd(), 'models')
+  const root = resolveProjectRoot()
+  const targetDir = getModelsDir(root)
   const targetPath = join(targetDir, modelFileName)
 
   console.log('[Main] 目标路径:', targetPath)
 
   try {
-    if (!existsSync(targetDir)) {
-      console.log('[Main] 创建目录:', targetDir)
-      mkdirSync(targetDir, { recursive: true })
-    }
+    ensureModelsDir(root)
 
     if (existsSync(targetPath)) {
       console.log('[Main] 删除旧文件')

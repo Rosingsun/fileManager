@@ -380,8 +380,69 @@ export interface ImageClassificationConfig {
   imagePaths: string[]
   batchSize?: number // 批处理大小，默认 10
   includeSubdirectories?: boolean
-  modelId?: string // 使用的模型 ID
+  /** @deprecated 使用 presetId */
+  modelId?: string
+  /** 精准度预设：accuracy_light | accuracy_balanced | accuracy_max */
+  presetId?: ClassificationPresetId
 }
+
+export type ClassificationPresetId =
+  | 'accuracy_light'
+  | 'accuracy_balanced'
+  | 'accuracy_max'
+
+export const CLASSIFICATION_PRESET_STORAGE_KEY = 'classification_selected_preset'
+
+export const DEFAULT_CLASSIFICATION_PRESET_ID: ClassificationPresetId = 'accuracy_balanced'
+
+export interface ClassificationPresetInfo {
+  id: ClassificationPresetId
+  name: string
+  description: string
+  clipModelId: string
+  imagenetModelId: string
+  promptsFile: string
+  ttaCropCount: number
+  estimatedSpeedFactor: number
+  totalSizeMB: number
+}
+
+/** 前端展示用（IPC 不可用时兜底，与主进程预设一致） */
+export const CLASSIFICATION_PRESET_UI_OPTIONS: ClassificationPresetInfo[] = [
+  {
+    id: 'accuracy_light',
+    name: '轻量精准',
+    description: 'CLIP B/32 + MobileNet，速度最快',
+    clipModelId: 'clip_vit_b32_quant',
+    imagenetModelId: 'mobilenetv2',
+    promptsFile: 'clip-prompts.json',
+    ttaCropCount: 1,
+    estimatedSpeedFactor: 1,
+    totalSizeMB: 104
+  },
+  {
+    id: 'accuracy_balanced',
+    name: '平衡精准',
+    description: 'CLIP B/32 + EfficientNet-B4 + 3 裁剪，推荐',
+    clipModelId: 'clip_vit_b32_quant',
+    imagenetModelId: 'efficientnet_b4',
+    promptsFile: 'clip-prompts.json',
+    ttaCropCount: 3,
+    estimatedSpeedFactor: 2.5,
+    totalSizeMB: 179
+  },
+  {
+    id: 'accuracy_max',
+    name: '最高精准',
+    description: 'CLIP L/14 + EfficientNet-B4 + 5 裁剪',
+    clipModelId: 'clip_vit_l14_quant',
+    imagenetModelId: 'efficientnet_b4',
+    promptsFile: 'clip-prompts-l14.json',
+    ttaCropCount: 5,
+    estimatedSpeedFactor: 5,
+    totalSizeMB: 249
+  }
+]
 
 export interface ImageClassificationProgress {
   current: number

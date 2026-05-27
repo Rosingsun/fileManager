@@ -19,6 +19,16 @@ const CATEGORIES: ImageContentCategory[] = [
   'other'
 ]
 
+export interface ClipDisambiguationBlock {
+  pairKey: string
+  categoryA: ImageContentCategory
+  categoryB: ImageContentCategory
+  promptsA: string[]
+  promptsB: string[]
+  embeddingsA: number[][]
+  embeddingsB: number[][]
+}
+
 export interface ClipPromptsFile {
   modelId: string
   dim: number
@@ -27,11 +37,11 @@ export interface ClipPromptsFile {
     prompts: string[]
     embeddings: number[][]
   }>
+  disambiguation?: ClipDisambiguationBlock[]
 }
 
-let cachedPrompts: ClipPromptsFile | null = null
-let cachedSession: InferenceSession | null = null
-let cachedModelPath: string | null = null
+const promptsCache = new Map<string, ClipPromptsFile>()
+const clipSessions = new Map<string, InferenceSession | null>()
 
 function l2NormalizeArray(a: Float32Array): Float32Array {
   let s = 0
@@ -42,49 +52,72 @@ function l2NormalizeArray(a: Float32Array): Float32Array {
   return o
 }
 
-function loadPromptsFile(modelsDir: string): ClipPromptsFile | null {
-  if (cachedPrompts) return cachedPrompts
-  const p = join(modelsDir, 'clip-prompts.json')
+function dotNormalized(a: Float32Array, b: number[]): number {
+  const te = new Float32Array(b.length)
+  for (let i = 0; i < b.length; i++) te[i] = b[i]
+  const tnorm = l2NormalizeArray(te)
+  let dot = 0
+  for (let i = 0; i < a.length; i++) dot += a[i] * tnorm[i]
+  return dot
+}
+
+function maxMeanCos(imageEmb: Float32Array, embeddings: number[][]): number {
+  let maxCos = -1
+  let sumCos = 0
+  let count = 0
+  for (const emb of embeddings) {
+    const dot = dotNormalized(imageEmb, emb)
+    sumCos += dot
+    count += 1
+    if (dot > maxCos) maxCos = dot
+  }
+  const meanCos = count > 0 ? sumCos / count : 0
+  return maxCos >= 0 ? 0.62 * maxCos + 0.38 * meanCos : meanCos
+}
+
+function loadPromptsFile(modelsDir: string, fileName = 'clip-prompts.json'): ClipPromptsFile | null {
+  const cacheKey = join(modelsDir, fileName)
+  const cached = promptsCache.get(cacheKey)
+  if (cached) return cached
+
+  const p = join(modelsDir, fileName)
   if (!existsSync(p)) {
-    console.warn('[CLIP] 未找到', p, '，将仅使用 ImageNet 聚合。可运行 scripts/_clip_text_gen/generate-prompts.mjs 生成。')
+    console.warn('[CLIP] 未找到', p)
     return null
   }
   try {
     const raw = readFileSync(p, 'utf-8')
     const j = JSON.parse(raw) as ClipPromptsFile
     if (!j.categories?.length) return null
-    cachedPrompts = j
+    promptsCache.set(cacheKey, j)
     return j
   } catch (e) {
-    console.warn('[CLIP] 读取 clip-prompts.json 失败', e)
+    console.warn('[CLIP] 读取 prompts 失败', e)
     return null
   }
 }
 
 export function clearClipModelCache(): void {
-  cachedSession = null
-  cachedModelPath = null
-  cachedPrompts = null
+  clipSessions.clear()
+  promptsCache.clear()
 }
 
 export async function getClipSession(modelPath: string): Promise<InferenceSession | null> {
-  if (cachedSession && cachedModelPath === modelPath) return cachedSession
+  const cached = clipSessions.get(modelPath)
+  if (cached !== undefined) return cached
   if (!existsSync(modelPath)) return null
   try {
     const session = await InferenceSession.create(modelPath, { executionProviders: ['cpu'] })
-    cachedSession = session
-    cachedModelPath = modelPath
-    console.log('[CLIP] 视觉模型已加载', modelPath, 'inputs:', session.inputNames, 'outputs:', session.outputNames)
+    clipSessions.set(modelPath, session)
+    console.log('[CLIP] 视觉模型已加载', modelPath)
     return session
   } catch (e) {
     console.error('[CLIP] 加载视觉模型失败', e)
+    clipSessions.set(modelPath, null)
     return null
   }
 }
 
-/**
- * 将 CLIP 预处理的 NCHW float32 张量（已归一化）送入视觉编码器，返回 L2 归一化图像向量
- */
 export async function encodeClipImagePixels(
   session: InferenceSession,
   pixelsNCHW: Float32Array,
@@ -92,8 +125,7 @@ export async function encodeClipImagePixels(
 ): Promise<Float32Array | null> {
   const inputName = session.inputNames[0] || 'pixel_values'
   const tensor = new Tensor('float32', pixelsNCHW, [1, 3, inputSize, inputSize])
-  const feeds: Record<string, Tensor> = {}
-  feeds[inputName] = tensor
+  const feeds: Record<string, Tensor> = { [inputName]: tensor }
   const results = await session.run(feeds)
   const outName =
     session.outputNames.find(n => /embed|pooler|image/i.test(n)) || session.outputNames[0]
@@ -103,7 +135,20 @@ export async function encodeClipImagePixels(
   return l2NormalizeArray(new Float32Array(data))
 }
 
-/** logits -> softmax with temperature */
+/** 多裁剪 embedding：L2 归一化后取平均，再 L2 归一化 */
+export function averageClipEmbeddings(embeddings: Float32Array[]): Float32Array | null {
+  if (!embeddings.length) return null
+  if (embeddings.length === 1) return embeddings[0]
+
+  const dim = embeddings[0].length
+  const sum = new Float32Array(dim)
+  for (const emb of embeddings) {
+    for (let i = 0; i < dim; i++) sum[i] += emb[i]
+  }
+  for (let i = 0; i < dim; i++) sum[i] /= embeddings.length
+  return l2NormalizeArray(sum)
+}
+
 function softmaxTemperature(logits: number[], t = 0.01): number[] {
   const scaled = logits.map(l => l / t)
   let max = -Infinity
@@ -113,12 +158,10 @@ function softmaxTemperature(logits: number[], t = 0.01): number[] {
   return exps.map(e => e / s)
 }
 
-/**
- * 对每类多条 prompt 嵌入取平均并 L2 归一化，再与图像向量点积得 logits
- */
 export function scoreClipZeroShot(
   imageEmb: Float32Array,
-  prompts: ClipPromptsFile
+  prompts: ClipPromptsFile,
+  temperature = 0.058
 ): NineProbabilities {
   const out: NineProbabilities = {
     person: 0,
@@ -136,26 +179,11 @@ export function scoreClipZeroShot(
   const catKeys: ImageContentCategory[] = []
 
   for (const block of prompts.categories) {
-    let maxCos = -1
-    let sumCos = 0
-    let count = 0
-    for (const emb of block.embeddings) {
-      const te = new Float32Array(emb.length)
-      for (let i = 0; i < emb.length; i++) te[i] = emb[i]
-      const tnorm = l2NormalizeArray(te)
-      let dot = 0
-      for (let i = 0; i < imageEmb.length; i++) dot += imageEmb[i] * tnorm[i]
-      sumCos += dot
-      count += 1
-      if (dot > maxCos) maxCos = dot
-    }
-    const meanCos = count > 0 ? sumCos / count : 0
-    const logit = maxCos >= 0 ? 0.62 * maxCos + 0.38 * meanCos : meanCos
-    logits.push(logit)
+    logits.push(maxMeanCos(imageEmb, block.embeddings))
     catKeys.push(block.category)
   }
 
-  const probs = softmaxTemperature(logits, 0.058)
+  const probs = softmaxTemperature(logits, temperature)
   for (let i = 0; i < catKeys.length; i++) {
     out[catKeys[i]] = probs[i] ?? 0
   }
@@ -163,10 +191,24 @@ export function scoreClipZeroShot(
   return out
 }
 
-export function isClipAvailable(modelsDir: string, visionOnnxName: string): boolean {
+export function scorePairwiseDisambiguation(
+  imageEmb: Float32Array,
+  block: ClipDisambiguationBlock
+): { scoreA: number; scoreB: number } {
+  return {
+    scoreA: maxMeanCos(imageEmb, block.embeddingsA),
+    scoreB: maxMeanCos(imageEmb, block.embeddingsB)
+  }
+}
+
+export function isClipAvailable(
+  modelsDir: string,
+  visionOnnxName: string,
+  promptsFile = 'clip-prompts.json'
+): boolean {
   const v = join(modelsDir, visionOnnxName)
-  const p = join(modelsDir, 'clip-prompts.json')
-  return existsSync(v) && existsSync(p) && (loadPromptsFile(modelsDir) !== null)
+  const p = join(modelsDir, promptsFile)
+  return existsSync(v) && existsSync(p) && loadPromptsFile(modelsDir, promptsFile) !== null
 }
 
 export { CLIP_MEAN, CLIP_STD, CATEGORIES, loadPromptsFile }
