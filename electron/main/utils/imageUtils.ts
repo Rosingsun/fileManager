@@ -181,7 +181,12 @@ export async function preprocessImage(imagePath: string, inputSize: number = 224
 }
 
 // ---------- image editing / format / compression helpers -----------
-import type { ImageEditSettings, FormatConversionOptions, CompressionOptions } from '../../src/types'
+import type {
+  ImageEditSettings,
+  FormatConversionOptions,
+  CompressionOptions,
+  ExportPreviewResult,
+} from '../../src/types'
 import { composeLuts, type ToneLutResult } from '../../../src/utils/toneCurve'
 import { applyHslHueAdjustToBuffer, isHslHueAdjustDefault } from '../../../src/utils/hslHueAdjust'
 import { applyDehazeToBuffer, applyVibranceToBuffer } from '../../../src/utils/imageColorEffects'
@@ -462,13 +467,37 @@ export async function previewEdits(
   return `data:image/jpeg;base64,${buffer.toString('base64')}`
 }
 
-/** 与同目录原图并排生成唯一文件名，保留扩展名；默认 `{原名}_编辑_{日期时间}` */
-async function generateUniqueEditedOutputPath(sourcePath: string): Promise<string> {
+function normalizeExportFormat(fmt: string): string {
+  const f = fmt.toLowerCase()
+  return f === 'jpg' ? 'jpeg' : f
+}
+
+function extensionForFormat(fmt: string): string {
+  const n = normalizeExportFormat(fmt)
+  if (n === 'jpeg') return '.jpg'
+  if (n === 'tiff') return '.tif'
+  return `.${n}`
+}
+
+function extensionsMatch(sourceExt: string, targetExt: string): boolean {
+  const s = sourceExt.toLowerCase()
+  const t = targetExt.toLowerCase()
+  if (s === t) return true
+  if ((s === '.jpg' || s === '.jpeg') && (t === '.jpg' || t === '.jpeg')) return true
+  if ((s === '.tif' || s === '.tiff') && (t === '.tif' || t === '.tiff')) return true
+  return false
+}
+
+/** 与同目录原图并排生成唯一文件名；默认 `{原名}_编辑_{日期时间}` */
+async function generateUniqueEditedOutputPath(
+  sourcePath: string,
+  targetExt?: string
+): Promise<string> {
   const path = await import('path')
   const fsExtra = await import('fs-extra')
   const dir = path.dirname(sourcePath)
-  const ext = path.extname(sourcePath)
-  const stem = path.basename(sourcePath, ext)
+  const ext = targetExt ?? path.extname(sourcePath)
+  const stem = path.basename(sourcePath, path.extname(sourcePath))
   const pad = (n: number) => String(n).padStart(2, '0')
   const d = new Date()
   const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
@@ -567,128 +596,234 @@ export async function getImageHistogram(filePath: string): Promise<LuminanceHist
 
 export { LARGE_IMAGE_PIXELS }
 
+const PREVIEW_EXPORT_MAX_EDGE = 1280
+
+async function buildExportSharpInstance(
+  filePath: string,
+  options: FormatConversionOptions,
+  maxEdge?: number
+): Promise<sharp.Sharp> {
+  const { displayPath } = await resolveStillPathForDisplay(filePath)
+  let instance = sharp(displayPath)
+
+  if (options.editSettings) {
+    instance = await buildImageEditPipeline(instance, options.editSettings)
+  }
+
+  const metaBeforeResize = await instance.metadata()
+  const rw = metaBeforeResize.width ?? 0
+  const rh = metaBeforeResize.height ?? 0
+  if (rw > 0 && rh > 0) {
+    if (options.scalePercent != null && options.scalePercent > 0 && options.scalePercent < 100) {
+      instance = instance.resize(
+        Math.max(1, Math.round(rw * (options.scalePercent / 100))),
+        Math.max(1, Math.round(rh * (options.scalePercent / 100))),
+        { fit: 'inside', withoutEnlargement: true }
+      )
+    } else if (options.maxEdge != null && options.maxEdge > 0) {
+      const longest = Math.max(rw, rh)
+      if (longest > options.maxEdge) {
+        const s = options.maxEdge / longest
+        instance = instance.resize(Math.round(rw * s), Math.round(rh * s), {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+      }
+    } else if (maxEdge != null && maxEdge > 0) {
+      const longest = Math.max(rw, rh)
+      if (longest > maxEdge) {
+        const s = maxEdge / longest
+        instance = instance.resize(Math.round(rw * s), Math.round(rh * s), {
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+      }
+    }
+  }
+
+  return instance
+}
+
+function applyExportEncoding(
+  instance: sharp.Sharp,
+  targetFormat: string,
+  quality: number
+): { pipeline: sharp.Sharp; mime: string } {
+  const fmt = normalizeExportFormat(targetFormat)
+  const q = Math.max(1, Math.min(quality || 80, 100))
+  if (fmt === 'jpeg') {
+    return { pipeline: instance.jpeg({ quality: q, mozjpeg: true }), mime: 'image/jpeg' }
+  }
+  if (fmt === 'png') {
+    return { pipeline: instance.png({ quality: q }), mime: 'image/png' }
+  }
+  if (fmt === 'webp') {
+    return { pipeline: instance.webp({ quality: q }), mime: 'image/webp' }
+  }
+  if (fmt === 'bmp') {
+    return { pipeline: instance.bmp(), mime: 'image/bmp' }
+  }
+  if (fmt === 'tiff') {
+    return { pipeline: instance.tiff({ quality: q }), mime: 'image/tiff' }
+  }
+  return { pipeline: instance.jpeg({ quality: q, mozjpeg: true }), mime: 'image/jpeg' }
+}
+
+async function resolveExportOutputPath(
+  normalizedFilePath: string,
+  options: FormatConversionOptions,
+  targetFormat: string,
+  explicitOutputPath?: string
+): Promise<{ outputFilePath: string; deleteSourceAfterWrite: boolean }> {
+  const path = await import('path')
+  const fmt = normalizeExportFormat(targetFormat)
+  const targetExt = extensionForFormat(fmt)
+  const sourceExt = path.extname(normalizedFilePath)
+
+  if (explicitOutputPath) {
+    const fs = await import('fs')
+    const normalizedOutputPath = path.normalize(explicitOutputPath)
+    const fmtSlug = fmt === 'jpeg' ? 'jpg' : fmt === 'tiff' ? 'tif' : fmt
+    if (fs.existsSync(normalizedOutputPath)) {
+      const stats = fs.statSync(normalizedOutputPath)
+      if (stats.isDirectory()) {
+        const fileName = path.basename(normalizedFilePath, sourceExt)
+        return {
+          outputFilePath: path.join(normalizedOutputPath, `${fileName}-new.${fmtSlug}`),
+          deleteSourceAfterWrite: false,
+        }
+      }
+    }
+    if (normalizedOutputPath !== normalizedFilePath) {
+      return { outputFilePath: normalizedOutputPath, deleteSourceAfterWrite: false }
+    }
+    const fileName = path.basename(normalizedFilePath, sourceExt)
+    const outputDir = path.dirname(normalizedFilePath)
+    return {
+      outputFilePath: path.join(outputDir, `${fileName}-new.${fmtSlug}`),
+      deleteSourceAfterWrite: false,
+    }
+  }
+
+  if (options.overwrite) {
+    if (extensionsMatch(sourceExt, targetExt)) {
+      return { outputFilePath: normalizedFilePath, deleteSourceAfterWrite: false }
+    }
+    const dir = path.dirname(normalizedFilePath)
+    const stem = path.basename(normalizedFilePath, sourceExt)
+    return {
+      outputFilePath: path.join(dir, `${stem}${targetExt}`),
+      deleteSourceAfterWrite: true,
+    }
+  }
+
+  if (options.editSettings) {
+    const outputFilePath = await generateUniqueEditedOutputPath(normalizedFilePath, targetExt)
+    return { outputFilePath, deleteSourceAfterWrite: false }
+  }
+
+  const fileName = path.basename(normalizedFilePath, sourceExt)
+  const outputDir = path.dirname(normalizedFilePath)
+  return {
+    outputFilePath: path.join(outputDir, `${fileName}-new.${fmt === 'jpeg' ? 'jpg' : fmt === 'tiff' ? 'tif' : fmt}`),
+    deleteSourceAfterWrite: false,
+  }
+}
+
+async function writeSharpToPath(
+  instance: sharp.Sharp,
+  outputFilePath: string,
+  overwriteInPlace: boolean
+): Promise<void> {
+  const path = await import('path')
+  const fs = await import('fs')
+  const fsExtra = await import('fs-extra')
+  const os = await import('os')
+  const { randomUUID } = await import('crypto')
+
+  const outputDir = path.dirname(outputFilePath)
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true })
+  }
+
+  if (overwriteInPlace) {
+    const tmpPath = path.join(os.tmpdir(), `filedeal-export-${randomUUID()}${path.extname(outputFilePath)}`)
+    try {
+      await instance.toFile(tmpPath)
+      await fsExtra.move(tmpPath, outputFilePath, { overwrite: true })
+    } catch (err) {
+      try {
+        if (fsExtra.existsSync(tmpPath)) await fsExtra.unlink(tmpPath)
+      } catch (_e) {
+        /* ignore */
+      }
+      throw err
+    }
+    return
+  }
+
+  await instance.toFile(outputFilePath)
+}
+
+/** 降采样导出预览：应用编辑 + 目标格式/质量，返回 data URL 与体积 */
+export async function previewExport(
+  filePath: string,
+  options: FormatConversionOptions,
+  maxEdge: number = PREVIEW_EXPORT_MAX_EDGE
+): Promise<ExportPreviewResult> {
+  let instance = await buildExportSharpInstance(filePath, options, maxEdge)
+  const { pipeline, mime } = applyExportEncoding(instance, options.targetFormat, options.quality ?? 80)
+  const { data, info } = await pipeline.toBuffer({ resolveWithObject: true })
+  const base64 = data.toString('base64')
+  return {
+    dataUrl: `data:${mime};base64,${base64}`,
+    byteSize: data.length,
+    width: info.width ?? 0,
+    height: info.height ?? 0,
+  }
+}
+
 export async function convertFormat(
   filePath: string,
   options: FormatConversionOptions,
   outputPath?: string
 ): Promise<string> {
   try {
-    console.log(`[convertFormat] 开始转换: ${filePath}`)
-    console.log(`[convertFormat] 选项:`, options)
-    console.log(`[convertFormat] 输出路径:`, outputPath)
-    
-    // 规范化路径，确保在Windows和Linux上都能正常工作
-    const fs = await import('fs')
     const path = await import('path')
+    const fsExtra = await import('fs-extra')
     const normalizedFilePath = path.normalize(filePath)
-    const normalizedOutputPath = outputPath ? path.normalize(outputPath) : undefined
-    
-    console.log(`[convertFormat] 规范化后输入路径:`, normalizedFilePath)
-    console.log(`[convertFormat] 规范化后输出路径:`, normalizedOutputPath)
-    
-    let instance = sharp(normalizedFilePath)
+    const fmt = normalizeExportFormat(options.targetFormat)
 
-    if (options.editSettings) {
-      instance = await buildImageEditPipeline(instance, options.editSettings)
-    }
+    let instance = await buildExportSharpInstance(filePath, options)
+    const { pipeline } = applyExportEncoding(instance, options.targetFormat, options.quality ?? 80)
 
-    const metaBeforeResize = await instance.metadata()
-    const rw = metaBeforeResize.width ?? 0
-    const rh = metaBeforeResize.height ?? 0
-    if (rw > 0 && rh > 0) {
-      if (options.scalePercent != null && options.scalePercent > 0 && options.scalePercent < 100) {
-        instance = instance.resize(
-          Math.max(1, Math.round(rw * (options.scalePercent / 100))),
-          Math.max(1, Math.round(rh * (options.scalePercent / 100))),
-          { fit: 'inside', withoutEnlargement: true }
-        )
-      } else if (options.maxEdge != null && options.maxEdge > 0) {
-        const longest = Math.max(rw, rh)
-        if (longest > options.maxEdge) {
-          const s = options.maxEdge / longest
-          instance = instance.resize(Math.round(rw * s), Math.round(rh * s), {
-            fit: 'inside',
-            withoutEnlargement: true,
-          })
-        }
-      }
-    }
+    const { outputFilePath, deleteSourceAfterWrite } = await resolveExportOutputPath(
+      normalizedFilePath,
+      options,
+      fmt,
+      outputPath
+    )
 
-    const fmt = options.targetFormat.toLowerCase()
-    if (fmt === 'jpeg' || fmt === 'jpg') {
-      instance = instance.jpeg({ quality: options.quality || 80 })
-    } else if (fmt === 'png') {
-      instance = instance.png({ quality: options.quality || 80 })
-    } else if (fmt === 'webp') {
-      instance = instance.webp({ quality: options.quality || 80 })
-    } else if (fmt === 'bmp') {
-      instance = instance.bmp()
-    } else if (fmt === 'tiff' || fmt === 'tif') {
-      instance = instance.tiff({ quality: options.quality || 80 })
-    }
-    
-    let outputFilePath: string
-    
-    if (normalizedOutputPath) {
-      // 确保输出目录存在
-      let outputDir: string
-      if (fs.existsSync(normalizedOutputPath)) {
-        const stats = fs.statSync(normalizedOutputPath)
-        if (stats.isDirectory()) {
-          outputDir = normalizedOutputPath
-          const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
-          outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
-        } else {
-          // 如果是文件，且与输入文件不同，则使用该文件
-          if (normalizedOutputPath !== normalizedFilePath) {
-            outputFilePath = normalizedOutputPath
-            // 确保输出文件的目录存在
-            outputDir = path.dirname(normalizedOutputPath)
-          } else {
-            // 如果输出文件与输入文件相同，生成带"-new"后缀的文件名
-            const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
-            outputDir = path.dirname(normalizedFilePath)
-            outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
-          }
-        }
-      } else {
-        // 如果outputPath不存在，假设它是目录
-        outputDir = normalizedOutputPath
-        const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
-        outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
-      }
-      
-      // 确保输出目录存在
-      if (!fs.existsSync(outputDir)) {
-        console.log(`[convertFormat] 创建输出目录:`, outputDir)
-        fs.mkdirSync(outputDir, { recursive: true })
-      }
-    } else {
-      // 如果没有outputPath，在原目录生成带"-new"后缀的文件名
-      const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
-      const outputDir = path.dirname(normalizedFilePath)
-      outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
-    }
-    
-    console.log(`[convertFormat] 最终输出路径:`, outputFilePath)
-    
-    // 确保输出路径与输入路径不同
-    if (outputFilePath === normalizedFilePath) {
-      // 如果仍然相同，强制添加"-new"后缀
-      const fileName = path.basename(normalizedFilePath, path.extname(normalizedFilePath))
-      const outputDir = path.dirname(normalizedFilePath)
-      outputFilePath = path.join(outputDir, `${fileName}-new.${fmt}`)
-      console.log(`[convertFormat] 输出路径与输入路径相同，强制添加后缀:`, outputFilePath)
-    }
-    
-    await instance.toFile(outputFilePath)
-    console.log(`[convertFormat] 转换成功:`, outputFilePath)
+    const overwriteInPlace =
+      !!options.overwrite && outputFilePath === normalizedFilePath
+
+    await writeSharpToPath(pipeline, outputFilePath, overwriteInPlace)
 
     if (options.watermark) {
       const { previewWatermark } = await import('../services/imageToolService')
       const dataUrl = await previewWatermark(outputFilePath, options.watermark)
       const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '')
       await sharp(Buffer.from(base64, 'base64')).toFile(outputFilePath)
+    }
+
+    if (deleteSourceAfterWrite && normalizedFilePath !== outputFilePath) {
+      try {
+        if (await fsExtra.pathExists(normalizedFilePath)) {
+          await fsExtra.unlink(normalizedFilePath)
+        }
+      } catch (e) {
+        console.warn('[convertFormat] 删除原文件失败:', normalizedFilePath, e)
+      }
     }
 
     return outputFilePath

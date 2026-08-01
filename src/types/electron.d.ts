@@ -49,6 +49,10 @@ declare global {
       // image editing operations
       applyEdits: (paths: string[] | string, settings: import('./index').ImageEditSettings) => Promise<import('./index').BatchOperationResult[]>
       previewEdits: (filePath: string, settings: import('./index').ImageEditSettings) => Promise<string>
+      previewExport: (
+        filePath: string,
+        options: import('./index').FormatConversionOptions
+      ) => Promise<import('./index').ExportPreviewResult>
       getImageHistogram: (filePath: string) => Promise<{
         bins: number[]
         total: number
@@ -58,7 +62,11 @@ declare global {
         rgbBins?: { r: number[]; g: number[]; b: number[] }
       }>
       analyzeForEdit: (filePath: string) => Promise<import('./index').ImageEditSettings>
-      convertFormat: (paths: string[] | string, options: import('./index').FormatConversionOptions) => Promise<import('./index').BatchOperationResult[]>
+      convertFormat: (
+        paths: string[] | string,
+        options: import('./index').FormatConversionOptions,
+        outputPath?: string
+      ) => Promise<import('./index').BatchOperationResult[]>
       compressImage: (paths: string[] | string, options: import('./index').CompressionOptions) => Promise<import('./index').BatchOperationResult[]>
       estimateCompressedSize: (path: string, options: import('./index').CompressionOptions) => Promise<number>
       scanSimilarImages: (config: import('./index').SimilarityScanConfig) => Promise<import('./index').SimilarityScanResult>
@@ -67,13 +75,14 @@ declare global {
       scanImageQuality: (config: import('./index').ImageQualityScanConfig) => Promise<import('./index').ImageQualityScanResult>
       onImageQualityScanProgress: (callback: (progress: import('./index').ImageQualityScanProgress) => void) => () => void
       cancelImageQualityScan: () => void
-      classifyImage: (imagePath: string) => Promise<import('./index').ImageClassificationResult>
+      classifyImage: (imagePath: string, presetOrModelId?: string) => Promise<import('./index').ImageClassificationResult>
       classifyImagesBatch: (config: import('./index').ImageClassificationConfig) => Promise<import('./index').ImageClassificationBatchResult>
       onImageClassificationProgress: (callback: (progress: import('./index').ImageClassificationProgress) => void) => () => void
       cancelImageClassification: () => void
-      checkModelExists: (modelId?: string) => Promise<boolean>
+      checkModelExists: (modelOrPresetId?: string) => Promise<boolean>
       getAvailableModels: () => Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>>
-      downloadModel: (modelId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal) => Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }>
+      getAvailablePresets: () => Promise<import('./index').ClassificationPresetInfo[]>
+      downloadModel: (modelOrPresetId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal) => Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }>
       openExternalLink: (url: string) => Promise<boolean>
       saveRefreshToken: (token: string) => Promise<{ ok: boolean; error?: string }>
       loadRefreshToken: () => Promise<string | null>

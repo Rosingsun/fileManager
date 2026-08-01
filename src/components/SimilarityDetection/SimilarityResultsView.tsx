@@ -1,9 +1,11 @@
 import React, { useState, useRef, useCallback } from 'react'
 import { message } from 'antd'
 import { PictureOutlined } from '@ant-design/icons'
-import { TbCheck, TbRefresh, TbTrash } from '../icons'
-import type { SimilarityScanResult, SimilarityScanConfig, SimilarityGroup } from '../../types'
-import { formatFileSize, formatDateTime, logSignedInUserAction, imageLoader } from '../../utils'
+import { TbArrowsLeftRight, TbCheck, TbFolderSymlink, TbRefresh, TbTrash } from '../icons'
+import SimilarityCompareView from './SimilarityCompareView'
+import SimilarityMoveDialog from './SimilarityMoveDialog'
+import type { FileConflictAction, SimilarityScanResult, SimilarityScanConfig, SimilarityGroup } from '../../types'
+import { formatFileSize, formatDateTime, logSignedInUserAction, imageLoader, waitForElectronApiReady, getElectronApiIssueMessage } from '../../utils'
 import ImagePreview, { type ImageSource } from '../ImagePreview/ImagePreview'
 import { AppEmptyState } from '../UnifiedUI'
 import {
@@ -19,15 +21,21 @@ import { Checkbox } from '../ui/checkbox'
 import { FeatureActionDialogFooter } from '../FeatureAction'
 import { SimilarityButton, SimilarityButtonGroup } from './SimilarityButton'
 import SimilarityGroupStrip from './SimilarityGroupStrip'
-import { basename, getAlgorithmLabel } from './similarityShared'
+import { basename, getAlgorithmLabel, getDefaultDuplicateFolder, joinPath, removePathsFromSimilarityResult } from './similarityShared'
 
 interface SimilarityResultsViewProps {
   result: SimilarityScanResult
   config: SimilarityScanConfig
   onReset: () => void
+  onResultChange: (next: SimilarityScanResult) => void
 }
 
-const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, config, onReset }) => {
+const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
+  result,
+  config,
+  onReset,
+  onResultChange,
+}) => {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
   const [groupSelections, setGroupSelections] = useState<Map<string, Set<string>>>(new Map())
   const [previewVisible, setPreviewVisible] = useState(false)
@@ -38,6 +46,13 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<string[]>([])
   const [deleting, setDeleting] = useState(false)
+  const [compareOpen, setCompareOpen] = useState(false)
+  const [compareGroupIndex, setCompareGroupIndex] = useState(0)
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false)
+  const [moveDestDir, setMoveDestDir] = useState('')
+  const [moveConflict, setMoveConflict] = useState<FileConflictAction>('rename')
+  const [pendingMove, setPendingMove] = useState<string[]>([])
+  const [moving, setMoving] = useState(false)
   const loadingRef = useRef<Set<string>>(new Set())
 
   const loadAllThumbnails = useCallback(async () => {
@@ -150,6 +165,70 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
     logSignedInUserAction('similarity_mark_keep', `已标记 ${result.groups.length} 组推荐保留项`)
   }
 
+  const collectFilesToKeep = () => {
+    const paths: string[] = []
+    result.groups
+      .filter((g) => selectedGroups.has(g.id))
+      .forEach((group) => {
+        const keepSet = groupSelections.get(group.id) || new Set()
+        keepSet.forEach((p) => paths.push(p))
+      })
+    return paths
+  }
+
+  const handleMoveDuplicates = () => {
+    const filesToMove = collectFilesToDelete()
+    if (filesToMove.length === 0) {
+      message.warning('没有可移动的冗余照片')
+      return
+    }
+    setMoveDestDir(getDefaultDuplicateFolder(config.scanPath))
+    setPendingMove(filesToMove)
+    setMoveConflict('rename')
+    setMoveDialogOpen(true)
+  }
+
+  const handlePickMoveFolder = async () => {
+    if (moving) return
+    const ready = await waitForElectronApiReady({ requiredMethod: 'openDirectory' })
+    if (!ready || !window.electronAPI?.openDirectory) {
+      message.error(getElectronApiIssueMessage('openDirectory'))
+      return
+    }
+    const dir = await window.electronAPI.openDirectory()
+    if (dir) setMoveDestDir(dir)
+  }
+
+  const handleConfirmMove = async () => {
+    if (!window.electronAPI?.batchRelocate || !moveDestDir || pendingMove.length === 0) return
+    setMoving(true)
+    try {
+      const moves = pendingMove.map((from) => ({
+        from,
+        to: joinPath(moveDestDir, basename(from)),
+      }))
+      const results = await window.electronAPI.batchRelocate(moves, moveConflict)
+      const okPaths = new Set(results.filter((r) => r.success).map((r) => r.filePath))
+      const ok = okPaths.size
+      const fail = results.length - ok
+      if (fail === 0) message.success(`已将 ${ok} 张冗余照片移入重复文件夹`)
+      else message.warning(`整理完成：成功 ${ok}，失败 ${fail}`)
+      logSignedInUserAction(
+        'similarity_move_duplicates',
+        `相似图冗余移入重复文件夹（成功 ${ok}，失败 ${fail}）`,
+        moveDestDir
+      )
+      if (ok > 0) {
+        onResultChange(removePathsFromSimilarityResult(result, okPaths))
+      }
+      setMoveDialogOpen(false)
+      setPendingMove([])
+      setMoveDestDir('')
+    } finally {
+      setMoving(false)
+    }
+  }
+
   const collectFilesToDelete = () => {
     const filesToDelete: string[] = []
     result.groups
@@ -247,6 +326,11 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
     [result.groups, loadImageBase64]
   )
 
+  const openCompareAt = useCallback((index: number) => {
+    setCompareGroupIndex(index)
+    setCompareOpen(true)
+  }, [])
+
   const renderGroup = (group: SimilarityGroup, index: number) => (
     <article
       key={group.id}
@@ -265,7 +349,19 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
             </div>
           </div>
         </div>
-        <span className="sim-group__pct">{group.similarity}%</span>
+        <div className="sim-group__head-right">
+          {group.images.length >= 2 ? (
+            <SimilarityButton
+              variant="secondary"
+              size="sm"
+              icon={<TbArrowsLeftRight size={15} />}
+              onClick={() => openCompareAt(index)}
+            >
+              对比
+            </SimilarityButton>
+          ) : null}
+          <span className="sim-group__pct">{group.similarity}%</span>
+        </div>
       </header>
       <SimilarityGroupStrip
         group={group}
@@ -274,6 +370,7 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
         loadingPaths={loadingThumbnails}
         onToggleKeep={(path) => handleImageToggle(group.id, path)}
         onPreview={(path) => handlePreviewImage(path, group.id)}
+        onCompare={() => openCompareAt(index)}
       />
     </article>
   )
@@ -321,7 +418,7 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
           <span className="sim-legend__dot sim-legend__dot--keep" /> 保留
         </span>
         <span className="sim-legend__item">
-          <span className="sim-legend__dot sim-legend__dot--del" /> 将删除
+          <span className="sim-legend__dot sim-legend__dot--del" /> 冗余
         </span>
         <span className="sim-legend__item">
           <span className="sim-legend__dot sim-legend__dot--rec" /> 推荐
@@ -375,13 +472,22 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
           </SimilarityButtonGroup>
           <SimilarityButton
             className="sim-dock__cta"
+            variant="emphasis"
+            size="md"
+            icon={<TbFolderSymlink size={16} />}
+            disabled={!selectedGroups.size || moving || deleting}
+            onClick={handleMoveDuplicates}
+          >
+            移入重复文件夹
+          </SimilarityButton>
+          <SimilarityButton
             variant="danger"
             size="md"
             icon={<TbTrash size={16} />}
-            disabled={!selectedGroups.size || deleting}
+            disabled={!selectedGroups.size || deleting || moving}
             onClick={handleDeleteSelected}
           >
-            删除冗余
+            永久删除
           </SimilarityButton>
           <SimilarityButton
             variant="ghost"
@@ -432,6 +538,25 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
         </AlertDialogContent>
       </AlertDialog>
 
+      <SimilarityMoveDialog
+        open={moveDialogOpen}
+        destDir={moveDestDir}
+        fileCount={pendingMove.length}
+        keepCount={collectFilesToKeep().length}
+        conflict={moveConflict}
+        moving={moving}
+        onConflictChange={setMoveConflict}
+        onPickFolder={() => void handlePickMoveFolder()}
+        onCancel={() => {
+          if (!moving) {
+            setMoveDialogOpen(false)
+            setPendingMove([])
+            setMoveDestDir('')
+          }
+        }}
+        onConfirm={() => void handleConfirmMove()}
+      />
+
       <ImagePreview
         visible={previewVisible}
         images={previewImages}
@@ -442,6 +567,17 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({ result, c
         showToolbar
         showNavigation={previewImages.length > 1}
         enableKeyboard
+      />
+
+      <SimilarityCompareView
+        open={compareOpen}
+        groups={result.groups}
+        groupIndex={compareGroupIndex}
+        groupSelections={groupSelections}
+        onGroupSelectionsChange={setGroupSelections}
+        onGroupIndexChange={setCompareGroupIndex}
+        onClose={() => setCompareOpen(false)}
+        loadImage={loadImageBase64}
       />
     </div>
   )

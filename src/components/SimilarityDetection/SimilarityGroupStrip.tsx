@@ -14,6 +14,7 @@ interface SimilarityGroupStripProps {
   loadingPaths: Set<string>
   onToggleKeep: (imagePath: string) => void
   onPreview: (imagePath: string) => void
+  onCompare?: () => void
 }
 
 const SimilarityGroupStrip: React.FC<SimilarityGroupStripProps> = ({
@@ -23,6 +24,7 @@ const SimilarityGroupStrip: React.FC<SimilarityGroupStripProps> = ({
   loadingPaths,
   onToggleKeep,
   onPreview,
+  onCompare,
 }) => {
   return (
     <div className="sim-strip">
@@ -39,6 +41,11 @@ const SimilarityGroupStrip: React.FC<SimilarityGroupStripProps> = ({
             <div
               className="sim-strip__photo"
               onClick={() => onPreview(img.filePath)}
+              onDoubleClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onCompare?.()
+              }}
               role="button"
               tabIndex={0}
               onKeyDown={(e) => {
@@ -73,7 +80,7 @@ const SimilarityGroupStrip: React.FC<SimilarityGroupStripProps> = ({
                     </Badge>
                   ) : !isKept ? (
                     <Badge variant="destructive" className="sim-strip__badge">
-                      删除
+                      冗余
                     </Badge>
                   ) : null}
                 </div>

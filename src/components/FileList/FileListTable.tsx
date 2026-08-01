@@ -14,7 +14,8 @@ import {
 } from '@ant-design/icons'
 import { FILE_TYPE_ICON_COLORS, formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../../utils'
 import { ImageThumbnail } from './ImageThumbnail'
-import { CATEGORY_COLORS, CATEGORY_LABELS, MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
+import { getClassificationDisplayLabel } from '../../types'
+import { CATEGORY_COLORS, MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
 import type { FileInfo } from '../../types'
 import type { PreviewData } from './types'
 
@@ -166,9 +167,15 @@ export const FileListTable: React.FC<FileListTableProps> = ({
       render: (_: unknown, record: FileInfo) => {
         const classification = imageClassificationResults.get(record.path)
         if (classification) {
+          const tagColor =
+            classification.classificationStatus === 'failed'
+              ? 'red'
+              : classification.classificationStatus === 'uncertain'
+                ? 'orange'
+                : CATEGORY_COLORS[classification.category as keyof typeof CATEGORY_COLORS] || 'default'
           return (
-            <Tag color={CATEGORY_COLORS[classification.category as keyof typeof CATEGORY_COLORS] || 'default'}>
-              {CATEGORY_LABELS[classification.category as keyof typeof CATEGORY_LABELS] || classification.category}
+            <Tag color={tagColor}>
+              {getClassificationDisplayLabel(classification)}
             </Tag>
           )
         }

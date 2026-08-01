@@ -46,7 +46,17 @@ export default defineConfig({
     build: {
       outDir: 'dist',
       rollupOptions: {
-        input: resolve(__dirname, './src/index.html')
+        input: resolve(__dirname, './src/index.html'),
+        output: {
+          manualChunks(id) {
+            if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) {
+              return 'echarts'
+            }
+            if (id.includes('node_modules/antd') || id.includes('node_modules/@ant-design')) {
+              return 'antd'
+            }
+          }
+        }
       }
     },
     resolve: {

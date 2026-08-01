@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "clipScoring": {
+    "maxWeight": 0.62,
+    "meanWeight": 0.38,
+    "temperature": 0.058
+  },
+  "conditionalImagenet": {
+    "enabled": true,
+    "imagenetWeight": 0.2,
+    "clipConfMin": 0.32,
+    "clipMarginMin": 0.08
+  },
+  "confidenceGate": {
+    "confMin": 0.24,
+    "marginMin": 0.04,
+    "uncertainScaleMin": 0.55
+  },
+  "disambiguation": {
+    "shiftStrength": 0.25
+  },
+  "presetOverrides": {
+    "accuracy_fast": {
+      "conditionalImagenet": { "enabled": false },
+      "confidenceGate": { "confMin": 0.28, "marginMin": 0.06 },
+      "disambiguation": { "shiftStrength": 0.2 }
+    },
+    "accuracy_max": {
+      "conditionalImagenet": {
+        "enabled": true,
+        "imagenetWeight": 0.2,
+        "clipConfMin": 0.32,
+        "clipMarginMin": 0.08
+      },
+      "confidenceGate": { "confMin": 0.24, "marginMin": 0.04 },
+      "disambiguation": { "shiftStrength": 0.25 }
+    }
+  }
+}

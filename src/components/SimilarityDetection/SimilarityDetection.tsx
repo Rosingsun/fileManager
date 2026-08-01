@@ -123,7 +123,12 @@ const SimilarityDetection: React.FC = () => {
             <SimilarityScanProgressPanel progress={progress} onCancel={handleCancelScan} />
           ) : null}
           {showResults && config ? (
-            <SimilarityResultsView result={result} config={config} onReset={handleReset} />
+            <SimilarityResultsView
+              result={result}
+              config={config}
+              onReset={handleReset}
+              onResultChange={setResult}
+            />
           ) : null}
         </div>
       </div>

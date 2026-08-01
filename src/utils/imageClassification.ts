@@ -6,12 +6,19 @@ import type {
   ImageContentCategory,
   ImageClassificationResult,
   ImageClassificationConfig,
-  ImageClassificationBatchResult
+  ImageClassificationBatchResult,
+  ClassificationPresetId
 } from '../types'
 import {
   IMAGE_CATEGORY_LABELS,
-  IMAGE_CATEGORY_COLORS
+  IMAGE_CATEGORY_COLORS,
+  CLASSIFICATION_PRESET_STORAGE_KEY,
+  DEFAULT_CLASSIFICATION_PRESET_ID,
+  normalizeClassificationPresetId,
+  getClassificationDisplayLabel
 } from '../types'
+
+export { getClassificationDisplayLabel }
 
 export const categoryLabels = IMAGE_CATEGORY_LABELS
 export const categoryColors = IMAGE_CATEGORY_COLORS
@@ -48,15 +55,31 @@ export function getCategoryColor(category: ImageContentCategory): string {
   return categoryColors[category] || categoryColors.other
 }
 
+export function getStoredClassificationPreset(): ClassificationPresetId {
+  try {
+    const saved = localStorage.getItem(CLASSIFICATION_PRESET_STORAGE_KEY)
+    return normalizeClassificationPresetId(saved)
+  } catch {
+    /* ignore */
+  }
+  return DEFAULT_CLASSIFICATION_PRESET_ID
+}
+
 export async function classifyImages(
   imagePaths: string[],
   options?: {
     batchSize?: number
-    onProgress?: (current: number, total: number, currentFile?: string) => void
+    presetId?: ClassificationPresetId
+    onProgress?: (
+      current: number,
+      total: number,
+      currentFile?: string,
+      latestResult?: ImageClassificationResult
+    ) => void
     useCache?: boolean
   }
 ): Promise<ImageClassificationResult[]> {
-  const { batchSize = 10, onProgress, useCache = true } = options || {}
+  const { batchSize = 10, presetId = getStoredClassificationPreset(), onProgress, useCache = true } = options || {}
   const results: ImageClassificationResult[] = []
   const uncachedPaths: string[] = []
 
@@ -84,15 +107,23 @@ export async function classifyImages(
   const config: ImageClassificationConfig = {
     imagePaths: uncachedPaths,
     batchSize,
-    includeSubdirectories: false
+    includeSubdirectories: false,
+    presetId
   }
 
   let progressUnsubscribe: (() => void) | null = null
-  if (onProgress) {
+  if (onProgress || useCache) {
     progressUnsubscribe = window.electronAPI.onImageClassificationProgress((progress) => {
-      if (progress.status === 'classifying' && progress.current && progress.total) {
-        const totalProcessed = results.length + (progress.current || 0)
-        onProgress(totalProcessed, imagePaths.length, progress.currentFile)
+      if (progress.latestResult && useCache) {
+        cacheClassification(progress.latestResult)
+      }
+      if (onProgress && progress.status === 'classifying' && progress.current && progress.total) {
+        onProgress(
+          progress.current,
+          progress.total,
+          progress.currentFile,
+          progress.latestResult
+        )
       }
     })
   }
@@ -129,7 +160,8 @@ export async function classifyImages(
 
 export async function classifyImage(
   imagePath: string,
-  useCache: boolean = true
+  useCache: boolean = true,
+  presetId?: ClassificationPresetId
 ): Promise<ImageClassificationResult> {
   if (useCache) {
     const cached = getCachedClassification(imagePath)
@@ -142,7 +174,10 @@ export async function classifyImage(
     throw new Error('electronAPI 不可用')
   }
 
-  const result = await window.electronAPI.classifyImage(imagePath)
+  const result = await window.electronAPI.classifyImage(
+    imagePath,
+    presetId ?? getStoredClassificationPreset()
+  )
 
   if (useCache) {
     cacheClassification(result)

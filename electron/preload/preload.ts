@@ -171,6 +171,12 @@ try {
     previewEdits: (filePath: string, settings: import('../../src/types').ImageEditSettings): Promise<string> => {
       return ipcRenderer.invoke('image:previewEdits', filePath, settings)
     },
+    previewExport: (
+      filePath: string,
+      options: import('../../src/types').FormatConversionOptions
+    ): Promise<import('../../src/types').ExportPreviewResult> => {
+      return ipcRenderer.invoke('image:previewExport', filePath, options)
+    },
     getImageHistogram: (filePath: string): Promise<{
       bins: number[]
       total: number
@@ -232,8 +238,8 @@ try {
     },
 
     // 图片内容分类
-    classifyImage: (imagePath: string): Promise<import('../../src/types').ImageClassificationResult> => {
-      return ipcRenderer.invoke('image:classify', imagePath)
+    classifyImage: (imagePath: string, presetOrModelId?: string): Promise<import('../../src/types').ImageClassificationResult> => {
+      return ipcRenderer.invoke('image:classify', imagePath, presetOrModelId)
     },
 
     classifyImagesBatch: (config: import('../../src/types').ImageClassificationConfig): Promise<import('../../src/types').ImageClassificationBatchResult> => {
@@ -254,29 +260,49 @@ try {
       ipcRenderer.send('image:cancelClassification')
     },
 
-    checkModelExists: (modelId?: string): Promise<boolean> => {
-      return ipcRenderer.invoke('model:checkExists', modelId)
+    checkModelExists: (modelOrPresetId?: string): Promise<boolean> => {
+      return ipcRenderer.invoke('model:checkExists', modelOrPresetId)
     },
 
     getAvailableModels: (): Promise<Array<{ id: string; name: string; description: string; sizeMB: number }>> => {
       return ipcRenderer.invoke('model:getAvailableModels')
     },
 
-    downloadModel: (modelId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
+    getAvailablePresets: (): Promise<import('../../src/types').ClassificationPresetInfo[]> => {
+      return ipcRenderer.invoke('model:getAvailablePresets')
+    },
+
+    downloadModel: (modelOrPresetId?: string, onProgress?: (progress: number) => void, signal?: AbortSignal): Promise<{ success: boolean; error?: string; cancelled?: boolean; downloadUrls?: string[] }> => {
       return new Promise((resolve, reject) => {
         const downloadChannel = 'model:downloadProgress'
-        const maxWaitTime = 600000
+        const idleTimeoutMs = 180_000
+        const maxTotalMs = 3_600_000
         let isAborted = false
 
-        const progressHandler = (_event: any, data: { progress: number }) => {
+        const progressHandler = (_event: unknown, data: { progress: number }) => {
           onProgress?.(data.progress)
+          resetIdleTimeout()
         }
 
-        let timeoutId: NodeJS.Timeout
+        let idleTimeoutId: NodeJS.Timeout
+        let maxTotalTimeoutId: NodeJS.Timeout
 
         const cleanup = () => {
           ipcRenderer.removeListener(downloadChannel, progressHandler)
-          clearTimeout(timeoutId)
+          clearTimeout(idleTimeoutId)
+          clearTimeout(maxTotalTimeoutId)
+        }
+
+        const resetIdleTimeout = () => {
+          clearTimeout(idleTimeoutId)
+          idleTimeoutId = setTimeout(() => {
+            cleanup()
+            ipcRenderer.send('model:cancelDownload')
+            resolve({
+              success: false,
+              error: '下载超时（超过 3 分钟无进度）。大模型请保持网络畅通，或改用手动导入 ONNX'
+            })
+          }, idleTimeoutMs)
         }
 
         if (signal) {
@@ -286,26 +312,28 @@ try {
           })
         }
 
-        ipcRenderer.invoke('model:download', modelId)
+        ipcRenderer.on(downloadChannel, progressHandler)
+        resetIdleTimeout()
+        maxTotalTimeoutId = setTimeout(() => {
+          cleanup()
+          ipcRenderer.send('model:cancelDownload')
+          resolve({ success: false, error: '下载总时长超过 1 小时，已中止。可稍后重试或手动导入 ONNX' })
+        }, maxTotalMs)
+
+        ipcRenderer.invoke('model:download', modelOrPresetId)
           .then((result) => {
             cleanup()
             resolve(result)
           })
-          .catch((error: any) => {
+          .catch((error: unknown) => {
             cleanup()
-            if (isAborted || (error?.message?.includes('aborted'))) {
+            const msg = error instanceof Error ? error.message : String(error)
+            if (isAborted || msg.includes('aborted')) {
               resolve({ success: false, cancelled: true })
             } else {
               reject(error)
             }
           })
-
-        ipcRenderer.on(downloadChannel, progressHandler)
-
-        timeoutId = setTimeout(() => {
-          cleanup()
-          resolve({ success: false, error: '下载超时' })
-        }, maxWaitTime)
       })
     },
 
