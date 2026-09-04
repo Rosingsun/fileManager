@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS users (
   id CHAR(36) NOT NULL PRIMARY KEY,
-  email VARCHAR(255) NOT NULL,
+  email VARCHAR(191) NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   display_name VARCHAR(64) NOT NULL DEFAULT '',
   avatar_url VARCHAR(512) NULL,

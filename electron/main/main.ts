@@ -30,6 +30,7 @@ import { IMAGE_EXTENSIONS } from './utils/fileUtils'
 import { probeMediaAsset, shutdownMediaAssetCache } from './services/mediaAssetService'
 import { getMainCacheOverview, clearMainCache, type MainCacheScope } from './services/cacheService'
 import { registerMediaLocalProtocol } from './utils/mediaLocalProtocol'
+import { registerCloudIpc } from './ipc/cloudIpc'
 
 function authRefreshTokenPath(): string {
   return join(app.getPath('userData'), 'auth-refresh.enc')
@@ -337,6 +338,7 @@ function setupDevToolsMenu(): void {
 
 app.whenReady().then(() => {
   registerMediaLocalProtocol()
+  registerCloudIpc()
   setupDevToolsMenu()
   createWindow()
 

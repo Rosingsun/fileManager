@@ -46,6 +46,14 @@
 - **历史记录**：自动记录访问过的目录，支持快速跳转
 - **子目录包含**：可选是否包含子目录文件
 
+### ☁️ 云盘管理（多 Provider 架构）
+- **多云适配**：抽象 `CloudProvider` 接口，本期落地**阿里云盘**，预留 OneDrive / WebDAV / S3 等扩展位
+- **凭证安全**：refresh_token 通过 Electron `safeStorage` 加密落盘（macOS Keychain / Windows DPAPI / Linux kwallet），与平台用户凭证物理隔离
+- **Token 自动续期**：每次请求前自动用 refresh_token 续期 access_token，并 rotate 持久化
+- **分片上传 + 快速上传**：16 MB 分片，支持 SHA1 秒传，上传进度实时推送
+- **独立管理页**：顶部 Tab「云盘」提供目录浏览、批量上传、新建文件夹、重命名、删除、移动、获取下载链接
+- **⚠️ 风险提示**：阿里云盘未对个人开发者开放官方 API，本集成通过社区维护的非官方协议实现，接口随时可能变更
+
 ## 快速开始
 
 ### 安装依赖
