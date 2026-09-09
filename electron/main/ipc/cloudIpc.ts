@@ -171,6 +171,7 @@ export function registerCloudIpc(): void {
         const result = await p.uploadFile(localPath, options ?? { parentId: 'root' }, onProgress, controller.signal)
         return { ok: true, data: result }
       } catch (e) {
+        console.error('[cloud:upload] 上传失败', { providerId, localPath }, e instanceof Error ? e.stack ?? e.message : String(e))
         const mapped = mapCloudError(e)
         sendProgress(win, {
           sessionId,

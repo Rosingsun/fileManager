@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Alert, Button, Input, Space, Tag } from 'antd'
-import { CheckCircleOutlined, KeyOutlined, SafetyOutlined } from '@ant-design/icons'
-import { isCloudVaultAvailable, setCloudCredentials, validateCloudCredentials, describeCloudError } from '../../utils'
+import { Alert, Button, Input, Space } from 'antd'
+import { CheckCircleOutlined, KeyOutlined } from '@ant-design/icons'
+import { isCloudVaultAvailable, setCloudCredentials, describeCloudError } from '../../utils'
 import type { CloudProviderId } from '../../types/cloud'
 
 interface Props {
@@ -25,7 +25,6 @@ const CloudCredentialsPanel: React.FC<Props> = ({
   const [token, setToken] = useState('')
   const [saving, setSaving] = useState(false)
   const [validating, setValidating] = useState(false)
-  const [maskedToken, setMaskedToken] = useState<string | null>(null)
   const [accountHint, setAccountHint] = useState<string>(existingHint ?? '')
 
   useEffect(() => {
@@ -37,20 +36,13 @@ const CloudCredentialsPanel: React.FC<Props> = ({
     setSaving(true)
     setValidating(true)
     try {
-      const { accountHint: hint, maskedToken: masked } = await setCloudCredentials(providerId, token.trim())
+      // setCloudCredentials 内部已先联网校验、校验通过后才加密落盘，无需二次验证
+      const { accountHint: hint } = await setCloudCredentials(providerId, token.trim())
       setAccountHint(hint)
-      setMaskedToken(masked)
-      // 二次验证
-      const v = await validateCloudCredentials(providerId)
-      if (!v.ok) {
-        throw new Error(v.error ?? '凭证校验失败')
-      }
-      setAccountHint(v.accountHint ?? hint)
-      onSaved(v.accountHint ?? hint)
+      onSaved(hint)
     } catch (e) {
-      // 失败时让用户看到具体原因
+      // 校验失败时凭证不会落盘，提示具体原因后可直接重试或重新获取 token
       setAccountHint('')
-      setMaskedToken(null)
       window.alert(`凭证保存失败：${describeCloudError(e)}`)
     } finally {
       setSaving(false)
@@ -112,11 +104,6 @@ const CloudCredentialsPanel: React.FC<Props> = ({
           autoFocus
           disabled={!vaultOk || saving}
         />
-        {maskedToken && (
-          <div className="cloud-credentials-panel__masked">
-            <SafetyOutlined /> 已保存：<Tag color="success">{maskedToken}</Tag>
-          </div>
-        )}
       </div>
 
       {accountHint && (

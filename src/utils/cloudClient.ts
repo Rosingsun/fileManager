@@ -166,7 +166,9 @@ export function describeCloudError(err: unknown): string {
       case 'token_expired':
         return '云盘访问令牌已过期，正在尝试自动续期失败，请重试或重新配置凭证'
       case 'refresh_failed':
-        return '云盘凭证续期失败，请检查网络或重新获取 refresh_token'
+        return err.message
+          ? `云盘凭证续期失败：${err.message}`
+          : '云盘凭证续期失败，请检查网络或重新获取 refresh_token'
       case 'rate_limited':
         return '云盘请求被限流，请稍后再试'
       case 'quota_exceeded':

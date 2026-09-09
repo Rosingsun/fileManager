@@ -29,7 +29,7 @@ import {
   type CloudUploadOptions,
   type CloudUploadProgress,
 } from './types'
-import { clearCredential, hasCredential, loadCredential, saveCredential } from './tokenVault'
+import { clearCredential, hasCredential, isVaultAvailable, loadCredential, saveCredential } from './tokenVault'
 
 const API_HOST = 'api.aliyundrive.com'
 const UPLOAD_HOST = 'api.aliyundrive.com'
@@ -183,22 +183,35 @@ export class AliyunDriveProvider implements CloudProvider {
 
   private cache: CachedToken | null = null
   private inflightRefresh: Promise<CachedToken> | null = null
+  /** 下载 URL 内存缓存（fileId -> ticket），避免照片墙等场景对同一文件反复申请下载地址 */
+  private downloadTicketCache = new Map<string, CloudDownloadTicket>()
 
   async hasCredentials(): Promise<boolean> {
     return hasCredential('aliyun-drive')
   }
 
   async setCredentials(raw: string): Promise<{ accountHint: string }> {
-    const res = saveCredential('aliyun-drive', raw)
+    const trimmed = raw.trim()
+    if (!trimmed) {
+      throw new CloudError('凭证不能为空', 'invalid_argument', this.info.id)
+    }
+    if (!isVaultAvailable()) {
+      throw new CloudError('当前系统未提供加密能力，无法安全保存云盘凭证', 'unknown', this.info.id)
+    }
+    // 先校验、后落盘：验证通过前不写入磁盘，避免无效凭证残留导致本地状态不一致
+    const session = await this.refreshOnce(trimmed)
+    const info = await this.fetchUserInfo(session)
+    if (!info.ok) {
+      throw new CloudError(info.error ?? '凭证无效', 'not_authorized', this.info.id)
+    }
+    // 验证通过后落盘，保存 rotate 后的新 refresh_token（服务端未下发新 token 时回退到用户输入）
+    const toStore = session.refreshToken || trimmed
+    const res = saveCredential('aliyun-drive', toStore)
     if (!res.ok) {
       throw new CloudError(res.error ?? '凭证保存失败', 'unknown', this.info.id)
     }
-    this.cache = null
-    const validated = await this.validateCredentials()
-    if (!validated.ok) {
-      throw new CloudError(validated.error ?? '凭证无效', 'not_authorized', this.info.id)
-    }
-    return { accountHint: validated.accountHint ?? '' }
+    this.cache = { ...session, refreshToken: toStore, accountHint: info.accountHint || session.accountHint }
+    return { accountHint: info.accountHint || session.accountHint }
   }
 
   async clearCredentials(): Promise<void> {
@@ -210,15 +223,7 @@ export class AliyunDriveProvider implements CloudProvider {
     try {
       this.cache = null
       const token = await this.ensureToken()
-      const { status, data } = await httpJson('GET', API_HOST, ENDPOINTS.userInfo, undefined, this.authHeaders(token, 'GET'))
-      if (status >= 200 && status < 300 && data.code === undefined) {
-        const nick = (data.nick_name as string) || (data.user_name as string) || ''
-        return { ok: true, accountHint: nick || '已登录' }
-      }
-      return {
-        ok: false,
-        error: (data.display_message as string) || (data.message as string) || `HTTP ${status}`,
-      }
+      return await this.fetchUserInfo(token)
     } catch (e) {
       return { ok: false, error: (e as Error).message }
     }
@@ -290,6 +295,10 @@ export class AliyunDriveProvider implements CloudProvider {
   }
 
   async getDownloadTicket(fileId: string): Promise<CloudDownloadTicket> {
+    const cached = this.downloadTicketCache.get(fileId)
+    if (cached && cached.expiresAt - 60_000 > Date.now()) {
+      return { ...cached }
+    }
     const token = await this.ensureToken()
     const { status, data } = await httpJson(
       'POST',
@@ -300,12 +309,27 @@ export class AliyunDriveProvider implements CloudProvider {
     )
     this.assertOk(status, data)
     const r = data as unknown as AliyunDownloadUrlResponse
-    return {
+    const expRaw = typeof r.expiration === 'string' ? Date.parse(r.expiration) : Number(r.expiration)
+    const ticket: CloudDownloadTicket = {
       url: r.url,
-      expiresAt:
-        typeof r.expiration === 'string' ? Date.parse(r.expiration) : (r.expiration as number) ?? Date.now() + 60_000,
+      expiresAt: Number.isFinite(expRaw) && expRaw > Date.now() ? expRaw : Date.now() + 30 * 60_000,
       fileName: r.file_name ?? '',
       size: r.size ?? 0,
+    }
+    this.downloadTicketCache.set(fileId, ticket)
+    this.cleanupDownloadTicketCache()
+    return { ...ticket }
+  }
+
+  /** 缓存过大时清理过期项；仍超限则整体清空，防止内存膨胀 */
+  private cleanupDownloadTicketCache(): void {
+    if (this.downloadTicketCache.size <= 2000) return
+    const now = Date.now()
+    for (const [k, v] of this.downloadTicketCache) {
+      if (v.expiresAt - 60_000 <= now) this.downloadTicketCache.delete(k)
+    }
+    if (this.downloadTicketCache.size > 2000) {
+      this.downloadTicketCache.clear()
     }
   }
 
@@ -462,35 +486,19 @@ export class AliyunDriveProvider implements CloudProvider {
     }
     this.inflightRefresh = (async () => {
       try {
-        const refreshToken = this.cache?.refreshToken ?? loadCredential('aliyun-drive')
-        if (!refreshToken) {
+        const raw = this.cache?.refreshToken ?? loadCredential('aliyun-drive')
+        if (!raw) {
           throw new CloudError('尚未配置阿里云盘凭证', 'not_authorized', this.info.id)
         }
-        const { status, data } = await httpJson(
-          'POST',
-          API_HOST,
-          ENDPOINTS.refreshToken,
-          { grant_type: 'refresh_token', refresh_token: refreshToken },
-          { 'Content-Type': 'application/json' }
-        )
-        if (!(status >= 200 && status < 300)) {
-          throw new CloudError(
-            (data.display_message as string) || (data.message as string) || `refresh failed (${status})`,
-            'refresh_failed',
-            this.info.id,
-            status >= 500
-          )
-        }
-        const r = data as unknown as AliyunTokenResponse
+        const refreshed = await this.refreshOnce(raw)
         const next: CachedToken = {
-          accessToken: r.access_token,
-          refreshToken: r.refresh_token,
-          expiresAt: Date.now() + r.expires_in * 1000,
-          driveId: r.default_drive_id ?? this.cache?.driveId ?? '',
-          accountHint: r.nick_name || r.user_name || this.cache?.accountHint || '',
+          ...refreshed,
+          refreshToken: refreshed.refreshToken || raw,
+          driveId: refreshed.driveId || this.cache?.driveId || '',
+          accountHint: refreshed.accountHint || this.cache?.accountHint || '',
         }
-        // 持久化新的 refresh_token（rotate）
-        saveCredential('aliyun-drive', r.refresh_token)
+        // 持久化 rotate 后的新 refresh_token
+        saveCredential('aliyun-drive', next.refreshToken)
         this.cache = next
         return next
       } finally {
@@ -500,9 +508,50 @@ export class AliyunDriveProvider implements CloudProvider {
     return this.inflightRefresh
   }
 
+  /** 用 refresh_token 换 access_token（只走网络、不落盘），失败抛 refresh_failed */
+  private async refreshOnce(rawRefreshToken: string): Promise<CachedToken> {
+    const { status, data } = await httpJson(
+      'POST',
+      API_HOST,
+      ENDPOINTS.refreshToken,
+      { grant_type: 'refresh_token', refresh_token: rawRefreshToken },
+      { 'Content-Type': 'application/json' }
+    )
+    if (!(status >= 200 && status < 300)) {
+      throw new CloudError(
+        (data.display_message as string) || (data.message as string) || `refresh failed (${status})`,
+        'refresh_failed',
+        this.info.id,
+        status >= 500
+      )
+    }
+    const r = data as unknown as AliyunTokenResponse
+    return {
+      accessToken: r.access_token,
+      refreshToken: r.refresh_token,
+      expiresAt: Date.now() + r.expires_in * 1000,
+      driveId: r.default_drive_id ?? '',
+      accountHint: r.nick_name || r.user_name || '',
+    }
+  }
+
+  /** 拉取用户信息，用于校验 access_token 是否可用 */
+  private async fetchUserInfo(token: CachedToken): Promise<{ ok: boolean; accountHint?: string; error?: string }> {
+    const { status, data } = await httpJson('GET', API_HOST, ENDPOINTS.userInfo, undefined, this.authHeaders(token, 'GET'))
+    if (status >= 200 && status < 300 && data.code === undefined) {
+      const nick = (data.nick_name as string) || (data.user_name as string) || ''
+      return { ok: true, accountHint: nick || '已登录' }
+    }
+    return {
+      ok: false,
+      error: (data.display_message as string) || (data.message as string) || `HTTP ${status}`,
+    }
+  }
+
   private assertOk(status: number, data: JsonResponse): void {
     if (status >= 200 && status < 300 && data.code === undefined) return
     const code = String(data.code ?? '')
+    console.error('[aliyun-drive] 云盘接口返回错误', JSON.stringify({ status, code, message: data.message, display_message: data.display_message }))
     const message = (data.display_message as string) || (data.message as string) || `HTTP ${status}`
     let errCode: import('./types').CloudErrorCode = 'unknown'
     if (code === 'AccessTokenInvalid' || code === 'AccessTokenExpired' || code === 'InvalidToken') errCode = 'token_expired'

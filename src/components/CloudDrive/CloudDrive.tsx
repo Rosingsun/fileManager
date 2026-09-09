@@ -5,6 +5,7 @@ import {
   Button,
   Empty,
   Modal,
+  Segmented,
   Space,
   Spin,
   Table,
@@ -50,6 +51,7 @@ import type {
   CloudUploadProgress,
 } from '../../types/cloud'
 import CloudCredentialsPanel from './CloudCredentialsPanel'
+import CloudPhotoGrid from './CloudPhotoGrid'
 import './CloudDrive.css'
 
 const ROOT_ID = 'root'
@@ -83,6 +85,7 @@ const CloudDrive: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [uploads, setUploads] = useState<UploadRow[]>([])
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
+  const [viewMode, setViewMode] = useState<'table' | 'photo'>('table')
 
   const currentDir = pathStack[pathStack.length - 1]
   const activeProvider = useMemo(
@@ -603,7 +606,7 @@ const CloudDrive: React.FC = () => {
               返回上一级
             </Button>
             {renderBreadcrumb()}
-            {selectedRowKeys.length > 0 && (
+            {viewMode === 'table' && selectedRowKeys.length > 0 && (
               <Space>
                 <span className="cloud-drive-toolbar__selected">已选 {selectedRowKeys.length} 项</span>
                 <Button size="small" onClick={onMoveSelected}>
@@ -619,25 +622,47 @@ const CloudDrive: React.FC = () => {
                 </Button>
               </Space>
             )}
+            <Segmented
+              size="small"
+              value={viewMode}
+              options={[
+                { label: '列表', value: 'table' },
+                { label: '照片', value: 'photo' },
+              ]}
+              onChange={v => {
+                const mode = v as 'table' | 'photo'
+                setViewMode(mode)
+                if (mode === 'photo') setSelectedRowKeys([])
+              }}
+            />
           </div>
 
-          <Table<CloudFileEntry>
-            className="cloud-drive-table"
-            rowKey="fileId"
-            loading={loading}
-            dataSource={items}
-            columns={columns}
-            pagination={false}
-            size="middle"
-            rowSelection={{
-              selectedRowKeys,
-              onChange: setSelectedRowKeys,
-            }}
-            locale={{ emptyText: <Empty description="此目录为空" /> }}
-            onRow={record => ({
-              onDoubleClick: () => record.kind === 'folder' && enterFolder(record),
-            })}
-          />
+          {viewMode === 'table' ? (
+            <Table<CloudFileEntry>
+              className="cloud-drive-table"
+              rowKey="fileId"
+              loading={loading}
+              dataSource={items}
+              columns={columns}
+              pagination={false}
+              size="middle"
+              rowSelection={{
+                selectedRowKeys,
+                onChange: setSelectedRowKeys,
+              }}
+              locale={{ emptyText: <Empty description="此目录为空" /> }}
+              onRow={record => ({
+                onDoubleClick: () => record.kind === 'folder' && enterFolder(record),
+              })}
+            />
+          ) : (
+            <CloudPhotoGrid
+              providerId={activeProviderId}
+              entries={items}
+              loading={loading}
+              onEnterFolder={enterFolder}
+            />
+          )}
 
           {uploads.length > 0 && (
             <div className="cloud-drive-uploads">
