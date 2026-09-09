@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { Card, Button, Progress, Table, Space, message, Alert, Modal, Typography, Radio } from 'antd'
+import { Card, Button, Progress, Table, Space, message, Alert, Modal, Typography, Radio, Select } from 'antd'
 import {
   ApiOutlined,
   DeleteOutlined,
@@ -15,7 +15,8 @@ import type {
   ImageClassificationResult,
   ImageClassificationProgress,
   ClassificationPresetId,
-  ClassificationPresetInfo
+  ClassificationPresetInfo,
+  BatchRelocateEntry
 } from '../../types'
 import {
   IMAGE_CATEGORY_LABELS,
@@ -276,6 +277,11 @@ const ImageClassification: React.FC = () => {
   const [categorySelectorVisible, setCategorySelectorVisible] = useState(false)
   const [categorySelectorImages, setCategorySelectorImages] = useState<Image[]>([])
   const [categorySelectorLabel, setCategorySelectorLabel] = useState('')
+
+  // 手动修改分类状态
+  const [recategorizeVisible, setRecategorizeVisible] = useState(false)
+  const [recategorizeTarget, setRecategorizeTarget] = useState<ClassificationResult | null>(null)
+  const [recategorizeCategory, setRecategorizeCategory] = useState<ImageContentCategory>('other')
 
   useEffect(() => {
     const onCacheCleared = () => {
@@ -725,6 +731,93 @@ const ImageClassification: React.FC = () => {
      setViewerVisible(true)
    }
 
+   // 处理修改分类
+   const handleShowRecategorize = useCallback((record: ClassificationResult) => {
+     setRecategorizeTarget(record)
+     setRecategorizeCategory(record.category)
+     setRecategorizeVisible(true)
+   }, [])
+
+   const handleRecategorizeConfirm = useCallback(() => {
+     if (!recategorizeTarget) return
+     const filePath = recategorizeTarget.filePath
+     const oldResult = results.get(filePath)
+     if (!oldResult) return
+
+     const updatedResult: ImageClassificationResult = {
+       ...oldResult,
+       category: recategorizeCategory
+     }
+
+     setResults(prev => {
+       const next = new Map(prev)
+       next.set(filePath, updatedResult)
+       return next
+     })
+     useImageClassificationStore.getState().addResult(updatedResult)
+
+     // 更新 localStorage
+     try {
+       const saved = localStorage.getItem(IMAGE_CLASSIFICATION_RESULTS_KEY)
+       if (saved) {
+         const resultsArray: Array<[string, ImageClassificationResult]> = JSON.parse(saved)
+         const updatedArray = resultsArray.map(([p, r]) =>
+           p === filePath ? [p, updatedResult] as [string, ImageClassificationResult] : [p, r]
+         )
+         localStorage.setItem(IMAGE_CLASSIFICATION_RESULTS_KEY, JSON.stringify(updatedArray))
+       }
+     } catch (e) {
+       console.warn('保存分类修改失败:', e)
+     }
+
+     setRecategorizeVisible(false)
+     setRecategorizeTarget(null)
+     message.success(`已修改为「${IMAGE_CATEGORY_LABELS[recategorizeCategory]}」`)
+     logSignedInUserAction('image_classify_recategorize', '手动修改图片分类', `${filePath} -> ${recategorizeCategory}`)
+   }, [recategorizeTarget, recategorizeCategory, results])
+
+   const handleCancelRecategorize = useCallback(() => {
+     setRecategorizeVisible(false)
+     setRecategorizeTarget(null)
+   }, [])
+
+   // 处理应用分类（按分类移动到对应文件夹）
+   const handleApplyClassification = useCallback(async () => {
+     if (!classificationPath || results.size === 0) return
+
+     Modal.confirm({
+       title: '应用分类',
+       content: `将 ${results.size} 张图片按分类移动到「${classificationPath}」下的对应子文件夹中？`,
+       okText: '确定',
+       cancelText: '取消',
+       onOk: async () => {
+         try {
+           const moves: BatchRelocateEntry[] = []
+           for (const [filePath, result] of results.entries()) {
+             const fileName = filePath.split(/[/\\]/).pop() || ''
+             const categoryLabel = IMAGE_CATEGORY_LABELS[result.category]
+             const targetDir = `${classificationPath}/${categoryLabel}`
+             const targetPath = `${targetDir}/${fileName}`
+             moves.push({ from: filePath, to: targetPath })
+           }
+
+           const relocateResult = await window.electronAPI!.batchRelocate(moves, 'rename')
+           const successCount = relocateResult.filter(r => r.success).length
+           const failCount = relocateResult.filter(r => !r.success).length
+
+           message.success(`分类应用完成：成功 ${successCount} 个${failCount > 0 ? `，失败 ${failCount} 个` : ''}`)
+           logSignedInUserAction(
+             'image_classify_apply',
+             `应用分类完成（成功 ${successCount}，失败 ${failCount}）`,
+             classificationPath ?? ''
+           )
+         } catch (error) {
+           message.error('应用分类失败: ' + (error instanceof Error ? error.message : String(error)))
+         }
+       }
+     })
+   }, [classificationPath, results])
+
   const tableData: ClassificationResult[] = Array.from(results.values()).map((r) => ({
     key: r.filePath,
     filePath: r.filePath,
@@ -774,6 +867,23 @@ const ImageClassification: React.FC = () => {
           size="small"
           status={confidence > 0.8 ? 'success' : confidence > 0.5 ? 'normal' : 'exception'}
         />
+      )
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 100,
+      render: (_: unknown, record: ClassificationResult) => (
+        <Button
+          size="small"
+          type="link"
+          onClick={(e) => {
+            e.stopPropagation()
+            handleShowRecategorize(record)
+          }}
+        >
+          修改分类
+        </Button>
       )
     }
   ]
@@ -854,9 +964,14 @@ const ImageClassification: React.FC = () => {
       </Radio.Group>
       {renderModelStatusBadge()}
       {results.size > 0 && (
-        <Button size="small" icon={<DeleteOutlined />} onClick={handleClearResults}>
-          清除结果
-        </Button>
+        <>
+          <Button size="small" icon={<FolderOpenOutlined />} onClick={handleApplyClassification}>
+            应用分类
+          </Button>
+          <Button size="small" icon={<DeleteOutlined />} onClick={handleClearResults}>
+            清除结果
+          </Button>
+        </>
       )}
       {!modelExists && (
         <Button
@@ -1063,6 +1178,45 @@ const ImageClassification: React.FC = () => {
         onClose={() => setCategorySelectorVisible(false)}
         onConfirm={handleCategoryImageSelect}
       />
+
+      {/* 修改分类弹窗 */}
+      <Modal
+        title="手动修改分类"
+        open={recategorizeVisible}
+        onCancel={handleCancelRecategorize}
+        onOk={handleRecategorizeConfirm}
+        okText="确认修改"
+        cancelText="取消"
+        destroyOnClose
+      >
+        {recategorizeTarget && (
+          <Space direction="vertical" style={{ width: '100%' }} size="middle">
+            <div>
+              <Text strong>文件：</Text>
+              <Text>{recategorizeTarget.fileName}</Text>
+            </div>
+            <div>
+              <Text strong>当前分类：</Text>
+              <CategoryTag
+                color={getCategoryTagColor(recategorizeTarget.category)}
+                label={IMAGE_CATEGORY_LABELS[recategorizeTarget.category]}
+              />
+            </div>
+            <div>
+              <Text strong>修改为：</Text>
+              <Select
+                style={{ width: '100%', marginTop: 4 }}
+                value={recategorizeCategory}
+                onChange={setRecategorizeCategory}
+                options={IMAGE_CATEGORY_ORDER.map(cat => ({
+                  value: cat,
+                  label: IMAGE_CATEGORY_LABELS[cat]
+                }))}
+              />
+            </div>
+          </Space>
+        )}
+      </Modal>
 
       <ManualDownloadModal
         visible={manualDownloadModalVisible}

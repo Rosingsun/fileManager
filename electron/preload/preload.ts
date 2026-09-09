@@ -436,6 +436,99 @@ try {
 
     selectFiles: (filter?: string): Promise<string[] | null> => {
       return ipcRenderer.invoke('dialog:selectFiles', filter)
+    },
+
+    // 云盘（多 Provider 架构：当前已实现阿里云盘）
+    cloud: {
+      listProviders: (): Promise<import('../../src/types/cloud').CloudProviderInfo[]> => {
+        return ipcRenderer.invoke('cloud:listProviders')
+      },
+      isVaultAvailable: (): Promise<boolean> => {
+        return ipcRenderer.invoke('cloud:isVaultAvailable')
+      },
+      hasCredentials: (providerId: import('../../src/types/cloud').CloudProviderId): Promise<boolean> => {
+        return ipcRenderer.invoke('cloud:hasCredentials', providerId)
+      },
+      setCredentials: (
+        providerId: import('../../src/types/cloud').CloudProviderId,
+        raw: string
+      ): Promise<{ ok: boolean; accountHint?: string; maskedToken?: string; code?: string; message?: string; retryable?: boolean }> => {
+        return ipcRenderer.invoke('cloud:setCredentials', providerId, raw)
+      },
+      clearCredentials: (providerId: import('../../src/types/cloud').CloudProviderId): Promise<{ ok: boolean }> => {
+        return ipcRenderer.invoke('cloud:clearCredentials', providerId)
+      },
+      validateCredentials: (
+        providerId: import('../../src/types/cloud').CloudProviderId
+      ): Promise<import('../../src/types/cloud').CloudValidateResult> => {
+        return ipcRenderer.invoke('cloud:validateCredentials', providerId)
+      },
+      list: (
+        providerId: import('../../src/types/cloud').CloudProviderId,
+        parentId: string,
+        cursor?: string
+      ): Promise<import('../../src/types/cloud').CloudResponse<import('../../src/types/cloud').CloudListResult>> => {
+        return ipcRenderer.invoke('cloud:list', providerId, parentId, cursor)
+      },
+      mkdir: (
+        providerId: import('../../src/types/cloud').CloudProviderId,
+        parentId: string,
+        name: string
+      ): Promise<import('../../src/types/cloud').CloudResponse<import('../../src/types/cloud').CloudMkdirResult>> => {
+        return ipcRenderer.invoke('cloud:mkdir', providerId, parentId, name)
+      },
+      remove: (
+        providerId: import('../../src/types/cloud').CloudProviderId,
+        fileId: string
+      ): Promise<import('../../src/types/cloud').CloudResponse<null>> => {
+        return ipcRenderer.invoke('cloud:remove', providerId, fileId)
+      },
+      rename: (
+        providerId: import('../../src/types/cloud').CloudProviderId,
+        fileId: string,
+        newName: string
+      ): Promise<import('../../src/types/cloud').CloudResponse<null>> => {
+        return ipcRenderer.invoke('cloud:rename', providerId, fileId, newName)
+      },
+      move: (
+        providerId: import('../../src/types/cloud').CloudProviderId,
+        fileId: string,
+        newParentId: string,
+        newName?: string
+      ): Promise<import('../../src/types/cloud').CloudResponse<null>> => {
+        return ipcRenderer.invoke('cloud:move', providerId, fileId, newParentId, newName)
+      },
+      getDownloadTicket: (
+        providerId: import('../../src/types/cloud').CloudProviderId,
+        fileId: string
+      ): Promise<import('../../src/types/cloud').CloudResponse<import('../../src/types/cloud').CloudDownloadTicket>> => {
+        return ipcRenderer.invoke('cloud:getDownloadTicket', providerId, fileId)
+      },
+      upload: (
+        providerId: import('../../src/types/cloud').CloudProviderId,
+        localPath: string,
+        options: import('../../src/types/cloud').CloudUploadOptions,
+        sessionId: string
+      ): Promise<import('../../src/types/cloud').CloudResponse<{ fileId: string; name: string; size: number }>> => {
+        return ipcRenderer.invoke('cloud:upload', providerId, localPath, options, sessionId)
+      },
+      cancelUpload: (sessionId: string): Promise<{ ok: boolean; cancelled: boolean }> => {
+        return ipcRenderer.invoke('cloud:cancelUpload', sessionId)
+      },
+      onUploadProgress: (
+        callback: (progress: import('../../src/types/cloud').CloudUploadProgress) => void
+      ): (() => void) => {
+        const handler = (_event: unknown, progress: import('../../src/types/cloud').CloudUploadProgress) => {
+          callback(progress)
+        }
+        ipcRenderer.on('cloud:uploadProgress', handler)
+        return () => {
+          ipcRenderer.removeListener('cloud:uploadProgress', handler)
+        }
+      },
+      openExternal: (url: string): Promise<{ ok: boolean }> => {
+        return ipcRenderer.invoke('cloud:openExternal', url)
+      },
     }
   }
   

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Layout, Alert, Spin, message } from 'antd'
+import { MenuOutlined, SettingOutlined, CloseOutlined } from '@ant-design/icons'
 import FileTree from './components/FileTree'
 import FileList from './components/FileList'
 import ControlPanel from './components/ControlPanel'
@@ -7,8 +8,9 @@ import AppHeader from './components/AppHeader'
 import SimilarityDetection from './components/SimilarityDetection/SimilarityDetection'
 import ImageClassification from './components/ImageClassification/ImageClassification'
 import ToolsEntry from './components/Tools/ToolsEntry'
-import { QuickFilter, UserCenter, UserAuthPanel, CosLibrarySummaryCard, CosImageLibraryTab, CosShareViewTab } from './components'
+import { QuickFilter, UserCenter, UserAuthPanel, CosLibrarySummaryCard, CosImageLibraryTab, CosShareViewTab, CloudDrive } from './components'
 import { useAuthStore, useFileStore } from './stores'
+import { useResponsive } from './hooks'
 import { isAuthApiConfigured, parseShareTokenFromHash } from './utils'
 import type { UserCenterAppNavigate } from './components/UserCenter/userCenterShared'
 
@@ -17,6 +19,9 @@ const { Content } = Layout
 const App: React.FC = () => {
   const [electronAPIStatus, setElectronAPIStatus] = useState<'checking' | 'available' | 'unavailable'>('checking')
   const [activeTab, setActiveTab] = useState<string>('organize')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const responsive = useResponsive()
   const [organizeCenterMode, setOrganizeCenterMode] = useState<'local' | 'cloud'>('local')
   const [cosStatsNonce, setCosStatsNonce] = useState(0)
   const [userCenterFocusTab, setUserCenterFocusTab] = useState<string | null>(null)
@@ -156,6 +161,19 @@ const App: React.FC = () => {
     [isAuthenticated]
   )
 
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((v) => !v)
+  }, [])
+
+  const togglePanel = useCallback(() => {
+    setPanelOpen((v) => !v)
+  }, [])
+
+  const closeOverlay = useCallback(() => {
+    setSidebarOpen(false)
+    setPanelOpen(false)
+  }, [])
+
   const handleUserCenterNavigate = useCallback((target: UserCenterAppNavigate) => {
     if (target.type === 'organizePath') {
       useFileStore.getState().setCurrentPath(target.path)
@@ -218,9 +236,35 @@ const App: React.FC = () => {
       )}
       <Content className="app-content">
         {activeTab === 'organize' && (
-          <div className="app-feature-shell">
+          <div className={`app-feature-shell${responsive.isMobile ? ' is-mobile' : ''}`}>
           <div className="app-main">
-            <div className="app-sidebar">
+            {/* 遮罩层：浮动面板打开时点击关闭 */}
+            {sidebarOpen && (
+              <div className="app-layout-overlay" onClick={closeOverlay} />
+            )}
+            {panelOpen && (
+              <div className="app-layout-overlay" onClick={closeOverlay} />
+            )}
+
+            {/* 侧栏切换按钮（窄屏时在中心区域顶部显示） */}
+            {(responsive.isSidebarCollapsed || responsive.isPanelCollapsed) && (
+              <div className="app-center-header">
+                {responsive.isSidebarCollapsed && (
+                  <button type="button" className="app-layout-toggle-btn" onClick={toggleSidebar} title="打开侧栏">
+                    <MenuOutlined />
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className={`app-sidebar${responsive.isSidebarCollapsed && !sidebarOpen ? ' is-closed' : ''}`}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                {responsive.isSidebarCollapsed && (
+                  <button type="button" className="app-layout-toggle-btn" onClick={toggleSidebar} title="关闭侧栏" style={{ marginLeft: 'auto' }}>
+                    <CloseOutlined />
+                  </button>
+                )}
+              </div>
               <CosLibrarySummaryCard
                 onOpen={() => setOrganizeCenterMode('cloud')}
                 refreshNonce={cosStatsNonce}
@@ -253,7 +297,21 @@ const App: React.FC = () => {
                 )}
               </div>
             </div>
-            <div className="app-panel">
+            {responsive.isPanelCollapsed && (
+              <div className="app-center-header" style={{ flexDirection: 'column', gap: 4 }}>
+                <button type="button" className="app-layout-toggle-btn" onClick={togglePanel} title="打开控制面板">
+                  <SettingOutlined />
+                </button>
+              </div>
+            )}
+            <div className={`app-panel${responsive.isPanelCollapsed && !panelOpen ? ' is-closed' : ''}`}>
+              {responsive.isPanelCollapsed && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <button type="button" className="app-layout-toggle-btn" onClick={togglePanel} title="关闭面板" style={{ marginLeft: 'auto' }}>
+                    <CloseOutlined />
+                  </button>
+                </div>
+              )}
               <ControlPanel />
             </div>
           </div>
@@ -272,6 +330,11 @@ const App: React.FC = () => {
         {activeTab === 'tools' && (
           <div className="app-tab-panel app-feature-shell" style={{ overflow: 'hidden' }}>
             <ToolsEntry />
+          </div>
+        )}
+        {activeTab === 'cloudDrive' && (
+          <div className="app-tab-panel app-feature-shell" style={{ overflow: 'hidden' }}>
+            <CloudDrive />
           </div>
         )}
         {activeTab === 'quickFilter' && (

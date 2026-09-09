@@ -74,3 +74,7 @@
   max-width: 100%;
   margin-inline-start: 12px;
 }
+
+.recategorize-modal .ant-select {
+  width: 100%;
+}

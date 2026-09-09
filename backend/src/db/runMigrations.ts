@@ -11,7 +11,7 @@ export async function runMigrations(pool: Pool): Promise<void> {
     await conn.query(`
       CREATE TABLE IF NOT EXISTS schema_migrations (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        filename VARCHAR(255) NOT NULL UNIQUE,
+        filename VARCHAR(191) NOT NULL UNIQUE,
         applied_at BIGINT NOT NULL
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)

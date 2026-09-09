@@ -1692,3 +1692,273 @@
   border-color: #007aff;
   box-shadow: 0 2px 8px rgba(0, 122, 255, 0.35);
 }
+
+/*
+ * ─── 响应式布局 ───
+ */
+
+/* 响应式切换按钮 */
+.app-layout-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--app-text-secondary);
+  cursor: pointer;
+  font-size: 16px;
+  transition: background var(--app-motion-fast), color var(--app-motion-fast);
+  flex-shrink: 0;
+}
+
+.app-layout-toggle-btn:hover {
+  background: rgba(10, 132, 255, 0.08);
+  color: var(--app-primary);
+}
+
+.app-layout-toggle-btn:active {
+  transform: scale(0.94);
+}
+
+/* 侧栏/面板 overlay 遮罩 */
+.app-layout-overlay {
+  display: none;
+}
+
+/* ×l 大屏 ≥1400px：默认完整三栏布局 */
+@media (min-width: 1400px) {
+  .app-sidebar {
+    width: 250px;
+  }
+  .app-panel {
+    width: 320px;
+  }
+}
+
+/* lg 中屏 1100–1399px：侧栏收起，面板保持 */
+@media (max-width: 1399px) {
+  .app-sidebar {
+    width: 220px;
+  }
+  .app-panel {
+    width: 300px;
+  }
+}
+
+/* md 中窄屏 860–1099px：侧栏浮动覆盖，面板保持 */
+@media (max-width: 1099px) {
+  .app-content {
+    padding: 12px;
+  }
+
+  .app-main {
+    position: relative;
+  }
+
+  .app-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 260px;
+    z-index: 20;
+    box-shadow: var(--app-shadow-lg);
+    border-radius: 0 var(--app-radius-xl) var(--app-radius-xl) 0;
+    transition: transform var(--app-motion-base);
+  }
+
+  .app-sidebar.is-closed {
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+
+  .app-layout-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+  }
+
+  .app-layout-overlay.is-hidden {
+    display: none;
+  }
+
+  .app-panel {
+    width: 300px;
+  }
+}
+
+/* sm 窄屏 640–859px：面板也浮动覆盖 */
+@media (max-width: 859px) {
+  .app-header {
+    margin: 8px 10px 0;
+    padding: 8px 14px;
+    min-height: 60px;
+    gap: 10px;
+  }
+
+  .header-brand {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+
+  .header-title .ant-typography {
+    font-size: 15px !important;
+  }
+
+  .header-title-meta {
+    display: none;
+  }
+
+  .header-tabs-wrap {
+    gap: 6px;
+  }
+
+  .header-tabs .ant-tabs-nav {
+    margin: 0;
+  }
+
+  .header-tabs .ant-tabs-tab {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .header-user-profile {
+    padding: 3px 8px 3px 3px;
+    max-width: 140px;
+  }
+
+  .header-user-profile-name {
+    font-size: 12px;
+  }
+
+  .app-content {
+    padding: 8px;
+  }
+
+  .app-feature-shell {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
+
+  .app-main {
+    gap: 10px;
+  }
+
+  .app-sidebar {
+    width: 240px;
+  }
+
+  .app-panel {
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    z-index: 20;
+    box-shadow: var(--app-shadow-lg);
+    border-radius: var(--app-radius-xl) 0 0 var(--app-radius-xl);
+    transition: transform var(--app-motion-base);
+  }
+
+  .app-panel.is-closed {
+    transform: translateX(100%);
+    box-shadow: none;
+  }
+}
+
+/* xs 极小屏 <640px：单栏极简 */
+@media (max-width: 639px) {
+  .app-header {
+    margin: 4px 6px 0;
+    padding: 6px 10px;
+    min-height: 52px;
+    gap: 6px;
+    border-radius: var(--app-radius-lg);
+  }
+
+  .header-brand {
+    width: 28px;
+    height: 28px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+
+  .header-title .ant-typography {
+    font-size: 14px !important;
+  }
+
+  .header-tabs .ant-tabs-tab {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+
+  .header-user-profile-name {
+    display: none;
+  }
+
+  .header-user-profile {
+    padding: 2px;
+    max-width: 40px;
+  }
+
+  .app-content {
+    padding: 4px;
+  }
+
+  .app-feature-shell {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+  .app-main {
+    gap: 6px;
+  }
+
+  .app-sidebar {
+    width: 220px;
+  }
+
+  .app-panel {
+    width: 280px;
+  }
+}
+
+/* 全局：sidebar 和 panel 内部切换状态 */
+.app-sidebar,
+.app-panel {
+  transition: width var(--app-motion-base);
+}
+
+/* 统一的浮动面板毛玻璃效果，用于覆盖层 */
+.app-panel-floating {
+  background: var(--app-surface-elevated);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--app-glass-border);
+}
+
+/* 中心区域内的顶部操作栏，含切换按钮 */
+.app-center-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 4px 0;
+}
+
+/* 简化: 窄屏时只显示中心的当前目录名 */
+@media (max-width: 639px) {
+  .app-center-header .file-filter-bar__meta {
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

@@ -120,6 +120,66 @@ declare global {
         options: import('./index').FocusAdjustOptions
       ) => Promise<string>
       selectFiles: (filter?: string) => Promise<string[] | null>
+
+      // 云盘（多 Provider 架构：当前已实现阿里云盘）
+      cloud: {
+        listProviders: () => Promise<import('./cloud').CloudProviderInfo[]>
+        isVaultAvailable: () => Promise<boolean>
+        hasCredentials: (providerId: import('./cloud').CloudProviderId) => Promise<boolean>
+        setCredentials: (
+          providerId: import('./cloud').CloudProviderId,
+          raw: string
+        ) => Promise<{
+          ok: boolean
+          accountHint?: string
+          maskedToken?: string
+          code?: string
+          message?: string
+          retryable?: boolean
+        }>
+        clearCredentials: (providerId: import('./cloud').CloudProviderId) => Promise<{ ok: boolean }>
+        validateCredentials: (providerId: import('./cloud').CloudProviderId) => Promise<import('./cloud').CloudValidateResult>
+        list: (
+          providerId: import('./cloud').CloudProviderId,
+          parentId: string,
+          cursor?: string
+        ) => Promise<import('./cloud').CloudResponse<import('./cloud').CloudListResult>>
+        mkdir: (
+          providerId: import('./cloud').CloudProviderId,
+          parentId: string,
+          name: string
+        ) => Promise<import('./cloud').CloudResponse<import('./cloud').CloudMkdirResult>>
+        remove: (
+          providerId: import('./cloud').CloudProviderId,
+          fileId: string
+        ) => Promise<import('./cloud').CloudResponse<null>>
+        rename: (
+          providerId: import('./cloud').CloudProviderId,
+          fileId: string,
+          newName: string
+        ) => Promise<import('./cloud').CloudResponse<null>>
+        move: (
+          providerId: import('./cloud').CloudProviderId,
+          fileId: string,
+          newParentId: string,
+          newName?: string
+        ) => Promise<import('./cloud').CloudResponse<null>>
+        getDownloadTicket: (
+          providerId: import('./cloud').CloudProviderId,
+          fileId: string
+        ) => Promise<import('./cloud').CloudResponse<import('./cloud').CloudDownloadTicket>>
+        upload: (
+          providerId: import('./cloud').CloudProviderId,
+          localPath: string,
+          options: import('./cloud').CloudUploadOptions,
+          sessionId: string
+        ) => Promise<import('./cloud').CloudResponse<{ fileId: string; name: string; size: number }>>
+        cancelUpload: (sessionId: string) => Promise<{ ok: boolean; cancelled: boolean }>
+        onUploadProgress: (
+          callback: (progress: import('./cloud').CloudUploadProgress) => void
+        ) => () => void
+        openExternal: (url: string) => Promise<{ ok: boolean }>
+      }
     }
   }
 }

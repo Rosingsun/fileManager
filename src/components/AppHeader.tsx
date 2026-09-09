@@ -35,6 +35,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ activeTab, onTabChange, authentic
     { key: 'organize', label: '文件整理' },
     { key: 'similarity', label: '相似照片检测' },
     { key: 'classify', label: '图片分类' },
+    { key: 'cloudDrive', label: '云盘' },
     { key: 'tools', label: '实用工具' },
     { key: 'quickFilter', label: '快速筛选' },
   ].map((item) => ({
