@@ -404,41 +404,133 @@ ipcHandle('shell:openExternal', async (_event, url: string): Promise<boolean> =>
   }
 })
 
-// IPC 处理器：读取目录内容
+// 并发 stat 将一条目转为 FileInfo（folder-name/extension 过滤由上层决定，这里只负责 stat）
+async function statEntry(fullPath: string, name: string): Promise<FileInfo> {
+  const stats = await stat(fullPath)
+  return {
+    name,
+    path: fullPath,
+    isDirectory: stats.isDirectory(),
+    size: stats.size,
+    modifiedTime: stats.mtime.getTime(),
+    createdTime: stats.birthtime.getTime()
+  }
+}
+
+// 以并发度限制批量 stat 一组条目，避免大目录串行 stat 拖慢
+async function statEntries(
+  entries: Array<{ name: string; path: string }>,
+  concurrency = 64
+): Promise<FileInfo[]> {
+  const results: Array<FileInfo | null> = new Array(entries.length)
+  let next = 0
+
+  async function worker() {
+    while (next < entries.length) {
+      const idx = next
+      next += 1
+      try {
+        results[idx] = await statEntry(entries[idx].path, entries[idx].name)
+      } catch {
+        results[idx] = null
+      }
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, entries.length) }, () => worker())
+  await Promise.all(workers)
+
+  return results.filter((r): r is FileInfo => r !== null)
+}
+
+// 排序：文件夹在前，然后按名称排序（稳定，供分页切段使用）
+function sortDirectoryItems(items: FileInfo[]): FileInfo[] {
+  return items.sort((a, b) => {
+    if (a.isDirectory && !b.isDirectory) return -1
+    if (!a.isDirectory && b.isDirectory) return 1
+    return a.name.localeCompare(b.name)
+  })
+}
+
+// IPC 处理器：读取目录内容（全量，供必须看整目录的功能/惰性全量副本使用；内部并发 stat 提速）
 ipcHandle('fs:readDirectory', async (_event, path: string): Promise<FileInfo[]> => {
   try {
     if (!existsSync(path)) {
       return []
     }
 
-    const items = await readdir(path)
-    const fileInfos: FileInfo[] = []
-
-    for (const item of items) {
-      const fullPath = join(path, item)
-      const stats = await stat(fullPath)
-      
-      fileInfos.push({
-        name: item,
-        path: fullPath,
-        isDirectory: stats.isDirectory(),
-        size: stats.size,
-        modifiedTime: stats.mtime.getTime(),
-        createdTime: stats.birthtime.getTime()
-      })
-    }
-
-    // 排序：文件夹在前，然后按名称排序
-    return fileInfos.sort((a, b) => {
-      if (a.isDirectory && !b.isDirectory) return -1
-      if (!a.isDirectory && b.isDirectory) return 1
-      return a.name.localeCompare(b.name)
-    })
+    const dirents = await readdir(path, { withFileTypes: true })
+    const entries = dirents.map((d) => ({ name: d.name, path: join(path, d.name) }))
+    const fileInfos = await statEntries(entries)
+    return sortDirectoryItems(fileInfos)
   } catch (error) {
     console.error('读取目录失败:', error)
     throw error
   }
 })
+
+// IPC 处理器：分页读取目录内容，返回按「文件夹在前→名称」稳定排序切片 + 过滤后总数。
+// offset/limit 基于排序后的整表切段，保证滚动追加不重复/不缺漏；仅对目标切片做 stat。
+ipcHandle(
+  'fs:readDirectoryPage',
+  async (
+    _event,
+    path: string,
+    options: { offset: number; limit: number; extensions?: string[] }
+  ): Promise<{ items: FileInfo[]; totalCount: number; hasMore: boolean }> => {
+    try {
+      if (!existsSync(path)) {
+        return { items: [], totalCount: 0, hasMore: false }
+      }
+
+      const extFilter = options.extensions && options.extensions.length > 0
+        ? new Set(options.extensions.map((e) => e.toLowerCase()))
+        : null
+
+      // 第一步：仅用 dirent 的 isDirectory 与扩展名做轻量排序/过滤，得到排序表（此时不 stat）
+      const dirents = await readdir(path, { withFileTypes: true })
+      const skeleton = dirents.map((d) => ({
+        name: d.name,
+        path: join(path, d.name),
+        isDirectory: d.isDirectory()
+      }))
+
+      skeleton.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1
+        if (!a.isDirectory && b.isDirectory) return 1
+        return a.name.localeCompare(b.name)
+      })
+
+      // 应用扩展名过滤（仅针对文件；文件夹仍保留，便于浏览子目录）
+      const matched: typeof skeleton = []
+      for (const s of skeleton) {
+        if (extFilter && !s.isDirectory) {
+          const dot = s.name.lastIndexOf('.')
+          const ext = dot >= 0 ? s.name.slice(dot + 1).toLowerCase() : ''
+          if (!extFilter.has(ext)) continue
+        }
+        matched.push(s)
+      }
+
+      const totalCount = matched.length
+      const offset = Math.max(0, Math.floor(options.offset || 0))
+      const limit = Math.max(1, Math.floor(options.limit || 15))
+      const slice = matched.slice(offset, offset + limit)
+
+      // 第二步：仅对目标切片并发 stat
+      const items = await statEntries(slice)
+
+      return {
+        items,
+        totalCount,
+        hasMore: offset + slice.length < totalCount
+      }
+    } catch (error) {
+      console.error('分页读取目录失败:', error)
+      throw error
+    }
+  }
+)
 
 // 递归获取目录下所有文件
 async function getAllFiles(dirPath: string, extensions: string[]): Promise<Array<{ path: string; name: string }>> {

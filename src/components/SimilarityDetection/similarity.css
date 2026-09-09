@@ -1550,3 +1550,22 @@
     min-height: 36vh;
   }
 }
+
+/* ─── 窄窗口补充断点：让 3 列控件在中窄屏(641~860)下自适应收缩 ───
+   注意限定下限 ≥641px，避免覆盖下方既有的 ≤640 断点(其将 presets/algo 降为单列)。 */
+@media (max-width: 860px) and (min-width: 641px) {
+  .sim-steps__track {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .sim-presets,
+  .sim-algo-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+
+/* 极小屏：度量卡彻底降为单列，保证每张可读 */
+@media (max-width: 480px) {
+  .sim-metrics {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1052,3 +1052,16 @@
     width: 100%;
   }
 }
+
+/* ─── 窄窗口：更小断点下进一步降级，避免 3 列控件在窄屏被挤压 ─── */
+@media (max-width: 640px) {
+  .qf-steps__track {
+    grid-template-columns: 1fr;
+  }
+  .qf-presets {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  }
+  .qf-stats {
+    grid-template-columns: 1fr;
+  }
+}

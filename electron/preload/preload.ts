@@ -32,6 +32,13 @@ try {
     readDirectory: (path: string): Promise<FileInfo[]> => {
       return ipcRenderer.invoke('fs:readDirectory', path)
     },
+
+    readDirectoryPage: (
+      path: string,
+      options: import('../../src/types').DirectoryPageRequest
+    ): Promise<import('../../src/types').DirectoryPageResult> => {
+      return ipcRenderer.invoke('fs:readDirectoryPage', path, options)
+    },
     
     readDirectoryRecursive: (path: string): Promise<FileInfo[]> => {
       return ipcRenderer.invoke('fs:readDirectoryRecursive', path)

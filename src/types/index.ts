@@ -19,6 +19,24 @@ export interface FileInfo {
   createdTime: number
 }
 
+/** 主进程分页读取目录的入参 */
+export interface DirectoryPageRequest {
+  offset: number
+  limit: number
+  /** 可选扩展名过滤（不含点号、忽略大小写）；仅过滤文件，文件夹始终保留 */
+  extensions?: string[]
+}
+
+/** 主进程分页读取目录的返回 */
+export interface DirectoryPageResult {
+  /** 当前页条目（已 stat，按「文件夹在前→名称」稳定排序切片） */
+  items: FileInfo[]
+  /** 过滤后条目总数（不含扩展名过滤时等于目录条目总数） */
+  totalCount: number
+  /** offset + items.length < totalCount，供滚动触底判断 */
+  hasMore: boolean
+}
+
 // 文件分类类型
 export type FileCategory = 'image' | 'video' | 'audio' | 'document' | 'archive' | 'other'
 

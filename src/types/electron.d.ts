@@ -4,6 +4,10 @@ declare global {
     electronAPI?: {
       openDirectory: () => Promise<string | null>
       readDirectory: (path: string) => Promise<import('./index').FileInfo[]>
+      readDirectoryPage: (
+        path: string,
+        options: import('./index').DirectoryPageRequest
+      ) => Promise<import('./index').DirectoryPageResult>
       readDirectoryRecursive: (path: string) => Promise<import('./index').FileInfo[]>
       organizeFiles: (config: import('./index').OrganizeConfig) => Promise<Array<{ from: string; to: string; success: boolean; error?: string }>>
       extractFiles: (
