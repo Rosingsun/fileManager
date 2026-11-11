@@ -22,8 +22,8 @@ import {
   isBuiltinPresetCollectionGroup,
   isBuiltinPresetSelectionId,
 } from '../../stores'
-import { exportProjectPresetPack, importProjectPresetPack, logSignedInUserAction } from '../../utils'
-import type { ImageEditSettings, ImagePreset, PresetGroup } from '../../types'
+import { exportProjectPresetPack, importProjectPresetPack, logSignedInUserAction, getFilterCss } from '../../utils'
+import type { ImageEditSettings, ImagePreset } from '../../types'
 
 interface PresetsPanelProps {
   onApply: (settings: ImageEditSettings) => void
@@ -32,6 +32,8 @@ interface PresetsPanelProps {
   layout?: 'sidebar' | 'modal'
   /** 侧栏由 EditorSidebar 提供标题栏时隐藏内部「预设」标题 */
   hideHeading?: boolean
+  /** 当前画面预览源，用于生成预设缩略图（无则不显示缩略图） */
+  previewSrc?: string | null
 }
 
 /** 通用系统预设（非富士胶片模拟） */
@@ -213,6 +215,7 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
   currentSettings,
   layout = 'modal',
   hideHeading = false,
+  previewSrc = null,
 }) => {
   const {
     presets,
@@ -396,6 +399,13 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
     logSignedInUserAction('editor_group_delete', '编辑预设：删除分组')
   }
 
+  /** 预设缩略图滤镜：与画布一样用 CSS 滤镜近似，无需额外渲染 */
+  const thumbFilter = (presetSettings: ImageEditSettings): string | undefined => {
+    if (!previewSrc) return undefined
+    const filter = getFilterCss(presetSettings)
+    return filter === 'none' ? undefined : filter
+  }
+
   const renderPresetItem = (item: ImagePreset) => {
     const isSelected = selectedPresetId === item.id
     const handleClick = () => {
@@ -417,6 +427,11 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
     }
     return (
       <div key={item.id} style={cellStyle}>
+        <span
+          className="editor-preset-tile__thumb editor-preset-tile__thumb--sm"
+          style={{ filter: thumbFilter(item.settings) }}
+          aria-hidden
+        />
         <div
           role="button"
           tabIndex={0}
@@ -492,18 +507,14 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
             handleClick()
           }
         }}
-        style={{
-          padding: '6px 8px',
-          borderRadius: 6,
-          background: isSelected ? 'rgba(24, 144, 255, 0.1)' : 'transparent',
-          border: isSelected ? '1px solid rgba(24, 144, 255, 0.3)' : '1px solid transparent',
-          transition: 'all 0.2s ease',
-          cursor: 'pointer',
-          textAlign: 'center',
-          minWidth: 0,
-        }}
+        className={`editor-preset-tile${isSelected ? ' is-active' : ''}`}
       >
-        <span style={{ fontSize: 12, fontWeight: isSelected ? 600 : 400, color: isSelected ? 'var(--app-primary)' : 'inherit' }}>{preset.name}</span>
+        <span
+          className="editor-preset-tile__thumb"
+          style={{ filter: thumbFilter(preset.settings) }}
+          aria-hidden
+        />
+        <span className="editor-preset-tile__label">{preset.name}</span>
       </div>
     )
   }
@@ -571,7 +582,16 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
   )
 
   const renderPresetGridBody = (layoutMode: 'sidebar' | 'modal') => {
-    const scrollStyle = presetGridScrollStyle(layoutMode)
+    /**
+     * 缩略图源统一挂在容器 CSS 变量上：只在 DOM 里存一份 base64，
+     * 避免为每个预设重复内联长 URL。
+     */
+    const scrollStyle: React.CSSProperties = {
+      ...presetGridScrollStyle(layoutMode),
+      ...(previewSrc
+        ? ({ ['--editor-preset-preview' as string]: `url("${previewSrc}")` } as React.CSSProperties)
+        : {}),
+    }
     const cols = layoutMode === 'sidebar' ? 3 : 4
 
     if (isBuiltinPresetCollectionGroup(selectedGroupId)) {
@@ -604,10 +624,6 @@ const PresetsPanel: React.FC<PresetsPanelProps> = ({
   }
 
   if (layout === 'sidebar') {
-    const builtinList = isBuiltinPresetCollectionGroup(selectedGroupId)
-      ? BUILTIN_PRESETS_BY_GROUP[selectedGroupId] ?? []
-      : []
-
     const handleImportPackFile = async (file: File) => {
       try {
         const pack = await importProjectPresetPack(file)

@@ -50,6 +50,7 @@ export const HueControlRow: React.FC<HueControlRowProps> = ({ value, onChange })
       <div
         className="editor-param__rail"
         style={{ ['--editor-rail-gradient' as string]: HUE_RAIL, ['--editor-hue-thumb' as string]: thumbColor }}
+        onDoubleClick={() => onChange(0)}
       >
         <Slider
           className="editor-controls-slider editor-hue-control__slider"
@@ -57,7 +58,6 @@ export const HueControlRow: React.FC<HueControlRowProps> = ({ value, onChange })
           max={360}
           value={value}
           onChange={onChange}
-          onDoubleClick={() => onChange(0)}
           tooltip={{ formatter: v => `${v ?? 0}°` }}
         />
       </div>
@@ -109,6 +109,7 @@ export const ExposureControlRow: React.FC<ExposureControlRowProps> = ({
         <div
           className="editor-param__rail"
           style={{ ['--editor-rail-gradient' as string]: EXPOSURE_RAIL }}
+          onDoubleClick={() => onChange(def)}
         >
           <Slider
             className="editor-controls-slider"
@@ -116,7 +117,6 @@ export const ExposureControlRow: React.FC<ExposureControlRowProps> = ({
             max={200}
             value={value}
             onChange={v => onChange(clamp(v, 0, 200))}
-            onDoubleClick={() => onChange(def)}
             tooltip={{ formatter: v => `${v ?? def}%` }}
           />
         </div>

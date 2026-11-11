@@ -41,7 +41,7 @@ declare global {
         moves: import('./index').BatchRelocateEntry[],
         conflictAction: import('./index').FileConflictAction
       ) => Promise<import('./index').BatchFileOpResult[]>
-      getImageBase64: (filePath: string) => Promise<string>
+      getImageBase64: (filePath: string, maxEdge?: number) => Promise<string>
       probeMediaAsset: (filePath: string) => Promise<import('./index').MediaAssetInfo>
       getFileStats: (
         filePath: string

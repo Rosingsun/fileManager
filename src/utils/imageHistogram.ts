@@ -25,7 +25,7 @@ function shouldUseCrossOrigin(url: string): boolean {
  */
 export async function computeLuminanceHistogram(
   imageSrc: string,
-  options?: { maxEdge?: number; signal?: { cancelled: boolean } }
+  options?: { maxEdge?: number; signal?: { cancelled: boolean }; filterCss?: string }
 ): Promise<LuminanceHistogramResult> {
   const maxEdge = options?.maxEdge ?? DEFAULT_MAX_EDGE
   const empty: LuminanceHistogramResult = {
@@ -70,7 +70,13 @@ export async function computeLuminanceHistogram(
           return
         }
 
+        /** 基础调整走 CSS 即时预览，直方图同样叠加滤镜才能与画面一致 */
+        const filterCss = options?.filterCss
+        if (filterCss && filterCss !== 'none') {
+          ctx.filter = filterCss
+        }
         ctx.drawImage(img, 0, 0, cw, ch)
+        ctx.filter = 'none'
         const data = ctx.getImageData(0, 0, cw, ch).data
         const bins = new Uint32Array(256)
         const rBins = new Uint32Array(256)

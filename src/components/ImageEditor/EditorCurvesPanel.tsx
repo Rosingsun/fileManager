@@ -5,10 +5,10 @@ import EditorHistogram from './EditorHistogram'
 import {
   resetEditPanel,
   DEFAULT_LEVELS,
-  DEFAULT_TONE_CURVE_POINTS,
   normalizeCurvePoints,
   computeAutoLevels,
   getCurvePointsForChannel,
+  getInstantFilterCss,
 } from '../../utils'
 import { useImageHistogram } from '../../hooks'
 import type { ImageEditSettings } from '../../types'
@@ -58,6 +58,7 @@ const EditorCurvesPanel: React.FC<EditorCurvesPanelProps> = ({
   const { histogram, loading: histLoading } = useImageHistogram(previewSrc, settingsDigest, {
     filePath,
     pixelCount: imagePixelCount,
+    filterCss: getInstantFilterCss(settings),
   })
   const chartRef = useRef<SVGSVGElement>(null)
   const [dragIndex, setDragIndex] = useState<number | null>(null)

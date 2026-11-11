@@ -126,9 +126,9 @@ try {
       return ipcRenderer.invoke('files:batchRelocate', moves, conflictAction)
     },
 
-    // 获取图片base64用于预览
-    getImageBase64: (filePath: string): Promise<string> => {
-      return ipcRenderer.invoke('file:getImageBase64', filePath)
+    // 获取图片base64用于预览（maxEdge：按长边降采样，编辑器预览用）
+    getImageBase64: (filePath: string, maxEdge?: number): Promise<string> => {
+      return ipcRenderer.invoke('file:getImageBase64', filePath, maxEdge)
     },
 
     probeMediaAsset: (filePath: string): Promise<import('../../src/types').MediaAssetInfo> => {

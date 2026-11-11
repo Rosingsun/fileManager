@@ -94,9 +94,49 @@ function isActiveValue(key: keyof ImageEditSettings, settings: ImageEditSettings
   return false
 }
 
+/**
+ * CSS 滤镜可即时还原的参数：拖动滑块时由浏览器 GPU 直接出画，不必等待主进程。
+ * 这些项在向主进程请求 Sharp 预览时会被剥离，避免「Sharp + CSS」二次叠加。
+ */
+const CSS_PREVIEW_KEYS: (keyof ImageEditSettings)[] = [
+  'brightness',
+  'contrast',
+  'saturation',
+  'hue',
+  'exposure',
+  'grayscale',
+  'blur',
+  'vintage',
+]
+
+/** 纯几何变换：CSS transform 可精确表达，同样不交给 Sharp 预览层 */
+const GEOMETRY_PREVIEW_KEYS: (keyof ImageEditSettings)[] = [
+  'rotation',
+  'flipHorizontal',
+  'flipVertical',
+]
+
 /** 是否仅需 CSS 即可预览（无 Sharp 专属项） */
 export function needsBasicCssOnly(settings: ImageEditSettings): boolean {
   return !SHARP_PREVIEW_KEYS.some(k => isActiveValue(k, settings))
+}
+
+/** 预览是否需要主进程（Sharp）参与 */
+export function settingsForSharpPreview(settings: ImageEditSettings): ImageEditSettings {
+  const rest: ImageEditSettings = { ...settings }
+  for (const key of [...CSS_PREVIEW_KEYS, ...GEOMETRY_PREVIEW_KEYS]) {
+    delete (rest as Record<string, unknown>)[key as string]
+  }
+  return rest
+}
+
+/** 即时预览滤镜：仅覆盖 CSS 可还原的基础项，高级项由 Sharp 预览图层承担 */
+export function getInstantFilterCss(settings: ImageEditSettings): string {
+  const picked: ImageEditSettings = {}
+  for (const key of CSS_PREVIEW_KEYS) {
+    ;(picked as Record<string, unknown>)[key as string] = settings[key]
+  }
+  return getFilterCss(picked)
 }
 
 /** 是否需要 Sharp 降采样预览（高级效果） */

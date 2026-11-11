@@ -74,6 +74,7 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
   const [collapsed, setCollapsed] = useState(false)
   const [presetsCollapsed, setPresetsCollapsed] = useState(readPresetsCollapsed)
   const [activeTool, setActiveTool] = useState<EditorToolKey>('adjust')
+  const activeEditCount = countActiveEdits(settings)
 
   const togglePresetsCollapsed = useCallback(() => {
     setPresetsCollapsed(prev => {
@@ -89,9 +90,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
 
   const handleToolChange = (key: EditorToolKey) => {
     setActiveTool(key)
-    if (key === 'crop') {
-      onToggleCropMode?.(true)
-    }
+    /** 裁切遮罩只在裁切页出现，切到其它工具需收起，避免误操作选区 */
+    onToggleCropMode?.(key === 'crop')
   }
 
   const renderToolPanel = () => {
@@ -154,8 +154,8 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
         {!collapsed && (
           <div className="image-editor-sidebar__brand-wrap">
             <span className="image-editor-sidebar__brand">调整</span>
-            {countActiveEdits(settings) > 0 && (
-              <span className="image-editor-sidebar__badge">{countActiveEdits(settings)}</span>
+            {activeEditCount > 0 && (
+              <span className="image-editor-sidebar__badge">{activeEditCount}</span>
             )}
           </div>
         )}
@@ -202,6 +202,7 @@ const EditorSidebar: React.FC<EditorSidebarProps> = ({
                 layout="sidebar"
                 onApply={onApplyPreset}
                 currentSettings={settings}
+                previewSrc={previewSrc}
                 hideHeading
               />
             ) : null}

@@ -1182,9 +1182,9 @@ ipcHandle('file:getPhotoFocusPoints', async (_event, filePath: string) => {
   return readPhotoFocusPointsFromFile(filePath)
 })
 
-ipcHandle('file:getImageBase64', async (_event, filePath: string): Promise<string> => {
+ipcHandle('file:getImageBase64', async (_event, filePath: string, maxEdge?: number): Promise<string> => {
   const { getImageBase64 } = await import('./utils/imageUtils')
-  return getImageBase64(filePath)
+  return getImageBase64(filePath, maxEdge)
 })
 
 ipcHandle('file:probeMediaAsset', async (_event, filePath: string) => {

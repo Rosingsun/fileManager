@@ -823,6 +823,10 @@ const FileList: React.FC = () => {
           visible={batchEditorVisible}
           filePaths={selectedRows.map(r => r.path)}
           onClose={() => setBatchEditorVisible(false)}
+          onApplied={() => {
+            clearCache()
+            loadDirectory(currentPath)
+          }}
         />
       )}
     </>

@@ -5,14 +5,13 @@ import {
   TbZoomOut,
   TbZoomScan,
   TbArrowsMaximize,
-  TbColumns2,
   TbEye,
 } from '../icons'
 import CropOverlay from './CropOverlay'
-import { getFilterCss, getTransformCss, hasAnyEdit } from '../../utils'
+import { getInstantFilterCss, getTransformCss, hasAnyEdit } from '../../utils'
 import type { ImageEditSettings } from '../../types'
 
-type PreviewViewMode = 'single' | 'wipe'
+export type PreviewViewMode = 'single' | 'wipe'
 
 interface EditorPreviewCanvasProps {
   imageUrl: string | null
@@ -30,11 +29,23 @@ interface EditorPreviewCanvasProps {
   editCount?: number
   pickWhiteBalanceMode?: boolean
   onPickWhiteBalance?: (rgb: { r: number; g: number; b: number }) => void
+  viewMode: PreviewViewMode
+  onViewModeChange: (mode: PreviewViewMode) => void
 }
 
 const MIN_SCALE = 25
 const MAX_SCALE = 400
+const STAGE_PADDING = 48
+
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max)
+
+/** 焦点在可输入控件时，不劫持空格等快捷键 */
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as HTMLElement | null
+  if (!el || typeof el.tagName !== 'string') return false
+  const tag = el.tagName.toLowerCase()
+  return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable
+}
 
 const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
   imageUrl,
@@ -51,6 +62,8 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
   editCount = 0,
   pickWhiteBalanceMode = false,
   onPickWhiteBalance,
+  viewMode,
+  onViewModeChange,
 }) => {
   const stageRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
@@ -58,7 +71,6 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isPanning, setIsPanning] = useState(false)
   const [holdOriginal, setHoldOriginal] = useState(false)
-  const [viewMode, setViewMode] = useState<PreviewViewMode>('single')
   const [wipePos, setWipePos] = useState(50)
   const [isWipeDragging, setIsWipeDragging] = useState(false)
   const panStart = useRef({ x: 0, y: 0, panX: 0, panY: 0 })
@@ -67,12 +79,14 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
 
   const pristineSrc = originalUrl || imageUrl
   const showSharpEdited = !!sharpPreviewUrl && !holdOriginal
-  const showCssFallback = !holdOriginal && !showSharpEdited && hasAnyEdit(settings)
   const editedSrc = showSharpEdited ? sharpPreviewUrl : imageUrl
-  const editedFilter = showCssFallback ? getFilterCss(settings) : 'none'
-  const editedTransform = showCssFallback ? getTransformCss(settings) : 'none'
 
-  const canCompare = hasAnyEdit(settings) && !!pristineSrc && !!editedSrc
+  /** 基础项走 CSS 即时出画；Sharp 预览图层只负责高级项，二者不重叠 */
+  const instantFilter = getInstantFilterCss(settings)
+  const geometryTransform = getTransformCss(settings)
+  const hasEdits = hasAnyEdit(settings)
+
+  const canCompare = hasEdits && !!pristineSrc && !!editedSrc
   const useWipe = viewMode === 'wipe' && canCompare && !holdOriginal
 
   const compareEditedSrc =
@@ -81,83 +95,95 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
       : useWipe && settings.crop && imageUrl
         ? imageUrl
         : editedSrc
-  const compareEditedFilter =
-    useWipe && compareEditedSrc === imageUrl && hasAnyEdit(settings) ? editedFilter : 'none'
-  const compareEditedTransform =
-    useWipe && compareEditedSrc === imageUrl && hasAnyEdit(settings) ? editedTransform : 'none'
 
-  const displaySrc = holdOriginal
-    ? pristineSrc
-    : useWipe
-      ? null
-      : editedSrc
+  /** 裁切结果已在预览图内时按裁切尺寸布局，避免被拉伸回原尺寸 */
+  const croppedFrame =
+    !!settings.crop && !!sharpPreviewUrl && !showCropOverlay && !useWipe
+      ? settings.crop
+      : null
 
-  const cssFilter = holdOriginal || useWipe || showSharpEdited ? 'none' : editedFilter
-  const cssTransform = holdOriginal || useWipe || showSharpEdited ? 'none' : editedTransform
+  const baseW = croppedFrame ? croppedFrame.width : imageWidth > 0 ? imageWidth : displaySize.width
+  const baseH = croppedFrame ? croppedFrame.height : imageHeight > 0 ? imageHeight : displaySize.height
 
-  const renderW = imageWidth > 0 ? imageWidth : displaySize.width
-  const renderH = imageHeight > 0 ? imageHeight : displaySize.height
-  const layoutW = useWipe && stageFit.width > 0 ? stageFit.width : renderW
-  const layoutH = useWipe && stageFit.height > 0 ? stageFit.height : renderH
+  /**
+   * 几何变换只在非裁切状态下生效：导出管线是「先裁切后旋转」，
+   * 裁切遮罩必须贴在未旋转的画面上才能与坐标对齐。
+   */
+  const applyGeometry = !holdOriginal && !showCropOverlay
+  const rotation = applyGeometry ? Math.abs((settings.rotation ?? 0) % 360) : 0
+  const rad = (rotation * Math.PI) / 180
+  const cosR = Math.abs(Math.cos(rad))
+  const sinR = Math.abs(Math.sin(rad))
+  /** 旋转后包围盒，避免 frame 的 overflow:hidden 把旋转后的画面裁掉 */
+  const contentW = Math.round(baseW * cosR + baseH * sinR) || baseW
+  const contentH = Math.round(baseW * sinR + baseH * cosR) || baseH
+  const activeTransform = applyGeometry ? geometryTransform : 'none'
+
+  const layoutW = useWipe && stageFit.width > 0 ? stageFit.width : contentW
+  const layoutH = useWipe && stageFit.height > 0 ? stageFit.height : contentH
 
   const recomputeStageFit = useCallback(() => {
     const stage = stageRef.current
-    if (!stage || imageWidth <= 0 || imageHeight <= 0) return
+    if (!stage || contentW <= 0 || contentH <= 0) return
     const rect = stage.getBoundingClientRect()
-    const pad = 48
-    const ratio = Math.min((rect.width - pad) / imageWidth, (rect.height - pad) / imageHeight)
+    const ratio = Math.min(
+      (rect.width - STAGE_PADDING) / contentW,
+      (rect.height - STAGE_PADDING) / contentH
+    )
     setStageFit({
-      width: Math.max(1, Math.round(imageWidth * ratio)),
-      height: Math.max(1, Math.round(imageHeight * ratio)),
+      width: Math.max(1, Math.round(contentW * ratio)),
+      height: Math.max(1, Math.round(contentH * ratio)),
     })
-  }, [imageWidth, imageHeight])
+  }, [contentW, contentH])
 
   const fitToStage = useCallback(() => {
     const stage = stageRef.current
-    if (!stage || imageWidth <= 0 || imageHeight <= 0) return
+    if (!stage || contentW <= 0 || contentH <= 0) return
     const rect = stage.getBoundingClientRect()
-    const pad = 48
-    const fitScale = Math.min((rect.width - pad) / imageWidth, (rect.height - pad) / imageHeight) * 100
+    const fitScale =
+      Math.min((rect.width - STAGE_PADDING) / contentW, (rect.height - STAGE_PADDING) / contentH) *
+      100
     setScale(clamp(Math.floor(fitScale), MIN_SCALE, MAX_SCALE))
     setPan({ x: 0, y: 0 })
     recomputeStageFit()
-  }, [imageWidth, imageHeight, recomputeStageFit])
+  }, [contentW, contentH, recomputeStageFit])
+
+  /** 只在「换图 / 裁切尺寸变化」时重新适应窗口，旋转等调整不打断用户的缩放 */
+  const fitRef = useRef(fitToStage)
+  fitRef.current = fitToStage
 
   useEffect(() => {
-    if (imageUrl && imageWidth > 0) fitToStage()
-  }, [imageUrl, imageWidth, imageHeight, fitToStage])
+    if (imageUrl && baseW > 0) fitRef.current()
+  }, [imageUrl, baseW, baseH])
 
   useEffect(() => {
     const onResize = () => {
       recomputeStageFit()
-      if (viewMode === 'wipe') {
-        setScale(100)
-        setPan({ x: 0, y: 0 })
-      } else {
-        fitToStage()
-      }
+      fitRef.current()
     }
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
-  }, [fitToStage, recomputeStageFit, viewMode])
+  }, [recomputeStageFit])
 
   useEffect(() => {
-    if (imageWidth <= 0) return
+    if (baseW <= 0) return
     if (viewMode === 'wipe') {
       recomputeStageFit()
       setScale(100)
       setPan({ x: 0, y: 0 })
     } else {
-      fitToStage()
+      fitRef.current()
     }
-  }, [viewMode, imageWidth, imageHeight, recomputeStageFit, fitToStage])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, baseW, baseH])
 
   useEffect(() => {
-    if (!canCompare && viewMode === 'wipe') setViewMode('single')
-  }, [canCompare, viewMode])
+    if (!canCompare && viewMode === 'wipe') onViewModeChange('single')
+  }, [canCompare, viewMode, onViewModeChange])
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e.target)) return
       if (e.code === 'Space' && !isWipeDragging) {
         e.preventDefault()
         setHoldOriginal(true)
@@ -173,6 +199,19 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
       window.removeEventListener('keyup', onKeyUp)
     }
   }, [isWipeDragging])
+
+  /** React 的 onWheel 是被动监听，preventDefault 无效，这里改用原生非被动监听 */
+  useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+    const onWheel = (e: WheelEvent) => {
+      if (isWipeDragging) return
+      e.preventDefault()
+      setScale(s => clamp(s + (e.deltaY > 0 ? -10 : 10), MIN_SCALE, MAX_SCALE))
+    }
+    stage.addEventListener('wheel', onWheel, { passive: false })
+    return () => stage.removeEventListener('wheel', onWheel)
+  }, [isWipeDragging, imageUrl, loading])
 
   const updateWipeFromClientX = useCallback((clientX: number) => {
     const frame = frameRef.current
@@ -195,14 +234,10 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
     }
   }, [isWipeDragging, updateWipeFromClientX])
 
-  const handleWheel = (e: React.WheelEvent) => {
-    if (isWipeDragging) return
-    e.preventDefault()
-    setScale(s => clamp(s + (e.deltaY > 0 ? -10 : 10), MIN_SCALE, MAX_SCALE))
-  }
-
   const handleStageMouseDown = (e: React.MouseEvent) => {
     if (e.button !== 0 || isWipeDragging) return
+    /** 取色模式下不拖动画布，避免误移动 */
+    if (pickWhiteBalanceMode) return
     setIsPanning(true)
     panStart.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y }
   }
@@ -257,6 +292,7 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
             alt="原图"
             draggable={false}
             onClick={handlePickClick}
+            style={{ transform: activeTransform }}
             onLoad={e => {
               const img = e.currentTarget
               setDisplaySize({ width: img.naturalWidth, height: img.naturalHeight })
@@ -273,8 +309,8 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
               draggable={false}
               onClick={handlePickClick}
               style={{
-                filter: compareEditedFilter,
-                transform: compareEditedTransform,
+                filter: instantFilter,
+                transform: activeTransform,
               }}
             />
           </div>
@@ -310,41 +346,52 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
       )
     }
 
-    if (displaySrc) {
-      return (
-        <div ref={frameRef} className="image-editor-preview-frame" style={{ width: renderW, height: renderH }}>
-          <img
-            src={displaySrc}
-            alt="preview"
-            draggable={false}
-            className={pickWhiteBalanceMode ? 'is-wb-pick' : undefined}
-            onClick={handlePickClick}
-            onLoad={e => {
-              const img = e.currentTarget
-              setDisplaySize({ width: img.naturalWidth, height: img.naturalHeight })
-            }}
-            style={{
-              width: renderW || 'auto',
-              height: renderH || 'auto',
-              filter: cssFilter,
-              transform: cssTransform,
-              cursor: pickWhiteBalanceMode ? 'crosshair' : undefined,
-            }}
-          />
-          {showCropOverlay && imageWidth > 0 && !holdOriginal && (
-            <CropOverlay
-              settings={settings}
-              onChange={onSettingsChange}
-              imageWidth={imageWidth}
-              imageHeight={imageHeight}
-            />
-          )}
-        </div>
-      )
-    }
+    if (!imageUrl) return null
 
-    return null
+    const showSrc = holdOriginal ? pristineSrc : editedSrc
+    if (!showSrc) return null
+
+    return (
+      <div
+        ref={frameRef}
+        className="image-editor-preview-frame"
+        style={{ width: contentW, height: contentH }}
+      >
+        <img
+          src={showSrc}
+          alt="preview"
+          draggable={false}
+          className={pickWhiteBalanceMode ? 'is-wb-pick' : undefined}
+          onClick={handlePickClick}
+          onLoad={e => {
+            const img = e.currentTarget
+            setDisplaySize({ width: img.naturalWidth, height: img.naturalHeight })
+          }}
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            width: baseW || 'auto',
+            height: baseH || 'auto',
+            transform: `translate(-50%, -50%) ${activeTransform === 'none' ? '' : activeTransform}`.trim(),
+            transformOrigin: 'center center',
+            filter: holdOriginal ? 'none' : instantFilter,
+            cursor: pickWhiteBalanceMode ? 'crosshair' : undefined,
+          }}
+        />
+        {showCropOverlay && imageWidth > 0 && !holdOriginal && (
+          <CropOverlay
+            settings={settings}
+            onChange={onSettingsChange}
+            imageWidth={imageWidth}
+            imageHeight={imageHeight}
+          />
+        )}
+      </div>
+    )
   }
+
+  const previewPending = !!sharpPreviewLoading && !sharpPreviewUrl
 
   return (
     <div className="image-editor-canvas-wrap image-editor-root">
@@ -365,26 +412,30 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
             />
           </Tooltip>
           <span className="image-editor-preview-toolbar__divider" />
-          <Button
-            type="text"
-            size="small"
-            icon={<TbZoomOut size={17} />}
-            onClick={() => setScale(s => clamp(s - 15, MIN_SCALE, MAX_SCALE))}
-          />
+          <Tooltip title="缩小">
+            <Button
+              type="text"
+              size="small"
+              icon={<TbZoomOut size={17} />}
+              onClick={() => setScale(s => clamp(s - 15, MIN_SCALE, MAX_SCALE))}
+            />
+          </Tooltip>
           <span className="image-editor-preview-toolbar__zoom">{scale}%</span>
-          <Button
-            type="text"
-            size="small"
-            icon={<TbZoomIn size={17} />}
-            onClick={() => setScale(s => clamp(s + 15, MIN_SCALE, MAX_SCALE))}
-          />
+          <Tooltip title="放大">
+            <Button
+              type="text"
+              size="small"
+              icon={<TbZoomIn size={17} />}
+              onClick={() => setScale(s => clamp(s + 15, MIN_SCALE, MAX_SCALE))}
+            />
+          </Tooltip>
         </div>
 
         <div className="image-editor-preview-toolbar__group">
           <Segmented
             size="small"
             value={viewMode}
-            onChange={v => setViewMode(v as PreviewViewMode)}
+            onChange={v => onViewModeChange(v as PreviewViewMode)}
             options={[
               { label: '效果', value: 'single' },
               {
@@ -394,16 +445,18 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
               },
             ]}
           />
-          <Button
-            type={holdOriginal ? 'primary' : 'text'}
-            size="small"
-            icon={<TbEye size={17} />}
-            onMouseDown={() => setHoldOriginal(true)}
-            onMouseUp={() => setHoldOriginal(false)}
-            onMouseLeave={() => setHoldOriginal(false)}
-          >
-            {holdOriginal ? '原图' : '按住原图'}
-          </Button>
+          <Tooltip title="按住查看原图（空格）">
+            <Button
+              type={holdOriginal ? 'primary' : 'text'}
+              size="small"
+              icon={<TbEye size={17} />}
+              onMouseDown={() => setHoldOriginal(true)}
+              onMouseUp={() => setHoldOriginal(false)}
+              onMouseLeave={() => setHoldOriginal(false)}
+            >
+              {holdOriginal ? '原图' : '按住原图'}
+            </Button>
+          </Tooltip>
         </div>
       </div>
 
@@ -418,7 +471,6 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
         <div
           ref={stageRef}
           className={`image-editor-preview-stage${isPanning ? ' is-dragging' : ''}${useWipe ? ' is-compare' : ''}${pickWhiteBalanceMode ? ' is-wb-pick-mode' : ''}`}
-          onWheel={handleWheel}
           onMouseDown={handleStageMouseDown}
           onMouseMove={handleStageMouseMove}
           onMouseUp={() => setIsPanning(false)}
@@ -432,7 +484,7 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
           >
             {renderImageContent()}
           </div>
-          {sharpPreviewLoading && (
+          {previewPending && (
             <div className="image-editor-preview-loading">
               <Spin size="small" /> 渲染预览…
             </div>
@@ -441,21 +493,22 @@ const EditorPreviewCanvas: React.FC<EditorPreviewCanvasProps> = ({
       )}
 
       <footer className="image-editor-preview-status">
-        <span>
-          {imageWidth > 0 ? `${imageWidth} × ${imageHeight} px` : '—'}
-        </span>
+        <span>{imageWidth > 0 ? `${imageWidth} × ${imageHeight} px` : '—'}</span>
+        {croppedFrame ? (
+          <>
+            <span className="image-editor-preview-status__sep">·</span>
+            <span className="image-editor-preview-status__edits">
+              裁切后 {Math.round(croppedFrame.width)} × {Math.round(croppedFrame.height)}
+            </span>
+          </>
+        ) : null}
         <span className="image-editor-preview-status__sep">·</span>
         <span>{scale}%</span>
+        <span className="image-editor-preview-status__sep">·</span>
         {editCount > 0 ? (
-          <>
-            <span className="image-editor-preview-status__sep">·</span>
-            <span className="image-editor-preview-status__edits">{editCount} 项调整</span>
-          </>
+          <span className="image-editor-preview-status__edits">{editCount} 项调整</span>
         ) : (
-          <>
-            <span className="image-editor-preview-status__sep">·</span>
-            <span>未调整</span>
-          </>
+          <span>未调整</span>
         )}
         {useWipe ? (
           <>

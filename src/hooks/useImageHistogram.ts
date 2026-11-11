@@ -46,6 +46,8 @@ export function useImageHistogram(
   options?: {
     filePath?: string
     pixelCount?: number
+    /** 与画布一致的即时 CSS 滤镜，使直方图反映基础调整 */
+    filterCss?: string
   }
 ): {
   histogram: LuminanceHistogramResult
@@ -77,7 +79,7 @@ export function useImageHistogram(
     const timer = window.setTimeout(() => {
       const run = useMainProcess
         ? window.electronAPI!.getImageHistogram(options!.filePath!).then(deserializeHistogram)
-        : computeLuminanceHistogram(previewSrc)
+        : computeLuminanceHistogram(previewSrc, { filterCss: options?.filterCss })
 
       void run
         .then(result => {
@@ -97,7 +99,7 @@ export function useImageHistogram(
       clearTimeout(timer)
       genRef.current++
     }
-  }, [previewSrc, depsKey, options?.filePath, options?.pixelCount])
+  }, [previewSrc, depsKey, options?.filePath, options?.pixelCount, options?.filterCss])
 
   return { histogram, loading, error }
 }

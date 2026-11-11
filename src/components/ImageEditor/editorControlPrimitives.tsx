@@ -95,6 +95,7 @@ export const ControlRow: React.FC<{
       <div
         className="editor-param__rail"
         style={railGradient ? { ['--editor-rail-gradient' as string]: railGradient } : undefined}
+        onDoubleClick={() => onChange(def)}
       >
         {bipolar && center != null ? (
           <span className="editor-param__center" style={{ left: '50%' }} aria-hidden />
@@ -105,7 +106,6 @@ export const ControlRow: React.FC<{
           max={max}
           value={value}
           onChange={onChange}
-          onDoubleClick={() => onChange(def)}
           tooltip={{ formatter: v => `${v ?? def}${unit}` }}
         />
       </div>

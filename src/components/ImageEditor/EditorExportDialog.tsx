@@ -346,9 +346,12 @@ const EditorExportDialog: React.FC<EditorExportDialogProps> = ({
             {previewDims.width > 0 ? (
               <Text type="secondary" className="editor-export-dialog__preview-meta">
                 {previewDims.width} × {previewDims.height} px
-                {previewSize > 0 ? ` · 约 ${formatByteSize(previewSize)}` : ''}
+                {previewSize > 0 ? ` · 预览图约 ${formatByteSize(previewSize)}` : ''}
               </Text>
             ) : null}
+            <Text type="secondary" className="editor-export-dialog__preview-hint">
+              预览按长边 1280 px 降采样生成，实际导出体积随原图尺寸变化
+            </Text>
           </div>
 
           {exportProgress && exportProgress.total > 1 ? (

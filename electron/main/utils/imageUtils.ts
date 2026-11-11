@@ -82,13 +82,43 @@ export async function getImageThumbnail(
   }
 }
 
-export async function getImageBase64(filePath: string): Promise<string> {
+/**
+ * 读取图片为 data URL。
+ * maxEdge 有值时按长边降采样（编辑器预览用），避免 24MP 原图整块 base64 走 IPC 造成卡顿与内存膨胀；
+ * 不传则保持原样（查看器、缓存等按原图语义使用）。
+ */
+export async function getImageBase64(filePath: string, maxEdge?: number): Promise<string> {
   try {
     const { displayPath } = await resolveStillPathForDisplay(filePath)
-    const buffer = await import('fs').then(fs => fs.promises.readFile(displayPath))
+    const fs = await import('fs')
     const mimeType = getMimeType(displayPath)
-    const base64 = buffer.toString('base64')
-    return `data:${mimeType};base64,${base64}`
+
+    const readFull = async (): Promise<string> => {
+      const buffer = await fs.promises.readFile(displayPath)
+      return `data:${mimeType};base64,${buffer.toString('base64')}`
+    }
+
+    if (!maxEdge || maxEdge <= 0) return await readFull()
+
+    const image = sharp(displayPath)
+    const meta = await image.metadata()
+    const w = meta.width ?? 0
+    const h = meta.height ?? 0
+    const longest = Math.max(w, h)
+    if (w <= 0 || h <= 0 || longest <= maxEdge) return await readFull()
+
+    const scale = maxEdge / longest
+    const resized = image.resize(Math.round(w * scale), Math.round(h * scale), {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+
+    if (meta.hasAlpha) {
+      const buffer = await resized.png({ compressionLevel: 6 }).toBuffer()
+      return `data:image/png;base64,${buffer.toString('base64')}`
+    }
+    const buffer = await resized.jpeg({ quality: 90, mozjpeg: true }).toBuffer()
+    return `data:image/jpeg;base64,${buffer.toString('base64')}`
   } catch (error) {
     console.error('[Main] 获取图片base64失败:', error)
     return ''
@@ -424,18 +454,61 @@ export async function buildImageEditPipeline(
   return sharpInstance
 }
 
-/** 分析并返回建议的编辑参数（一键增强） */
-export async function analyzeForEdit(_filePath: string): Promise<ImageEditSettings> {
-  return {
-    brightness: 108,
+/**
+ * 分析图片并返回建议的编辑参数（一键增强）。
+ * 在 512px 缩略图上做通道统计，只推导「亮度 / 对比度 / 阴影 / 高光」这类可量化的项，
+ * 锐化与降噪给固定保守值；参数区间刻意收窄，避免建议结果过冲。
+ */
+export async function analyzeForEdit(filePath: string): Promise<ImageEditSettings> {
+  const fallback: ImageEditSettings = {
+    brightness: 104,
     contrast: 104,
-    saturation: 106,
-    exposure: 102,
-    sharpen: 28,
-    denoise: 18,
-    clarity: 14,
-    shadows: 8,
-    highlights: -6,
+    saturation: 104,
+    shadows: 6,
+    highlights: -4,
+    sharpen: 22,
+    denoise: 12,
+    clarity: 10,
+  }
+
+  try {
+    const { displayPath } = await resolveStillPathForDisplay(filePath)
+    const { channels } = await sharp(displayPath)
+      .resize(512, 512, { fit: 'inside', withoutEnlargement: true })
+      .stats()
+
+    const [r, g, b] = channels
+    if (!r || !g || !b) return fallback
+
+    const mean = (r.mean + g.mean + b.mean) / 3
+    const stdev = (r.stdev + g.stdev + b.stdev) / 3
+
+    const clampNum = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v))
+
+    /** 以中灰 128 为目标做温和提亮/压暗 */
+    const brightness = clampNum(Math.round(100 * Math.pow(126 / Math.max(12, mean), 0.3)), 92, 118)
+    /** 低反差画面适度加对比，高反差不再叠加 */
+    const contrast = clampNum(Math.round(100 + (52 - stdev) * 0.45), 96, 112)
+    const shadows = mean < 108 ? clampNum(Math.round((108 - mean) * 0.35), 0, 18) : 0
+    const highlights = mean > 138 ? clampNum(-Math.round((mean - 138) * 0.35), -16, 0) : 0
+    /** 通道均值越接近，色彩越中性，可稍加饱和度 */
+    const channelSpread = Math.max(r.mean, g.mean, b.mean) - Math.min(r.mean, g.mean, b.mean)
+    const saturation = clampNum(Math.round(100 + (26 - channelSpread) * 0.35), 98, 112)
+
+    return {
+      brightness,
+      contrast,
+      saturation,
+      exposure: 100,
+      shadows,
+      highlights,
+      clarity: 10,
+      sharpen: 22,
+      denoise: stdev > 60 ? 16 : 10,
+    }
+  } catch (error) {
+    console.warn('[analyzeForEdit] 统计失败，回退默认建议:', error)
+    return fallback
   }
 }
 

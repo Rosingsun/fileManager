@@ -34,6 +34,8 @@ const EditorCropPanel: React.FC<EditorCropPanelProps> = ({
   imageWidth = 800,
   imageHeight = 600,
 }) => {
+  const crop = settings.crop ?? { x: 0, y: 0, width: imageWidth, height: imageHeight }
+
   const clampCropRect = (rect: NonNullable<ImageEditSettings['crop']>): NonNullable<ImageEditSettings['crop']> => {
     let { x, y, width, height } = rect
     width = Math.max(MIN_CROP_DIM, Math.min(width, imageWidth))
@@ -51,62 +53,89 @@ const EditorCropPanel: React.FC<EditorCropPanelProps> = ({
   }
 
   const handleCropChange = (field: keyof NonNullable<ImageEditSettings['crop']>) => (value: number | null) => {
-    const base = settings.crop ?? { x: 0, y: 0, width: imageWidth, height: imageHeight }
-    onChange({ crop: clampCropRect({ ...base, [field]: value ?? 0 }) })
+    onChange({ crop: clampCropRect({ ...crop, [field]: value ?? 0 }) })
+  }
+
+  const handleAspect = (w: number, h: number) => {
+    onChange({ crop: computeCropRectForAspectRatio(imageWidth, imageHeight, w, h) })
   }
 
   return (
     <div className="image-editor-controls-panel editor-panel-body">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
+      <div className="editor-crop-head">
         <SectionTitle icon={<ScissorOutlined />}>裁切</SectionTitle>
-        <Button size="small" type={showCropMode ? 'primary' : 'default'} onClick={() => onToggleCropMode?.(!showCropMode)}>
-          {showCropMode ? '关闭' : '开启'}
+        <Button
+          size="small"
+          type={showCropMode ? 'primary' : 'default'}
+          onClick={() => onToggleCropMode?.(!showCropMode)}
+        >
+          {showCropMode ? '关闭遮罩' : '开启遮罩'}
         </Button>
       </div>
 
-      {showCropMode && (
-        <div style={{ padding: '0 16px' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-            <Button size="small" type={!settings.crop ? 'primary' : 'default'} onClick={() => onChange({ crop: undefined })}>
-              自由
+      <div className="editor-crop-body">
+        <div className="editor-crop-aspects">
+          <Button
+            size="small"
+            type={!settings.crop ? 'primary' : 'default'}
+            onClick={() => onChange({ crop: undefined })}
+          >
+            自由
+          </Button>
+          {CROP_ASPECT_PRESETS.map(preset => (
+            <Button
+              key={`${preset.w}-${preset.h}`}
+              size="small"
+              onClick={() => handleAspect(preset.w, preset.h)}
+            >
+              {preset.label}
             </Button>
-            {CROP_ASPECT_PRESETS.map(preset => (
-              <Button
-                key={`${preset.w}-${preset.h}`}
-                size="small"
-                onClick={() => {
-                  const rect = computeCropRectForAspectRatio(imageWidth, imageHeight, preset.w, preset.h)
-                  onChange({ crop: rect })
-                }}
-              >
-                {preset.label}
-              </Button>
-            ))}
-          </div>
-          {!settings.crop && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
-              {(['x', 'y', 'width', 'height'] as const).map(field => (
-                <div key={field}>
-                  <div style={{ fontSize: 11, color: 'var(--app-text-secondary)', marginBottom: 4 }}>
-                    {field === 'x' ? 'X' : field === 'y' ? 'Y' : field === 'width' ? '宽度' : '高度'}
-                  </div>
-                  <InputNumber
-                    value={field === 'width' ? imageWidth : field === 'height' ? imageHeight : 0}
-                    onChange={handleCropChange(field)}
-                    min={field === 'x' || field === 'y' ? 0 : MIN_CROP_DIM}
-                    max={field === 'width' ? imageWidth : field === 'height' ? imageHeight : Math.max(0, (field === 'x' ? imageWidth : imageHeight) - MIN_CROP_DIM)}
-                    size="small"
-                    style={{ width: '100%' }}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-          <p style={{ margin: 0, fontSize: 11, color: 'var(--app-text-secondary)', lineHeight: 1.45 }}>
-            在预览区拖动选区移动；拖动角点调整大小；在遮罩上拖动可框选新范围。
-          </p>
+          ))}
         </div>
-      )}
+
+        <div className="editor-crop-fields">
+          {(['x', 'y', 'width', 'height'] as const).map(field => (
+            <label key={field} className="editor-crop-field">
+              <span className="editor-crop-field__label">
+                {field === 'x' ? 'X' : field === 'y' ? 'Y' : field === 'width' ? '宽度' : '高度'}
+              </span>
+              <InputNumber
+                value={crop[field]}
+                onChange={handleCropChange(field)}
+                min={field === 'x' || field === 'y' ? 0 : MIN_CROP_DIM}
+                max={
+                  field === 'x'
+                    ? Math.max(0, imageWidth - MIN_CROP_DIM)
+                    : field === 'y'
+                      ? Math.max(0, imageHeight - MIN_CROP_DIM)
+                      : field === 'width'
+                        ? imageWidth
+                        : imageHeight
+                }
+                size="small"
+                style={{ width: '100%' }}
+              />
+            </label>
+          ))}
+        </div>
+
+        <div className="editor-crop-summary">
+          <span>
+            {crop.width} × {crop.height} px
+          </span>
+          {settings.crop ? (
+            <Button type="text" size="small" onClick={() => onChange({ crop: undefined })}>
+              恢复整图
+            </Button>
+          ) : null}
+        </div>
+
+        <p className="editor-crop-hint">
+          {showCropMode
+            ? '在预览区拖动选区移动；拖动角点调整大小；在遮罩上拖动可框选新范围。'
+            : '开启遮罩后可在预览区直接拖拽裁切框。'}
+        </p>
+      </div>
     </div>
   )
 }

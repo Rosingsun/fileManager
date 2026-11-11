@@ -3,7 +3,7 @@ import { Button } from 'antd'
 import { TbSparkles } from '../icons'
 import { ControlRow, PanelSection } from './editorControlPrimitives'
 import { HueControlRow, ExposureControlRow } from './editorSpecialControls'
-import { numSetting, resetEditPanel } from '../../utils'
+import { numSetting, resetEditPanel, getInstantFilterCss } from '../../utils'
 import { useImageHistogram } from '../../hooks'
 import type { ImageEditSettings } from '../../types'
 
@@ -40,6 +40,7 @@ const EditorAdjustPanel: React.FC<EditorAdjustPanelProps> = ({
   const { histogram, loading: histLoading } = useImageHistogram(previewSrc, settingsDigest, {
     filePath,
     pixelCount: imagePixelCount,
+    filterCss: getInstantFilterCss(settings),
   })
 
   const handleSlider = (key: keyof ImageEditSettings) => (value: number) => {

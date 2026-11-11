@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Button, Space, message } from 'antd'
 import ImageEditorShell from './ImageEditorShell'
-import EditorPreviewCanvas from './EditorPreviewCanvas'
+import EditorPreviewCanvas, { type PreviewViewMode } from './EditorPreviewCanvas'
 import EditorSidebar from './EditorSidebar'
 import EditorExportDialog from './EditorExportDialog'
 import { useImageEditor } from './useImageEditor'
@@ -9,7 +9,9 @@ import {
   hasAnyEdit,
   countActiveEdits,
   imageLoader,
+  needsSharpPreview,
   settingsForComparePreview,
+  settingsForSharpPreview,
   rgbToWhiteBalance,
 } from '../../utils'
 import type { ImageEditSettings } from '../../types'
@@ -21,10 +23,15 @@ interface ImageEditorProps {
   onSaved?: (result: { success: boolean; filePath: string }) => void
 }
 
-const PREVIEW_DEBOUNCE_MS = 300
+const PREVIEW_DEBOUNCE_MS = 260
+/**
+ * 画布显示所需的长边像素。原图（尤其 24MP）整块转 base64 经 IPC 传输会占用大量内存与主线程时间，
+ * 编辑器只需要「够屏幕清晰」的尺寸，导出仍走原文件，不受影响。
+ */
+const EDITOR_IMAGE_MAX_EDGE = 2560
 
 const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, onSaved }) => {
-  const { settings, setSettings, updateSetting, resetSettings } = useImageEditor()
+  const { settings, setSettings, updateSettings, resetSettings } = useImageEditor()
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   /** 始终为未编辑的原始 base64，供「对比原图」使用 */
   const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(null)
@@ -33,11 +40,12 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 })
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [sharpPreviewUrl, setSharpPreviewUrl] = useState<string | null>(null)
-  /** 对比视图全画幅 Sharp 预览（不含裁切） */
+  /** 对比视图全画幅 Sharp 预览（不含裁切），仅进入对比模式时生成 */
   const [sharpCompareUrl, setSharpCompareUrl] = useState<string | null>(null)
   const [sharpPreviewLoading, setSharpPreviewLoading] = useState(false)
   const [autoEnhanceLoading, setAutoEnhanceLoading] = useState(false)
   const [pickWhiteBalanceMode, setPickWhiteBalanceMode] = useState(false)
+  const [viewMode, setViewMode] = useState<PreviewViewMode>('single')
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const previewGenRef = useRef(0)
 
@@ -48,17 +56,15 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
     [sharpPreviewUrl, imageUrl, originalImageUrl]
   )
 
-  const settingsDigest = useMemo(
-    () => `${sharpPreviewUrl ?? ''}|${JSON.stringify(settings)}`,
-    [sharpPreviewUrl, settings]
-  )
+  /** 直方图等下游只需感知参数变化，不要把数 MB 的 base64 拼进摘要 */
+  const settingsDigest = useMemo(() => JSON.stringify(settings), [settings])
 
   const loadImage = useCallback(async () => {
     if (!filePath) return
     setLoadingImage(true)
     try {
       if (window.electronAPI?.getImageBase64) {
-        const base64 = await window.electronAPI.getImageBase64(filePath)
+        const base64 = await window.electronAPI.getImageBase64(filePath, EDITOR_IMAGE_MAX_EDGE)
         if (base64 && base64.startsWith('data:image')) {
           setImageUrl(base64)
           setOriginalImageUrl(base64)
@@ -96,11 +102,9 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
 
   const handleSettingsChange = useCallback(
     (updates: Partial<ImageEditSettings>) => {
-      Object.entries(updates).forEach(([key, value]) => {
-        updateSetting(key as keyof ImageEditSettings, value)
-      })
+      updateSettings(updates)
     },
-    [updateSetting]
+    [updateSettings]
   )
 
   useEffect(() => {
@@ -111,18 +115,27 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
       setSharpPreviewUrl(null)
       setSharpCompareUrl(null)
       setShowCropOverlay(false)
+      setViewMode('single')
+      setPickWhiteBalanceMode(false)
     }
   }, [visible, resetSettings])
 
-  const comparePreviewSettings = useMemo(
-    () => settingsForComparePreview(settings),
-    [settings]
+  /** 交给主进程的预览参数：剥离 CSS 可即时还原项与几何项；裁切模式下先不裁，保证遮罩坐标可用 */
+  const sharpPreviewPayload = useMemo(() => {
+    const base = showCropOverlay ? settingsForComparePreview(settings) : settings
+    return settingsForSharpPreview(base)
+  }, [settings, showCropOverlay])
+
+  /** 只有「剔除基础项后仍有高级效果」才需要主进程渲染，纯裁切时直接用原图 + 遮罩 */
+  const needSharpPreview = useMemo(
+    () => needsSharpPreview(settings) && hasAnyEdit(sharpPreviewPayload),
+    [settings, sharpPreviewPayload]
   )
 
   useEffect(() => {
     if (!visible || !filePath || !imageUrl) return
 
-    if (!hasAnyEdit(settings)) {
+    if (!needSharpPreview) {
       setSharpPreviewUrl(null)
       setSharpCompareUrl(null)
       setSharpPreviewLoading(false)
@@ -135,20 +148,19 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
     if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
     setSharpPreviewLoading(true)
     const gen = ++previewGenRef.current
-    const needComparePreview =
-      !!settings.crop && hasAnyEdit(comparePreviewSettings)
+    const needComparePreview = viewMode === 'wipe' && !!settings.crop
 
     previewTimerRef.current = setTimeout(() => {
-      const mainPreview = api.previewEdits(filePath, settings)
+      const mainPreview = api.previewEdits(filePath, sharpPreviewPayload)
       const comparePreview = needComparePreview
-        ? api.previewEdits(filePath, comparePreviewSettings)
+        ? api.previewEdits(filePath, settingsForSharpPreview(settingsForComparePreview(settings)))
         : Promise.resolve(null as string | null)
 
       void Promise.all([mainPreview, comparePreview])
         .then(([url, compareUrl]) => {
           if (previewGenRef.current !== gen) return
           setSharpPreviewUrl(url)
-          setSharpCompareUrl(compareUrl)
+          setSharpCompareUrl(compareUrl ?? null)
           setSharpPreviewLoading(false)
         })
         .catch(() => {
@@ -160,11 +172,14 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
     return () => {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current)
     }
-  }, [visible, filePath, imageUrl, settings, comparePreviewSettings])
+  }, [visible, filePath, imageUrl, settings, sharpPreviewPayload, needSharpPreview, viewMode])
 
-  const handleApplyPreset = (presetSettings: ImageEditSettings) => {
-    setSettings(presetSettings)
-  }
+  const handleApplyPreset = useCallback(
+    (presetSettings: ImageEditSettings) => {
+      setSettings(presetSettings)
+    },
+    [setSettings]
+  )
 
   const handleReset = () => {
     resetSettings()
@@ -175,11 +190,11 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
   const handlePickWhiteBalance = useCallback(
     (rgb: { r: number; g: number; b: number }) => {
       const wb = rgbToWhiteBalance(rgb.r, rgb.g, rgb.b)
-      handleSettingsChange(wb)
+      updateSettings(wb)
       setPickWhiteBalanceMode(false)
       message.success('已根据采样点设置色温与色调')
     },
-    [handleSettingsChange]
+    [updateSettings]
   )
 
   const handleAutoEnhance = async () => {
@@ -216,6 +231,11 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
     onClose()
   }
 
+  const handleToggleCropMode = useCallback((show: boolean) => {
+    setShowCropOverlay(show)
+    if (show) setPickWhiteBalanceMode(false)
+  }, [])
+
   const sizeMeta =
     imageSize.width > 0 ? `${imageSize.width} × ${imageSize.height}` : undefined
 
@@ -228,7 +248,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
         onClose={onClose}
         toolbarExtra={
           <Space>
-            <Button onClick={handleReset} disabled={exportDialogOpen}>
+            <Button onClick={handleReset} disabled={exportDialogOpen || !hasAnyEdit(settings)}>
               重置
             </Button>
             <Button onClick={onClose} disabled={exportDialogOpen}>
@@ -260,6 +280,8 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
             editCount={countActiveEdits(settings)}
             pickWhiteBalanceMode={pickWhiteBalanceMode}
             onPickWhiteBalance={handlePickWhiteBalance}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
           />
           <EditorSidebar
             settings={settings}
@@ -268,7 +290,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({ visible, filePath, onClose, o
             previewSrc={previewSrc}
             settingsDigest={settingsDigest}
             showCropMode={showCropOverlay}
-            onToggleCropMode={setShowCropOverlay}
+            onToggleCropMode={handleToggleCropMode}
             imageWidth={imageSize.width}
             imageHeight={imageSize.height}
             onAutoEnhance={handleAutoEnhance}
