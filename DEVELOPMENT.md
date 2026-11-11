@@ -34,15 +34,35 @@
 
 ### 项目结构
 
-- `electron/main/` - Electron 主进程代码
+- `electron/main/` - Electron 主进程代码（IPC、services、utils）
 - `electron/preload/` - 预加载脚本（桥接主进程和渲染进程）
 - `src/` - React 渲染进程代码
+  - `main.tsx` - 渲染进程入口
+  - `ThemedApp.tsx` - 主题与全局配置入口壳
+  - `App.tsx` - 应用主体
   - `components/` - React 组件
-  - `components/icons/` - **react-icons** 统一导出（Tabler / Remix / Phosphor 等，见 [图标库](https://react-icons.github.io/react-icons/)）；Ant Design 与 Lucide 仍用各自包
+    - `components/icons/` - **react-icons** 统一导出（Tabler / Remix / Phosphor 等，见 [图标库](https://react-icons.github.io/react-icons/)）；Ant Design 与 Lucide 仍用各自包
+    - `components/ui/` - shadcn 系基础组件，保持其内部相对引用与 `@/lib/utils` 惯例
   - `hooks/` - 自定义 Hooks
   - `stores/` - Zustand 状态管理
   - `utils/` - 工具函数
   - `types/` - TypeScript 类型定义
+- `backend/` - 自建 API（仅 GET / POST）
+- `scripts/` - 构建、模型评估与规范校验脚本
+- `docs/` - 专题文档
+
+### 统一导出规则
+
+`utils` / `hooks` / `stores` / `components` 四类目录各自维护 `index.ts` 作为唯一对外出口，
+跨层导入一律从目录引入（`import { ... } from '../utils'`），禁止直连具体模块文件。
+目录内部拆分文件之间的相对引用不受此限制。新增模块后须同步在对应 `index.ts` 中导出。
+
+```bash
+npm run check:imports
+```
+
+该命令零依赖扫描 `src/` 下全部 `.ts` / `.tsx`，发现绕过统一出口的跨层导入即以非零码退出；
+建议在提交前运行，也可接入 CI。
 
 ### IPC 通信
 
@@ -166,3 +186,29 @@ npm install
 - 组件使用函数式组件 + Hooks
 - 遵循 React Hooks 规则
 - 使用 ESLint 和 Prettier 格式化代码
+- 跨层导入统一走 `index.ts`，提交前运行 `npm run check:imports` 校验
+
+## 图片分类准确率维护
+
+分类链路：`ImageClassification.tsx` → `src/utils/imageClassification.ts` → preload →
+`electron/main/services/imageClassificationService.ts` → `electron/main/classification/pipeline.ts` →
+`clipEngine.ts`（ONNX 视觉推理 + 零样本打分）→ `decision.ts`（融合 / argmax）。
+
+**关键约束：`models/clip-prompts*.json` 必须是真实 CLIP 文本嵌入。**
+历史上曾用哈希伪嵌入，Top-1 只有 12~13%（≈随机猜）。运行时 `loadPromptsFile` 会校验
+`embeddingsSource === 'clip-text-model'` 与向量维度，校验失败直接返回 `failed`，不会静默降级。
+
+改 prompt、模型或评估集后必须重新标定：
+
+```bash
+npm run gen:clip-prompts       # 可选：重新生成文本嵌入（需先在子目录 npm install）
+npm run fixtures:classify      # 下载带标签评估图片，manifest.json 为标签来源
+npm run features:classify      # 提取 CLIP 嵌入与 ImageNet 九类概率（约 8 分钟，结果缓存）
+npm run calib:classify         # 5 折交叉验证网格搜索，写回 classification-calibration.json
+npm run eval:classify-run      # 端到端验证 Top-1 与 ECE
+npm run eval:classify          # 轻量体检：嵌入来源、维度、标定、评估集完整性
+```
+
+离线标定脚本 `calibrate-classification.mjs` 的打分公式与运行时 `scoreClipWithConfig` **必须保持一致**，
+否则标定参数会失效。当前实测：快速预览 88.2%、最高精准 91.7%（详见 `models/EVAL_BASELINE.md`）。
+ImageNet 融合权重经标定为 0，两个预设都不再加载辅助模型，不要恢复旧的「条件融合」逻辑。

@@ -1,48 +1,47 @@
 # 图片分类相关文件
 
-本目录存放 **CLIP 视觉 ONNX**、**ImageNet 辅助 ONNX（可选）**、**预计算文本向量** 与 **校准参数**。
+本目录存放 **CLIP 视觉 ONNX**、**真实 CLIP 文本嵌入**、**标定参数** 与评估记录。
+ONNX 模型体积较大，已被 `.gitignore` 忽略，需在应用内下载或手动放置。
 
-## 精准度预设与依赖
+## 预设与依赖
 
-| 预设 ID | 显示名 | 需下载 ONNX | prompts 文件 |
-|---------|--------|-------------|--------------|
-| `accuracy_fast` | 快速预览 | clip-vit-b32-vision-quant | clip-prompts.json |
-| `accuracy_max` | 最高精准（默认） | efficientnet-b4 + clip-vit-l14-vision-quant | clip-prompts-l14.json |
+| 预设 ID | 显示名 | 必需 ONNX | prompts 文件 | 评估 Top-1 |
+|---------|--------|-----------|--------------|-----------|
+| `accuracy_fast` | 快速预览 | `clip-vit-b32-vision-quant.onnx` | `clip-prompts.json` | 88.2% |
+| `accuracy_max` | 最高精准（默认） | `clip-vit-l14-vision-quant.onnx` | `clip-prompts-l14.json` | 91.7% |
 
 旧版 ID：`accuracy_light` → `accuracy_fast`，`accuracy_balanced` → `accuracy_max`。
 
-`clip-prompts.json` / `clip-prompts-l14.json` 应随仓库提供；缺失时运行下方生成脚本。
+> `efficientnet-b4.onnx` / `mobilenetv2-7.onnx` 等 ImageNet 模型**不再是分类必需项**。
+> 5 折交叉验证表明，把 ImageNet 1000 类粗映射到 9 类后与 CLIP 融合会**降低**准确率，
+> 最优权重为 0，因此两个预设均不再加载辅助模型。
 
-## 校准配置
+### CLIP 文本嵌入（关键）
 
-| 文件 | 说明 |
-|------|------|
-| `classification-calibration.json` | CLIP 打分、条件 ImageNet 融合、置信度门控等可调参数 |
-| `EVAL_BASELINE.md` | 评估基线记录模板 |
+`clip-prompts.json` / `clip-prompts-l14.json` 必须是**真实 CLIP 文本编码器**产出的向量，
+文件内 `embeddingsSource = "clip-text-model"`。运行时会校验该标记，
+若为占位伪嵌入（`PLACEHOLDER`）会直接拒绝推理，避免"自信地随机猜"。
 
-## 必需
-
-| 文件 | 说明 |
-|------|------|
-| `imagenet1000.json` | ImageNet 1000 类英文标签（`accuracy_max` 条件辅助需要） |
-
-在应用内选择精准度预设并下载，或：
-
-```bash
-npm run download:models
-node scripts/download-classification-models.mjs accuracy_fast
-```
-
-环境变量 `FILEDEAL_HF_ENDPOINT` 可改为其他 Hugging Face 镜像根地址。
-
-## CLIP prompts
+生成方式（开发期一次性，需联网；结果随仓库提供，运行时完全离线）：
 
 ```bash
 cd scripts/_clip_text_gen
 npm install
-node generate-prompts.mjs --model all
-# 或占位：npm run bootstrap:clip-prompts
+node generate-prompts.mjs --model all       # 等价于根目录 npm run gen:clip-prompts
 ```
+
+脚本默认走 `https://hf-mirror.com/`（HF 直连在本环境不可达），可用 `CLIP_HF_ENDPOINT` 覆盖。
+模型文件缓存于 `scripts/_clip_text_gen/.cache/`，已加入 `.gitignore`。
+prompt 规则见 `scripts/_clip_text_gen/prompts-data.mjs`：仅英文、仅肯定句、每类 9~12 条。
+
+## 标定配置
+
+| 文件 | 说明 |
+|------|------|
+| `classification-calibration.json` | 温度、类别偏置、prompt 聚合、弃判阈值、置信度逻辑回归系数；由 `npm run calib:classify` 生成 |
+| `EVAL_BASELINE.md` | 评估方法、基线与实测结果 |
+
+标定由 144 张标注图 + 5 折分层交叉验证得出，**不要手改阈值**；重新标定请用脚本。
 
 ## ONNX 文件名
 
@@ -50,12 +49,19 @@ node generate-prompts.mjs --model all
 |---------|--------|
 | clip_vit_b32_quant | clip-vit-b32-vision-quant.onnx |
 | clip_vit_l14_quant | clip-vit-l14-vision-quant.onnx |
-| efficientnet_b4 | efficientnet-b4.onnx |
+| efficientnet_b4（可选） | efficientnet-b4.onnx |
 
-## 评估
+在应用内选择预设并下载，或执行 `npm run download:models`。
+环境变量 `FILEDEAL_HF_ENDPOINT` 可改为其他 Hugging Face 镜像根地址。
+
+## 评估与标定流水线
 
 ```bash
-npm run bootstrap:fixtures
-npm run eval:classify
-npm run eval:classify-run
+npm run fixtures:classify     # 从 Wikimedia Commons 下载 144 张带标签图片
+npm run features:classify     # 提取模型中间特征（约 8 分钟，结果缓存）
+npm run calib:classify        # 5 折交叉验证网格搜索 + 写回 calibration.json
+npm run eval:classify-run     # 端到端真实管线评估（含 ECE 置信度校准误差）
 ```
+
+`tests/fixtures/manifest.json` 是标签来源（相对路径，随仓库提供）；
+图片、`features.json`、`candidates.json`、`eval-results.json` 均可重建，已忽略入库。

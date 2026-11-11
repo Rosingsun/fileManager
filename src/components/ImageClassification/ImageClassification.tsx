@@ -1,5 +1,8 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react'
-import { Card, Button, Progress, Table, Space, message, Alert, Modal, Typography, Radio, Select } from 'antd'
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react'
+import {
+  Card, Button, Progress, Table, Space, message, Alert, Modal, Typography,
+  Radio, Select, Tooltip, Popover, Tag, Input
+} from 'antd'
 import {
   ApiOutlined,
   DeleteOutlined,
@@ -8,7 +11,10 @@ import {
   FolderOpenOutlined,
   InboxOutlined,
   FrownOutlined,
-  AppstoreOutlined
+  AppstoreOutlined,
+  QuestionCircleOutlined,
+  SearchOutlined,
+  EditOutlined
 } from '@ant-design/icons'
 import type {
   ImageContentCategory,
@@ -208,13 +214,17 @@ const ManualDownloadModal: React.FC<{
 }
 
 interface ClassificationResult {
-  key: number
+  key: string
   filePath: string
   fileName: string
   category: ImageContentCategory
   confidence: number
   classificationStatus?: ImageClassificationResult['classificationStatus']
+  topPredictions?: ImageClassificationResult['topPredictions']
+  manualOverride?: boolean
 }
+
+type StatusFilter = 'all' | 'ok' | 'uncertain' | 'failed'
 
 const ImageClassification: React.FC = () => {
   const { currentPath: globalCurrentPath } = useFileStore()
@@ -282,6 +292,11 @@ const ImageClassification: React.FC = () => {
   const [recategorizeVisible, setRecategorizeVisible] = useState(false)
   const [recategorizeTarget, setRecategorizeTarget] = useState<ClassificationResult | null>(null)
   const [recategorizeCategory, setRecategorizeCategory] = useState<ImageContentCategory>('other')
+
+  // 结果筛选
+  const [categoryFilter, setCategoryFilter] = useState<'all' | ImageContentCategory>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [searchText, setSearchText] = useState('')
 
   useEffect(() => {
     const onCacheCleared = () => {
@@ -744,10 +759,12 @@ const ImageClassification: React.FC = () => {
      const oldResult = results.get(filePath)
      if (!oldResult) return
 
-     const updatedResult: ImageClassificationResult = {
-       ...oldResult,
-       category: recategorizeCategory
-     }
+    const updatedResult: ImageClassificationResult = {
+      ...oldResult,
+      category: recategorizeCategory,
+      classificationStatus: 'ok',
+      manualOverride: true
+    }
 
      setResults(prev => {
        const next = new Map(prev)
@@ -818,14 +835,69 @@ const ImageClassification: React.FC = () => {
      })
    }, [classificationPath, results])
 
-  const tableData: ClassificationResult[] = Array.from(results.values()).map((r) => ({
-    key: r.filePath,
-    filePath: r.filePath,
-    fileName: r.filePath.split(/[/\\]/).pop() || r.filePath,
-    category: r.category,
-    confidence: r.confidence,
-    classificationStatus: r.classificationStatus
-  }))
+  const tableData: ClassificationResult[] = useMemo(
+    () => Array.from(results.values()).map((r) => ({
+      key: r.filePath,
+      filePath: r.filePath,
+      fileName: r.filePath.split(/[/\\]/).pop() || r.filePath,
+      category: r.category,
+      confidence: r.confidence,
+      classificationStatus: r.classificationStatus,
+      topPredictions: r.topPredictions,
+      manualOverride: r.manualOverride
+    })),
+    [results]
+  )
+
+  const filteredTableData = useMemo(() => {
+    const q = searchText.trim().toLowerCase()
+    return tableData.filter((r) => {
+      if (categoryFilter !== 'all' && r.category !== categoryFilter) return false
+      if (statusFilter === 'uncertain' && (r.classificationStatus !== 'uncertain' || r.manualOverride)) return false
+      if (statusFilter === 'ok' && (r.classificationStatus === 'uncertain' || r.classificationStatus === 'failed')) return false
+      if (statusFilter === 'failed' && r.classificationStatus !== 'failed') return false
+      if (q && !r.fileName.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [tableData, categoryFilter, statusFilter, searchText])
+
+  /** Top3 九类相对分布，帮助人工判断模型是"确信"还是"勉强领先" */
+  const renderPredictionDetail = (record: ClassificationResult) => {
+    const preds = record.topPredictions || []
+    if (!preds.length) return <Text type="secondary">—</Text>
+    const content = (
+      <div style={{ width: 250 }}>
+        <div style={{ marginBottom: 8, fontWeight: 600 }}>九类相对分布</div>
+        {preds.map((p) => (
+          <div key={p.category} style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span>{IMAGE_CATEGORY_LABELS[p.category]}</span>
+              <span>{(p.confidence * 100).toFixed(1)}%</span>
+            </div>
+            <Progress percent={Math.round(p.confidence * 100)} size="small" showInfo={false} />
+          </div>
+        ))}
+        <Text type="secondary" style={{ fontSize: 11 }}>
+          该数值为九类之间的相对概率，不等于右侧的「判对可信度」。
+        </Text>
+      </div>
+    )
+    const top = preds[0]
+    return (
+      <Popover content={content} title="判定依据" trigger="hover">
+        <span style={{ cursor: 'help', fontSize: 12 }}>
+          {IMAGE_CATEGORY_LABELS[top.category]} {(top.confidence * 100).toFixed(0)}%
+          {preds.length > 1 && <Text type="secondary"> · 次选 {IMAGE_CATEGORY_LABELS[preds[1].category]}</Text>}
+        </span>
+      </Popover>
+    )
+  }
+
+  const confidenceTier = (v: number): { text: string; color: string } => {
+    if (v >= 0.8) return { text: '高', color: 'green' }
+    if (v >= 0.5) return { text: '中', color: 'blue' }
+    return { text: '低', color: 'orange' }
+  }
 
   const columns = [
     {
@@ -842,67 +914,96 @@ const ImageClassification: React.FC = () => {
       dataIndex: 'category',
       key: 'category',
       render: (category: ImageContentCategory, record: ClassificationResult) => (
-        <CategoryTag
-          color={
-            record.classificationStatus === 'failed'
-              ? 'red'
-              : record.classificationStatus === 'uncertain'
-                ? 'orange'
-                : getCategoryTagColor(category)
-          }
-          label={getClassificationDisplayLabel({
-            category,
-            classificationStatus: record.classificationStatus
-          })}
-        />
+        <Space size={4}>
+          <CategoryTag
+            color={
+              record.classificationStatus === 'failed'
+                ? 'red'
+                : record.classificationStatus === 'uncertain' && !record.manualOverride
+                  ? 'orange'
+                  : getCategoryTagColor(category)
+            }
+            label={getClassificationDisplayLabel({
+              category,
+              classificationStatus: record.manualOverride ? 'ok' : record.classificationStatus
+            })}
+          />
+          {record.manualOverride && <Tag color="purple">已人工修正</Tag>}
+        </Space>
       )
     },
     {
-      title: '置信度',
+      title: '判定依据',
+      key: 'evidence',
+      width: 190,
+      render: (_: unknown, record: ClassificationResult) => renderPredictionDetail(record)
+    },
+    {
+      title: (
+        <Space size={4}>
+          判对可信度
+          <Tooltip title="由标注样本拟合的校准值：表示「这张图的分类判对了」的估计概率，不是九类之间的相对概率">
+            <QuestionCircleOutlined />
+          </Tooltip>
+        </Space>
+      ),
       dataIndex: 'confidence',
       key: 'confidence',
-      render: (confidence: number) => (
-        <Progress
-          percent={Math.round(confidence * 100)}
-          size="small"
-          status={confidence > 0.8 ? 'success' : confidence > 0.5 ? 'normal' : 'exception'}
-        />
-      )
+      width: 165,
+      sorter: (a: ClassificationResult, b: ClassificationResult) => a.confidence - b.confidence,
+      render: (confidence: number) => {
+        const tier = confidenceTier(confidence)
+        return (
+          <Space size={6}>
+            <Progress
+              percent={Math.round(confidence * 100)}
+              size="small"
+              style={{ width: 80 }}
+              status={confidence >= 0.8 ? 'success' : confidence >= 0.5 ? 'normal' : 'exception'}
+            />
+            <Tag color={tier.color}>{tier.text}</Tag>
+          </Space>
+        )
+      }
     },
     {
       title: '操作',
       key: 'action',
-      width: 100,
+      width: 110,
       render: (_: unknown, record: ClassificationResult) => (
         <Button
           size="small"
           type="link"
+          icon={<EditOutlined />}
           onClick={(e) => {
             e.stopPropagation()
             handleShowRecategorize(record)
           }}
         >
-          修改分类
+          修正
         </Button>
       )
     }
   ]
 
+  const allResults = useMemo(() => Array.from(results.values()), [results])
   const stats = {
     total: results.size,
-    success: Array.from(results.values()).filter(r => r.confidence > 0).length,
+    success: allResults.filter(r => r.classificationStatus !== 'failed').length,
+    review: allResults.filter(r => r.classificationStatus === 'uncertain' && !r.manualOverride).length,
+    highConfidence: allResults.filter(r => r.confidence >= 0.8).length,
     counts: IMAGE_CATEGORY_ORDER.reduce(
       (acc, cat) => {
-        acc[cat] = Array.from(results.values()).filter(r => r.category === cat).length
+        acc[cat] = allResults.filter(r => r.category === cat).length
         return acc
       },
       {} as Record<ImageContentCategory, number>
     )
   }
 
-  // 计算平均置信度
-  const avgConfidence = results.size > 0 ? 
-    Array.from(results.values()).reduce((sum, r) => sum + r.confidence, 0) / results.size : 0
+  const avgConfidence = results.size > 0
+    ? allResults.reduce((sum, r) => sum + r.confidence, 0) / results.size
+    : 0
 
   const renderModelStatusBadge = () => {
     switch (downloadStatus) {
@@ -1097,8 +1198,17 @@ const ImageClassification: React.FC = () => {
               >
                 <div className="classification-stats-grid">
                   <StatCard title="总计" value={stats.total} icon={<CheckCircleOutlined />} accent="var(--app-success)" subtle />
-                  <StatCard title="成功" value={stats.success} icon={<ApiOutlined />} accent="var(--app-primary)" subtle />
-                  <StatCard title="平均置信度" value={`${Math.round(avgConfidence * 100)}%`} icon={<CheckCircleOutlined />} accent="var(--app-warning)" subtle />
+                  <StatCard title="已识别" value={stats.success} icon={<ApiOutlined />} accent="var(--app-primary)" subtle />
+                  <StatCard title="高可信（≥80%）" value={stats.highConfidence} icon={<CheckCircleOutlined />} accent="var(--app-success)" subtle />
+                  <StatCard
+                    title="待人工复核"
+                    value={stats.review}
+                    icon={<QuestionCircleOutlined />}
+                    accent="var(--app-warning)"
+                    subtle
+                    onClick={() => setStatusFilter('uncertain')}
+                  />
+                  <StatCard title="平均判对可信度" value={`${Math.round(avgConfidence * 100)}%`} icon={<CheckCircleOutlined />} accent="var(--app-warning)" subtle />
                 </div>
                 <div className="classification-stats-grid">
                   {IMAGE_CATEGORY_ORDER.map((cat) => (
@@ -1119,12 +1229,47 @@ const ImageClassification: React.FC = () => {
                 subtitle={
                   isClassifying
                     ? `已识别 ${stats.total}${progress?.total ? ` / ${progress.total}` : ''} 张，识别完成后可点击文件名查看图片`
-                    : `共 ${tableData.length} 项结果，可点击文件名查看图片`
+                    : `共 ${tableData.length} 项结果，当前筛选显示 ${filteredTableData.length} 项；悬停「判定依据」可查看 Top3 分布`
                 }
               >
+                <Space wrap style={{ marginBottom: 12 }} size={8}>
+                  <Select
+                    value={categoryFilter}
+                    style={{ width: 140 }}
+                    onChange={setCategoryFilter}
+                    options={[
+                      { value: 'all', label: '全部分类' },
+                      ...IMAGE_CATEGORY_ORDER.map(cat => ({ value: cat, label: IMAGE_CATEGORY_LABELS[cat] }))
+                    ]}
+                  />
+                  <Select
+                    value={statusFilter}
+                    style={{ width: 140 }}
+                    onChange={setStatusFilter}
+                    options={[
+                      { value: 'all', label: '全部状态' },
+                      { value: 'ok', label: '已确认' },
+                      { value: 'uncertain', label: `待复核 (${stats.review})` },
+                      { value: 'failed', label: '识别失败' }
+                    ]}
+                  />
+                  <Input
+                    allowClear
+                    prefix={<SearchOutlined />}
+                    placeholder="搜索文件名"
+                    value={searchText}
+                    onChange={e => setSearchText(e.target.value)}
+                    style={{ width: 190 }}
+                  />
+                  {(categoryFilter !== 'all' || statusFilter !== 'all' || searchText) && (
+                    <Button size="small" onClick={() => { setCategoryFilter('all'); setStatusFilter('all'); setSearchText('') }}>
+                      清除筛选
+                    </Button>
+                  )}
+                </Space>
                 <Table
                   columns={columns}
-                  dataSource={tableData}
+                  dataSource={filteredTableData}
                   pagination={{ 
                     pageSize: 15, 
                     showSizeChanger: true, 
@@ -1145,7 +1290,7 @@ const ImageClassification: React.FC = () => {
               {modelExists ? (
                 <>
                   <p className="app-empty-state__title">点击“开始分类”分析当前目录图片内容</p>
-                  <p className="app-empty-state__description">基于 CLIP 零样本与 ImageNet 聚合，输出 9 大内容类别。</p>
+                  <p className="app-empty-state__description">基于真实 CLIP 文本嵌入的零样本分类，输出 9 大内容类别与判对可信度。</p>
                 </>
               ) : (
                 <>
@@ -1196,12 +1341,27 @@ const ImageClassification: React.FC = () => {
               <Text>{recategorizeTarget.fileName}</Text>
             </div>
             <div>
-              <Text strong>当前分类：</Text>
+              <Text strong>当前判定：</Text>
               <CategoryTag
                 color={getCategoryTagColor(recategorizeTarget.category)}
                 label={IMAGE_CATEGORY_LABELS[recategorizeTarget.category]}
               />
+              <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
+                判对可信度 {(recategorizeTarget.confidence * 100).toFixed(0)}%
+              </Text>
             </div>
+            {!!recategorizeTarget.topPredictions?.length && (
+              <div>
+                <Text strong>模型 Top3：</Text>
+                <div style={{ marginTop: 4 }}>
+                  {recategorizeTarget.topPredictions.map(p => (
+                    <Tag key={p.category} style={{ marginBottom: 4 }}>
+                      {IMAGE_CATEGORY_LABELS[p.category]} {(p.confidence * 100).toFixed(1)}%
+                    </Tag>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <Text strong>修改为：</Text>
               <Select

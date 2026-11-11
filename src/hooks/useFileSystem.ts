@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { message } from 'antd'
-import { useFileStore } from '../stores/fileStore'
+import { useFileStore } from '../stores'
 import { logSignedInUserAction } from '../utils'
 
 const checkElectronAPI = () => {

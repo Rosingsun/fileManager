@@ -1,6 +1,7 @@
+import type { ImageContentCategory } from '../../../src/types'
 import type { ClassificationModelId } from '../utils/classificationModels'
 import { getClassificationModelPath, getModelsDir } from '../utils/classificationModels'
-import { preprocessLetterbox, preprocessMultiCrop } from '../utils/classificationPreprocess'
+import { preprocessImage, preprocessMultiCrop } from '../utils/classificationPreprocess'
 import {
   getClipSession,
   encodeClipImagePixels,
@@ -11,7 +12,6 @@ import {
 import type { ClipScoringConfig } from './calibration'
 import type { NineProbabilities } from './types'
 import { EMPTY_NINE } from './types'
-import type { ImageContentCategory } from '../../../src/types'
 
 function l2NormalizeArray(a: Float32Array): Float32Array {
   let s = 0
@@ -27,38 +27,27 @@ function dotNormalized(a: Float32Array, b: number[]): number {
   for (let i = 0; i < b.length; i++) te[i] = b[i]
   const tnorm = l2NormalizeArray(te)
   let dot = 0
-  for (let i = 0; i < a.length; i++) dot += a[i] * tnorm[i]
+  for (let i = 0; i < a.length && i < tnorm.length; i++) dot += a[i] * tnorm[i]
   return dot
 }
 
-function maxMeanCos(
-  imageEmb: Float32Array,
-  embeddings: number[][],
-  maxWeight: number,
-  meanWeight: number
-): number {
-  let maxCos = -1
-  let sumCos = 0
-  let count = 0
-  for (const emb of embeddings) {
-    const dot = dotNormalized(imageEmb, emb)
-    sumCos += dot
-    count += 1
-    if (dot > maxCos) maxCos = dot
-  }
-  const meanCos = count > 0 ? sumCos / count : 0
-  return maxCos >= 0 ? maxWeight * maxCos + meanWeight * meanCos : meanCos
-}
-
 function softmaxTemperature(logits: number[], t: number): number[] {
-  const scaled = logits.map(l => l / t)
+  const scaled = logits.map(l => l / Math.max(1e-4, t))
   let max = -Infinity
   for (const x of scaled) if (x > max) max = x
-  const exps = scaled.map(x => Math.exp(x - max))
+  const exps = scaled.map(x => Math.exp(Math.max(-60, x - max)))
   const s = exps.reduce((a, b) => a + b, 0)
   return exps.map(e => e / s)
 }
 
+/**
+ * 零样本打分：
+ *   类别原型 = 该类所有 prompt 文本嵌入的均值再 L2 归一化（标准 prompt ensembling）
+ *   logit    = (1-maxBlend)*原型余弦 + maxBlend*最相似 prompt 余弦 + 标定偏置
+ *   prob     = softmax(logit / temperature)
+ *
+ * 与 calibrate-classification.mjs 的公式严格一致，保证离线标定结果能直接作用于运行时。
+ */
 export function scoreClipWithConfig(
   imageEmb: Float32Array,
   prompts: ClipPromptsFile,
@@ -69,16 +58,35 @@ export function scoreClipWithConfig(
   const catKeys: ImageContentCategory[] = []
 
   for (const block of prompts.categories) {
-    logits.push(
-      maxMeanCos(imageEmb, block.embeddings, scoring.maxWeight, scoring.meanWeight)
-    )
+    const embs = block.embeddings || []
+    if (!embs.length) continue
+    const dim = imageEmb.length
+    const sum = new Float32Array(dim)
+    let maxCos = -Infinity
+
+    for (const raw of embs) {
+      const norm = l2NormalizeArray(Float32Array.from(raw))
+      for (let i = 0; i < dim && i < norm.length; i++) sum[i] += norm[i]
+      const cos = dotNormalized(imageEmb, raw)
+      if (cos > maxCos) maxCos = cos
+    }
+    for (let i = 0; i < dim; i++) sum[i] /= embs.length
+    const protoCos = (() => {
+      let d = 0
+      const proto = l2NormalizeArray(sum)
+      for (let i = 0; i < dim; i++) d += imageEmb[i] * proto[i]
+      return d
+    })()
+
+    const blend = Math.min(1, Math.max(0, scoring.maxBlend ?? 0))
+    const bias = scoring.classBias?.[block.category] ?? 0
+    logits.push((1 - blend) * protoCos + blend * maxCos + bias)
     catKeys.push(block.category)
   }
 
+  if (!logits.length) return out
   const probs = softmaxTemperature(logits, scoring.temperature)
-  for (let i = 0; i < catKeys.length; i++) {
-    out[catKeys[i]] = probs[i] ?? 0
-  }
+  for (let i = 0; i < catKeys.length; i++) out[catKeys[i]] = probs[i] ?? 0
   return out
 }
 
@@ -107,7 +115,7 @@ export async function runClipInference(
   const cropPixels =
     ttaCropCount > 1
       ? await preprocessMultiCrop(imagePath, clipSize, 'clip', ttaCropCount)
-      : [await preprocessLetterbox(imagePath, clipSize, 'clip')]
+      : [await preprocessImage(imagePath, clipSize, 'clip')]
 
   const embeddings: Float32Array[] = []
   for (const pixels of cropPixels) {
@@ -117,6 +125,13 @@ export async function runClipInference(
 
   const imageEmb = averageClipEmbeddings(embeddings)
   if (!imageEmb) return null
+  if (imageEmb.length !== prompts.dim) {
+    console.error(
+      `[CLIP] 视觉模型输出 ${imageEmb.length} 维，但 ${promptsFile} 为 ${prompts.dim} 维；` +
+      '模型与文本嵌入不匹配，已拒绝推理。请检查预设配置或重新生成 prompts。'
+    )
+    return null
+  }
 
   const clipNine = scoreClipWithConfig(imageEmb, prompts, scoring)
   return { clipNine, imageEmb, prompts }

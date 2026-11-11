@@ -42,3 +42,6 @@ export { Button, buttonVariants } from './ui/button'
 export { Checkbox } from './ui/checkbox'
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 export * from './icons'
+
+export type { ColorInfo, ExifData, ImageUpdates, ImageViewerProps, ViewMode } from './ImageViewer'
+export type { UserCenterAppNavigate, UserCenterTabKey } from './UserCenter/userCenterShared'

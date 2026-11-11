@@ -13,7 +13,7 @@ export interface CropSpec {
   height: number
 }
 
-/** 根据裁剪数量生成 crop 规格（相对原图比例坐标，由调用方换算） */
+/** 根据裁剪数量生成 crop 规格（相对原图比例坐标） */
 export function buildCropSpecs(cropCount: number): Array<{ x: number; y: number; size: number }> {
   if (cropCount <= 1) return [{ x: 0.5, y: 0.5, size: 1 }]
   if (cropCount === 3) {
@@ -32,75 +32,85 @@ export function buildCropSpecs(cropCount: number): Array<{ x: number; y: number;
   ]
 }
 
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v))
+}
+
+/**
+ * raw 像素 → NCHW float32。按 sharp 报告的实际通道数取步长，
+ * 避免把 RGBA 当 RGB 解析造成通道/像素错位。
+ */
 function normalizePixels(
-  resized: Buffer,
+  raw: Buffer,
   inputSize: number,
-  mode: 'clip' | 'imagenet'
+  mode: 'clip' | 'imagenet',
+  channels: number
 ): Float32Array {
   const mean = mode === 'clip' ? CLIP_MEAN : IMAGENET_MEAN
   const std = mode === 'clip' ? CLIP_STD : IMAGENET_STD
   const pixels = new Float32Array(3 * inputSize * inputSize)
   const hw = inputSize * inputSize
-
-  for (let i = 0; i < resized.length && i + 2 < resized.length; i += 3) {
-    const idx = Math.floor(i / 3)
-    const r = resized[i] / 255.0
-    const g = resized[i + 1] / 255.0
-    const b = resized[i + 2] / 255.0
-    pixels[idx] = (r - mean[0]) / std[0]
-    pixels[hw + idx] = (g - mean[1]) / std[1]
-    pixels[2 * hw + idx] = (b - mean[2]) / std[2]
+  const step = Math.max(3, channels)
+  for (let i = 0, idx = 0; i + 2 < raw.length && idx < hw; i += step, idx++) {
+    pixels[idx] = (raw[i] / 255 - mean[0]) / std[0]
+    pixels[hw + idx] = (raw[i + 1] / 255 - mean[1]) / std[1]
+    pixels[2 * hw + idx] = (raw[i + 2] / 255 - mean[2]) / std[2]
   }
-
   return pixels
 }
 
-async function extractAndLetterbox(
+/**
+ * EXIF 转正 → 短边等比缩放 → 中心裁剪（可偏移做 TTA）→ 3 通道 NCHW 归一化。
+ * 对齐 CLIP 官方 Resize(短边) + CenterCrop 预处理，不产生 letterbox 黑边。
+ */
+async function extractAndNormalize(
   imageBuffer: Buffer,
   inputSize: number,
   mode: 'clip' | 'imagenet',
   crop?: { x: number; y: number; size: number }
 ): Promise<Float32Array> {
-  let pipeline = sharp(imageBuffer).rotate()
+  const size = crop?.size ?? 1
+  const cx = crop?.x ?? 0.5
+  const cy = crop?.y ?? 0.5
+  // metadata() 读的是输入文件原始头，不会反映 .rotate() 的 EXIF 转正；
+  // orientation 5~8 表示需要 90° 旋转，宽高须交换，否则短边缩放比例会算错。
+  const meta = await sharp(imageBuffer).metadata()
+  const rotated = (meta.orientation ?? 1) >= 5
+  const w = rotated ? (meta.height ?? inputSize) : (meta.width ?? inputSize)
+  const h = rotated ? (meta.width ?? inputSize) : (meta.height ?? inputSize)
+  const shortSide = Math.max(1, Math.min(w, h))
+  const targetCrop = Math.max(1, Math.round(shortSide * size))
+  const scale = inputSize / targetCrop
+  const resizedW = Math.max(inputSize, Math.round(w * scale))
+  const resizedH = Math.max(inputSize, Math.round(h * scale))
+  const left = clamp(Math.round(resizedW * cx - inputSize / 2), 0, resizedW - inputSize)
+  const top = clamp(Math.round(resizedH * cy - inputSize / 2), 0, resizedH - inputSize)
 
-  if (crop && crop.size < 1) {
-    const meta = await sharp(imageBuffer).rotate().metadata()
-    const w = meta.width ?? inputSize
-    const h = meta.height ?? inputSize
-    const cropSize = Math.round(Math.min(w, h) * crop.size)
-    const left = Math.max(0, Math.min(w - cropSize, Math.round(w * crop.x - cropSize / 2)))
-    const top = Math.max(0, Math.min(h - cropSize, Math.round(h * crop.y - cropSize / 2)))
-    pipeline = sharp(imageBuffer).rotate().extract({ left, top, width: cropSize, height: cropSize })
-  }
-
-  const resized = await pipeline
-    .resize(inputSize, inputSize, {
-      fit: 'contain',
-      background: { r: 0, g: 0, b: 0, alpha: 1 }
-    })
-    .ensureAlpha()
-    .flatten({ background: { r: 0, g: 0, b: 0 } })
+  const { data, info } = await sharp(imageBuffer)
+    .rotate()
+    .resize(resizedW, resizedH, { fit: 'fill', kernel: 'lanczos3' })
+    .extract({ left, top, width: inputSize, height: inputSize })
+    .removeAlpha()
+    .toColourspace('srgb')
     .raw()
-    .toBuffer()
+    .toBuffer({ resolveWithObject: true })
 
-  return normalizePixels(resized, inputSize, mode)
+  return normalizePixels(data, inputSize, mode, info.channels)
 }
 
-/**
- * EXIF 转正 + letterbox 到正方形 + NCHW float32（CLIP 或 ImageNet 归一化）
- */
-export async function preprocessLetterbox(
+export async function preprocessImage(
   imagePath: string,
   inputSize: number,
   mode: 'clip' | 'imagenet'
 ): Promise<Float32Array> {
   const imageBuffer = await fs.readFile(imagePath)
-  return extractAndLetterbox(imageBuffer, inputSize, mode)
+  return extractAndNormalize(imageBuffer, inputSize, mode)
 }
 
-/**
- * 多裁剪 TTA：返回各裁剪的 NCHW float32 张量
- */
+/** 兼容旧调用名：实现已改为短边缩放 + 中心裁剪，不再产生 letterbox 黑边 */
+export const preprocessLetterbox = preprocessImage
+
+/** 多裁剪 TTA：返回各裁剪的 NCHW float32 张量 */
 export async function preprocessMultiCrop(
   imagePath: string,
   inputSize: number,
@@ -111,7 +121,7 @@ export async function preprocessMultiCrop(
   const specs = buildCropSpecs(cropCount)
   const results: Float32Array[] = []
   for (const spec of specs) {
-    results.push(await extractAndLetterbox(imageBuffer, inputSize, mode, spec))
+    results.push(await extractAndNormalize(imageBuffer, inputSize, mode, spec))
   }
   return results
 }

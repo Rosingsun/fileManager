@@ -32,6 +32,9 @@ export interface ClipDisambiguationBlock {
 export interface ClipPromptsFile {
   modelId: string
   dim: number
+  /** 真实 CLIP 文本编码器产物标记；缺失或为 PLACEHOLDER 时拒绝加载，避免静默随机猜 */
+  embeddingsSource?: string
+  promptVersion?: number
   categories: Array<{
     category: ImageContentCategory
     prompts: string[]
@@ -89,6 +92,18 @@ function loadPromptsFile(modelsDir: string, fileName = 'clip-prompts.json'): Cli
     const raw = readFileSync(p, 'utf-8')
     const j = JSON.parse(raw) as ClipPromptsFile
     if (!j.categories?.length) return null
+    if (j.embeddingsSource !== 'clip-text-model') {
+      console.error(
+        `[CLIP] ${p} 未包含真实 CLIP 文本嵌入（embeddingsSource=${j.embeddingsSource ?? '缺失'}）。` +
+        '占位伪嵌入会让分类结果接近随机，请运行 npm run gen:clip-prompts 后重启应用。'
+      )
+      return null
+    }
+    const embDim = j.categories[0]?.embeddings?.[0]?.length
+    if (!embDim || embDim !== j.dim) {
+      console.error(`[CLIP] ${p} 向量维度不一致（dim=${j.dim}, 实际=${embDim}）`)
+      return null
+    }
     promptsCache.set(cacheKey, j)
     return j
   } catch (e) {

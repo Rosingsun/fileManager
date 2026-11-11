@@ -276,7 +276,7 @@ export interface BatchRelocateEntry {
 /** 快速筛选：用户整理意图档位（非 EXIF 星级） */
 export type QuickFilterTier = 'high' | 'medium' | 'low'
 
-/** 图片内容分类（9 大类：CLIP 零样本 + ImageNet 聚合） */
+/** 图片内容分类（9 大类：真实 CLIP 文本嵌入零样本分类） */
 export type ImageContentCategory =
   | 'person'
   | 'animal'
@@ -380,6 +380,8 @@ export interface ImageClassificationResult {
     category: ImageContentCategory
     confidence: number
   }>
+  /** 用户手动纠正过分类；UI 会标记，复核筛选时不再视为待确认 */
+  manualOverride?: boolean
 }
 
 export interface ImageClassificationConfig {
@@ -434,7 +436,7 @@ export const CLASSIFICATION_PRESET_UI_OPTIONS: ClassificationPresetInfo[] = [
   {
     id: 'accuracy_fast',
     name: '快速预览',
-    description: 'CLIP B/32 单裁剪，无 ImageNet 辅助，速度最快',
+    description: 'CLIP B/32 单裁剪，速度快；评估集 Top-1 88.2%',
     clipModelId: 'clip_vit_b32_quant',
     imagenetModelId: null,
     promptsFile: 'clip-prompts.json',
@@ -445,13 +447,13 @@ export const CLASSIFICATION_PRESET_UI_OPTIONS: ClassificationPresetInfo[] = [
   {
     id: 'accuracy_max',
     name: '最高精准',
-    description: 'CLIP L/14 + EfficientNet 条件辅助 + 5 裁剪，推荐默认',
+    description: 'CLIP L/14 + 5 裁剪 TTA；评估集 Top-1 91.7%，推荐默认',
     clipModelId: 'clip_vit_l14_quant',
-    imagenetModelId: 'efficientnet_b4',
+    imagenetModelId: null,
     promptsFile: 'clip-prompts-l14.json',
     ttaCropCount: 5,
     estimatedSpeedFactor: 5,
-    totalSizeMB: 400
+    totalSizeMB: 300
   }
 ]
 

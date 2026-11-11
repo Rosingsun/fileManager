@@ -1,18 +1,26 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Layout, Alert, Spin, message } from 'antd'
 import { MenuOutlined, SettingOutlined, CloseOutlined } from '@ant-design/icons'
-import FileTree from './components/FileTree'
-import FileList from './components/FileList'
-import ControlPanel from './components/ControlPanel'
-import AppHeader from './components/AppHeader'
-import SimilarityDetection from './components/SimilarityDetection/SimilarityDetection'
-import ImageClassification from './components/ImageClassification/ImageClassification'
-import ToolsEntry from './components/Tools/ToolsEntry'
-import { QuickFilter, UserCenter, UserAuthPanel, CosLibrarySummaryCard, CosImageLibraryTab, CosShareViewTab, CloudDrive } from './components'
+import {
+  FileTree,
+  FileList,
+  ControlPanel,
+  AppHeader,
+  SimilarityDetection,
+  ImageClassification,
+  ToolsEntry,
+  QuickFilter,
+  UserCenter,
+  UserAuthPanel,
+  CosLibrarySummaryCard,
+  CosImageLibraryTab,
+  CosShareViewTab,
+  CloudDrive,
+  type UserCenterAppNavigate,
+} from './components'
 import { useAuthStore, useFileStore } from './stores'
 import { useResponsive } from './hooks'
 import { isAuthApiConfigured, parseShareTokenFromHash } from './utils'
-import type { UserCenterAppNavigate } from './components/UserCenter/userCenterShared'
 
 const { Content } = Layout
 

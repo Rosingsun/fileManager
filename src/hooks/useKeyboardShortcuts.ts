@@ -14,6 +14,8 @@ export interface KeyboardShortcuts {
   onKey1?: () => void
   onPlus?: () => void
   onMinus?: () => void
+  onBracketLeft?: () => void
+  onBracketRight?: () => void
   enabled?: boolean
 }
 
@@ -28,6 +30,8 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
     onKey1,
     onPlus,
     onMinus,
+    onBracketLeft,
+    onBracketRight,
     enabled = true
   } = shortcuts
 
@@ -35,7 +39,6 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
     if (!enabled) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 如果用户正在输入，不触发快捷键
       const target = e.target as HTMLElement
       if (
         target.tagName === 'INPUT' ||
@@ -104,6 +107,18 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
             onMinus()
           }
           break
+        case '[':
+          if (onBracketLeft && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault()
+            onBracketLeft()
+          }
+          break
+        case ']':
+          if (onBracketRight && !e.ctrlKey && !e.metaKey) {
+            e.preventDefault()
+            onBracketRight()
+          }
+          break
       }
     }
 
@@ -121,7 +136,8 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcuts) {
     onKeyF,
     onKey1,
     onPlus,
-    onMinus
+    onMinus,
+    onBracketLeft,
+    onBracketRight
   ])
 }
-

@@ -1,103 +1,141 @@
 /**
- * 对 fixtures 目录执行 Top-1 分类评估（需 Node + onnxruntime-node + 模型文件）
- * 用法:
- *   node scripts/run-classification-eval.mjs
- *   node scripts/run-classification-eval.mjs --preset accuracy_max
+ * 端到端 Top-1 评估：直接调用真实的分类服务（含预处理、ONNX 推理、融合、弃判、置信度校准）。
+ *
+ * 用法：
+ *   npm run eval:classify-run                       # 两个预设都跑
+ *   npm run eval:classify-run -- --preset accuracy_max
+ *   npm run eval:classify-run -- --limit 20 --json
+ *
+ * 前置：先构建 fixtures（npm run fixtures:classify），并生成真实 CLIP 文本嵌入。
  */
-import { readFileSync, readdirSync, statSync, existsSync } from 'fs'
-import { join, dirname, extname } from 'path'
+import { readFileSync, existsSync, writeFileSync } from 'fs'
+import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const root = join(__dirname, '..')
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
+const manifestPath = join(root, 'tests', 'fixtures', 'manifest.json')
 
-const PRESETS = ['accuracy_fast', 'accuracy_max']
+const CATEGORIES = ['person', 'animal', 'landscape', 'urban', 'indoor', 'food', 'vehicle', 'document', 'other']
 const PRESET_ALIASES = { accuracy_light: 'accuracy_fast', accuracy_balanced: 'accuracy_max' }
-const expectedCats = [
-  'person', 'animal', 'landscape', 'urban', 'indoor', 'food', 'vehicle', 'document', 'other'
-]
-const exts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp'])
 
-function parseArgs() {
-  const presetArg = process.argv.find(a => a.startsWith('--preset='))?.split('=')[1]
-    ?? process.argv[process.argv.indexOf('--preset') + 1]
-  const normalized = presetArg ? PRESET_ALIASES[presetArg] || presetArg : null
-  const presets = normalized ? [normalized] : PRESETS
-  return { presets }
+function arg(name, fallback = null) {
+  const eq = process.argv.find(a => a.startsWith(`--${name}=`))
+  if (eq) return eq.split('=').slice(1).join('=')
+  const i = process.argv.indexOf(`--${name}`)
+  return i >= 0 ? (process.argv[i + 1] ?? fallback) : fallback
 }
 
-function collectFixtures(fixtureRoot) {
-  const items = []
-  for (const cat of expectedCats) {
-    const dir = join(fixtureRoot, cat)
-    if (!existsSync(dir)) continue
-    for (const f of readdirSync(dir)) {
-      const p = join(dir, f)
-      if (!statSync(p).isFile()) continue
-      if (!exts.has(extname(f).toLowerCase())) continue
-      items.push({ path: p, expected: cat })
-    }
-  }
-  return items
-}
+const asPercent = v => `${(v * 100).toFixed(1)}%`
 
-function confusionMatrix(results) {
-  const matrix = {}
-  for (const e of expectedCats) {
-    matrix[e] = {}
-    for (const a of expectedCats) matrix[e][a] = 0
+function report(presetId, rows) {
+  const valid = rows.filter(r => r.status !== 'failed')
+  const correct = valid.filter(r => r.correct).length
+  const acc = valid.length ? correct / valid.length : 0
+  console.log(`\n[eval] ========== ${presetId} ==========`)
+  console.log(`[eval] 样本 ${rows.length}，失败 ${rows.length - valid.length}，Top-1 准确率 ${asPercent(acc)} (${correct}/${valid.length})`)
+
+  if (rows.length > valid.length) {
+    const reasons = {}
+    for (const r of rows.filter(x => x.status === 'failed')) reasons[r.reason] = (reasons[r.reason] || 0) + 1
+    console.log('[eval] 失败原因:', JSON.stringify(reasons))
   }
-  for (const r of results) {
-    matrix[r.expected][r.predicted] = (matrix[r.expected][r.predicted] ?? 0) + 1
+
+  console.log('[eval] 各类召回:')
+  for (const c of CATEGORIES) {
+    const subset = valid.filter(r => r.expected === c)
+    if (!subset.length) continue
+    const hit = subset.filter(r => r.correct).length
+    const wrong = {}
+    for (const r of subset.filter(x => !x.correct)) wrong[r.predicted] = (wrong[r.predicted] || 0) + 1
+    const suffix = Object.keys(wrong).length ? `  误判: ${Object.entries(wrong).map(([k, v]) => `${k}=${v}`).join(', ')}` : ''
+    console.log(`   ${c.padEnd(10)} ${asPercent(hit / subset.length).padStart(7)}  (${hit}/${subset.length})${suffix}`)
   }
-  return matrix
+
+  const uncertain = valid.filter(r => r.status === 'uncertain')
+  if (uncertain.length) {
+    const hit = uncertain.filter(r => r.correct).length
+    console.log(`[eval] 不确定样本 ${uncertain.length}，其中判对 ${hit} (${asPercent(hit / uncertain.length)})`)
+  }
+
+  // 置信度可靠性：按 0.1 分桶比较平均置信度与实际正确率
+  const buckets = Array.from({ length: 10 }, () => ({ n: 0, conf: 0, hit: 0 }))
+  for (const r of valid) {
+    const i = Math.min(9, Math.max(0, Math.floor(r.confidence * 10)))
+    buckets[i].n++
+    buckets[i].conf += r.confidence
+    buckets[i].hit += r.correct ? 1 : 0
+  }
+  let ece = 0
+  for (const b of buckets) {
+    if (!b.n) continue
+    ece += (b.n / valid.length) * Math.abs(b.conf / b.n - b.hit / b.n)
+  }
+  console.log(`[eval] 置信度校准误差 ECE = ${ece.toFixed(4)}（越低越可信）`)
+  const shown = buckets.map((b, i) => b.n ? `${(i / 10).toFixed(1)}~${((i + 1) / 10).toFixed(1)}:n=${b.n},acc=${asPercent(b.hit / b.n)}` : null).filter(Boolean)
+  console.log(`[eval] 分桶 ${shown.join('  ')}`)
+
+  return { presetId, accuracy: acc, correct, total: valid.length, failed: rows.length - valid.length, ece }
 }
 
 async function main() {
-  const { presets } = parseArgs()
-  const fixtureRoot = join(root, 'tests', 'fixtures', 'images')
-  const fixtures = collectFixtures(fixtureRoot)
-
-  console.log('[eval] fixtures:', fixtures.length)
-  if (fixtures.length === 0) {
-    console.log('[eval] 无 fixture 图片，请按 tests/fixtures/images/README.md 添加')
-    process.exit(0)
+  if (!existsSync(manifestPath)) {
+    throw new Error(`缺少 ${manifestPath}，请先运行 npm run fixtures:classify`)
   }
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'))
+  let items = (manifest.items || [])
+    .map(it => ({ ...it, resolved: join(root, it.file) }))
+    .filter(it => existsSync(it.resolved))
+  const limit = Number(arg('limit', 0)) || 0
+  if (limit > 0) items = items.slice(0, limit)
+  if (!items.length) throw new Error('评估集为空')
+  // 小样本试跑不得覆盖全量评估明细
+  const resultsPath = limit > 0
+    ? join(root, 'tests', 'fixtures', 'eval-results-limited.json')
+    : join(root, 'tests', 'fixtures', 'eval-results.json')
+  console.log(`[eval] 图片数 ${items.length}`)
+
+  const presetArg = arg('preset')
+  const presets = presetArg ? [PRESET_ALIASES[presetArg] || presetArg] : ['accuracy_fast', 'accuracy_max']
 
   const servicePath = pathToFileURL(join(root, 'electron', 'main', 'services', 'imageClassificationService.ts'))
-  let classifyImage
-  try {
-    const mod = await import(servicePath.href)
-    classifyImage = mod.classifyImage
-  } catch (e) {
-    console.warn('[eval] 无法直接 import TS 服务，尝试 compiled 路径...')
-    console.warn('[eval]', e.message)
-    console.log('[eval] 请在应用内对 fixtures 批量分类，或使用 tsx: npx tsx scripts/run-classification-eval.mjs')
-    process.exit(0)
+  const { classifyImage } = await import(servicePath.href)
+  if (typeof classifyImage !== 'function') throw new Error('无法加载 classifyImage（请用 npx tsx 运行本脚本）')
+
+  const summary = []
+  const allRows = {}
+  for (const presetId of presets) {
+    const rows = []
+    const started = Date.now()
+    for (const [i, item] of items.entries()) {
+      const r = await classifyImage(item.resolved, root, presetId)
+      rows.push({
+        file: item.file,
+        expected: item.category,
+        predicted: r.category,
+        correct: r.category === item.category,
+        confidence: r.confidence ?? 0,
+        status: r.classificationStatus || 'ok',
+        reason: r.failureReason || '',
+        topPredictions: r.topPredictions || []
+      })
+      if ((i + 1) % 25 === 0) console.log(`[eval] ${presetId} ${i + 1}/${items.length}`)
+    }
+    console.log(`[eval] ${presetId} 用时 ${((Date.now() - started) / 1000).toFixed(0)}s`)
+    allRows[presetId] = rows
+    summary.push(report(presetId, rows))
   }
 
-  for (const presetId of presets) {
-    let correct = 0
-    const rows = []
-    for (const item of fixtures) {
-      const result = await classifyImage(item.path, root, presetId)
-      const ok = result.category === item.expected
-      if (ok) correct += 1
-      rows.push({ expected: item.expected, predicted: result.category, ok, confidence: result.confidence })
-    }
-    const acc = ((correct / fixtures.length) * 100).toFixed(1)
-    console.log(`\n[eval] preset=${presetId} Top-1=${acc}% (${correct}/${fixtures.length})`)
-    const matrix = confusionMatrix(rows)
-    for (const e of expectedCats) {
-      const wrong = expectedCats.filter(a => a !== e && matrix[e][a] > 0)
-      if (wrong.length) {
-        console.log(`  ${e} 误判:`, wrong.map(a => `${a}=${matrix[e][a]}`).join(', '))
-      }
-    }
+  if (process.argv.includes('--json')) {
+    writeFileSync(resultsPath, JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      summary,
+      rows: allRows
+    }, null, 2), 'utf8')
+    console.log(`\n[eval] 明细已写入 ${resultsPath}`)
   }
 }
 
-main().catch((e) => {
-  console.error(e)
+main().catch(e => {
+  console.error('[eval] 失败:', e)
   process.exit(1)
 })

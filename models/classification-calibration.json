@@ -1,39 +1,141 @@
 {
-  "version": 1,
+  "version": 2,
+  "generatedAt": "2026-11-11T04:15:25.477Z",
+  "method": "5-fold stratified CV on cached model features",
+  "sampleCount": 144,
   "clipScoring": {
-    "maxWeight": 0.62,
-    "meanWeight": 0.38,
-    "temperature": 0.058
+    "temperature": 0.02,
+    "maxBlend": 0.2,
+    "classBias": {
+      "person": 0,
+      "animal": 0,
+      "landscape": 0,
+      "urban": 0,
+      "indoor": 0,
+      "food": 0,
+      "vehicle": 0,
+      "document": 0,
+      "other": 0
+    }
   },
-  "conditionalImagenet": {
-    "enabled": true,
-    "imagenetWeight": 0.2,
-    "clipConfMin": 0.32,
-    "clipMarginMin": 0.08
+  "fusion": {
+    "imagenetWeight": 0
   },
-  "confidenceGate": {
-    "confMin": 0.24,
-    "marginMin": 0.04,
-    "uncertainScaleMin": 0.55
+  "abstain": {
+    "confMin": 0,
+    "marginMin": 0
+  },
+  "confidence": {
+    "topCoef": 2,
+    "marginCoef": 1,
+    "intercept": -1,
+    "reviewBelow": 0
   },
   "disambiguation": {
-    "shiftStrength": 0.25
+    "shiftStrength": 0
   },
   "presetOverrides": {
     "accuracy_fast": {
-      "conditionalImagenet": { "enabled": false },
-      "confidenceGate": { "confMin": 0.28, "marginMin": 0.06 },
-      "disambiguation": { "shiftStrength": 0.2 }
+      "clipScoring": {
+        "temperature": 0.006,
+        "maxBlend": 0.6,
+        "classBias": {
+          "person": 0,
+          "animal": 0,
+          "landscape": 0,
+          "urban": 0,
+          "indoor": 0,
+          "food": 0,
+          "vehicle": 0,
+          "document": 0,
+          "other": 0
+        }
+      },
+      "fusion": {
+        "imagenetWeight": 0
+      },
+      "abstain": {
+        "confMin": 0,
+        "marginMin": 0
+      },
+      "confidence": {
+        "topCoef": 1.9797,
+        "marginCoef": 1.2706,
+        "intercept": -0.597,
+        "reviewBelow": 0.8
+      },
+      "disambiguation": {
+        "shiftStrength": 0
+      }
     },
     "accuracy_max": {
-      "conditionalImagenet": {
-        "enabled": true,
-        "imagenetWeight": 0.2,
-        "clipConfMin": 0.32,
-        "clipMarginMin": 0.08
+      "clipScoring": {
+        "temperature": 0.01,
+        "maxBlend": 0.6,
+        "classBias": {
+          "person": -0.002943,
+          "animal": 0.003135,
+          "landscape": 0.000953,
+          "urban": 0.005959,
+          "indoor": -0.004765,
+          "food": -0.000645,
+          "vehicle": 0.00073,
+          "document": -0.008303,
+          "other": 0
+        }
       },
-      "confidenceGate": { "confMin": 0.24, "marginMin": 0.04 },
-      "disambiguation": { "shiftStrength": 0.25 }
+      "fusion": {
+        "imagenetWeight": 0
+      },
+      "abstain": {
+        "confMin": 0,
+        "marginMin": 0
+      },
+      "confidence": {
+        "topCoef": 2.3955,
+        "marginCoef": 0.829,
+        "intercept": -0.2207,
+        "reviewBelow": 0.85
+      },
+      "disambiguation": {
+        "shiftStrength": 0
+      }
+    }
+  },
+  "metrics": {
+    "accuracy_fast": {
+      "baselinePlaceholderAccuracy": 0.125,
+      "realEmbeddingLegacyAccuracy": 0.875,
+      "crossValidatedAccuracy": 0.8819,
+      "crossValidatedWithAbstain": 0.8819,
+      "logLoss": 0.4494,
+      "reviewBelow": 0.8,
+      "reviewFlagged": 21,
+      "reviewCapturedErrors": 5,
+      "totalErrors": 17,
+      "parameters": {
+        "temperature": 0.006,
+        "maxBlend": 0.6,
+        "imagenetWeight": 0,
+        "biasMode": "none"
+      }
+    },
+    "accuracy_max": {
+      "baselinePlaceholderAccuracy": 0.13194444444444445,
+      "realEmbeddingLegacyAccuracy": 0.9027777777777778,
+      "crossValidatedAccuracy": 0.9097,
+      "crossValidatedWithAbstain": 0.9097,
+      "logLoss": 0.435,
+      "reviewBelow": 0.85,
+      "reviewFlagged": 22,
+      "reviewCapturedErrors": 5,
+      "totalErrors": 13,
+      "parameters": {
+        "temperature": 0.01,
+        "maxBlend": 0.6,
+        "imagenetWeight": 0,
+        "biasMode": "prior"
+      }
     }
   }
 }

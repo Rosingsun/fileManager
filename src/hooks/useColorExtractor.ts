@@ -3,8 +3,8 @@
  */
 
 import { useState, useEffect } from 'react'
-import type { ColorInfo } from '../components/ImageViewer/types'
-import { extractDominantColors } from '../utils/colorUtils'
+import type { ColorInfo } from '../components'
+import { extractDominantColors } from '../utils'
 
 export function useColorExtractor(imageUrl: string | null, colorCount: number = 4) {
   const [colors, setColors] = useState<ColorInfo[]>([])

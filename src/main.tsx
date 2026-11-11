@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import ThemedApp from './components/ThemedApp'
+import ThemedApp from './ThemedApp'
 import './styles/index.css'
 import { readStoredPreference, resolveThemeFromPreference } from './stores'
 

@@ -37,3 +37,28 @@ models/*.onnx
 models/*.pt
 models/*.pth
 models/*.pb
+
+# 构建缓存与临时产物
+*.tsbuildinfo
+*.tmp
+*.bak
+
+# 本地调试脚本
+tileDebug.cjs
+tileDebug.js
+
+# 子项目依赖副本（可由 npm install 恢复）
+scripts/_clip_text_gen/node_modules/
+# CLIP 文本模型缓存（开发期下载，可由 npm run gen:clip-prompts 重建）
+scripts/_clip_text_gen/.cache/
+
+# 分类评估资产：图片/特征/候选/结果均可由脚本重建，manifest.json 保留为标签来源
+tests/fixtures/images/*/
+tests/fixtures/features.json
+tests/fixtures/candidates.json
+tests/fixtures/eval-results*.json
+# 占位伪嵌入仅用于本地基线对照，禁止入库
+models/*.placeholder.json
+
+# 环境变量本地覆盖（.env.development 为仓库自带联调配置，保留）
+.env.*.local

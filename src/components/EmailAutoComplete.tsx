@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react'
 import { AutoComplete, Input } from 'antd'
 import type { AutoCompleteProps } from 'antd'
-import { COMMON_EMAIL_DOMAINS } from '../utils/commonEmailDomains'
+import { COMMON_EMAIL_DOMAINS } from '../utils'
 
 const MAX_OPTIONS = 24
 

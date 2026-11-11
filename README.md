@@ -29,10 +29,16 @@
   - 批量操作可在列表中勾选多项，工具栏出现“批量编辑”按钮
 
 ### 🤖 AI智能图片分类
-- **双引擎**：默认 **CLIP ViT-B/32 视觉编码器**（零样本，需 `clip-prompts.json` + 视觉 ONNX）与 **MobileNetV2 ImageNet** 概率经自适应融合；也可选用 EfficientNet 或 **CogniVision（TensorFlow.js MobileNet，与 npm `cognivision` 同款推理，无需 ONNX，首次运行拉取权重）**，输出统一为 **9 大类**。
+- **真实零样本 CLIP**：B/32（快速预览）与 L/14（最高精准，5 裁剪 TTA）两个视觉模型，
+  搭配由 CLIP 文本编码器预计算的**真实文本嵌入**（`clip-prompts*.json`），输出统一 **9 大类**。
+  文本嵌入随仓库提供，运行时完全离线；参数由 144 张标注图的 5 折交叉验证标定。
 - **九大类**：人物、动物、自然风景、城市建筑、室内、食物、交通工具、截图、其他。
-- **预处理**：EXIF 自动转正、letterbox、CLIP / ImageNet 各自归一化；标签使用仓库内 `models/imagenet1000.json`（1000 类）与官方 MobileNet 输出对齐。
-- **置信度与 Top 预测**：主类别置信度及多项候选；文件列表支持按内容分类筛选。
+- **预处理**：EXIF 转正 → 短边等比缩放 → 中心裁剪 → 强制 3 通道 → CLIP 官方 mean/std，
+  与 CLIP 官方预处理对齐，不产生 letterbox 黑边。
+- **准确率**：评估集 Top-1 快速预览 88.2%、最高精准 91.7%（重构前伪嵌入基线仅 12.5% / 13.2%）。
+- **结果可解释**：展示判对可信度（经逻辑回归校准）与 Top3 九类相对分布；
+  低可信结果标记「待复核」，支持按分类/状态/文件名筛选与人工修正分类。
+- 详见 [评估基线](models/EVAL_BASELINE.md) 与 [模型说明](models/README.md)。
 
 ### 🔍 相似照片检测
 - **智能检测**：基于感知哈希算法检测重复或相似照片
@@ -101,24 +107,26 @@ npm run dist
 ```
 file-organizer/
 ├── electron/           # Electron 主进程代码
-│   ├── main/          # 主进程入口和 IPC 处理器
+│   ├── main/          # 主进程入口、IPC 处理器与 services/utils
 │   └── preload/       # 预加载脚本
 ├── src/               # React 渲染进程
-│   ├── components/    # React 组件
-│   │   ├── ControlPanel.tsx        # 整理控制面板
-│   │   ├── FileList.tsx            # 文件列表
-│   │   ├── FileTree.tsx            # 文件树
-│   │   ├── ImageViewer/            # 图片查看器
-│   │   ├── ImageClassification/   # 图片分类
-│   │   ├── SimilarityDetection/    # 相似性检测
-│   │   └── ...
-│   ├── hooks/         # 自定义 Hooks
-│   ├── stores/        # 状态管理（Zustand）
-│   ├── utils/         # 工具函数
-│   └── types/         # TypeScript 类型定义
-├── models/            # AI 模型文件目录
+│   ├── components/    # React 组件（统一出口 index.ts，各功能域分子目录）
+│   ├── hooks/         # 自定义 Hooks（统一出口 index.ts）
+│   ├── stores/        # 状态管理 Zustand（统一出口 index.ts）
+│   ├── utils/         # 工具函数（统一出口 index.ts）
+│   ├── types/         # TypeScript 类型定义
+│   ├── App.tsx        # 应用主体
+│   ├── ThemedApp.tsx  # 主题与全局配置入口壳
+│   └── main.tsx       # 渲染进程入口
+├── backend/           # 自建认证与业务 API
+├── scripts/           # 构建、模型评估与规范校验脚本
+├── docs/              # 专题文档
+├── models/            # AI 模型与标签文件
 └── public/            # 静态资源
 ```
+
+跨层导入必须走 `utils` / `hooks` / `stores` / `components` 各自的 `index.ts`，禁止直连具体模块；
+执行 `npm run check:imports` 可校验全量导入是否符合该规则。
 
 ## 技术栈
 
@@ -145,10 +153,14 @@ file-organizer/
 
 ### 图片分类
 
-1. 将 `models/imagenet1000.json` 置于 `models/`（仓库已带）；下载 **MobileNetV2**（`mobilenetv2-7.onnx`，约 14MB）— 选择「CLIP」方案时应用会先确保该文件存在。
-2. （可选）启用完整 CLIP：下载 `clip-vit-b32-vision-quant.onnx` 至 `models/`，并生成 `clip-prompts.json`（见 `models/README.md`）。
-3. 选择包含图片的目录，点击「开始分类」。
-4. 在分类页或文件列表中按 9 大类查看与筛选。
+1. `models/clip-prompts.json` 与 `clip-prompts-l14.json`（真实 CLIP 文本嵌入）已随仓库提供，无需生成。
+2. 在应用内选择预设并下载对应视觉 ONNX：快速预览用 `clip-vit-b32-vision-quant.onnx`（约 85MB），
+   最高精准用 `clip-vit-l14-vision-quant.onnx`（约 293MB）；也可执行 `npm run download:models`。
+3. 运行 `npm run eval:classify` 做一次链路体检（校验嵌入来源、维度、标定与评估集）。
+4. 选择包含图片的目录，点击「开始分类」；在结果页按分类/状态筛选、查看 Top3 依据并人工修正。
+
+> 更换 prompt、模型或评估集后，请依次运行 `fixtures:classify` → `features:classify` →
+> `calib:classify` → `eval:classify-run` 重新标定，详见 [模型说明](models/README.md)。
 
 ### 相似照片检测
 

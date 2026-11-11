@@ -25,7 +25,7 @@ export const CLASSIFICATION_PRESETS: ClassificationPreset[] = [
   {
     id: 'accuracy_fast',
     name: '快速预览',
-    description: 'CLIP B/32 单裁剪，无 ImageNet 辅助，速度最快',
+    description: 'CLIP B/32 单裁剪，速度快；评估集 Top-1 88.2%',
     clipModelId: 'clip_vit_b32_quant',
     imagenetModelId: null,
     promptsFile: 'clip-prompts.json',
@@ -36,13 +36,14 @@ export const CLASSIFICATION_PRESETS: ClassificationPreset[] = [
   {
     id: 'accuracy_max',
     name: '最高精准',
-    description: 'CLIP L/14 + EfficientNet-B4 条件辅助 + 5 裁剪，推荐默认',
+    description: 'CLIP L/14 + 5 裁剪 TTA；评估集 Top-1 91.7%，推荐默认',
     clipModelId: 'clip_vit_l14_quant',
-    imagenetModelId: 'efficientnet_b4',
+    // 交叉验证表明 ImageNet 融合会降低 9 大类准确率（最优权重为 0），故不再加载辅助模型
+    imagenetModelId: null,
     promptsFile: 'clip-prompts-l14.json',
     ttaCropCount: 5,
     estimatedSpeedFactor: 5,
-    totalSizeMB: 400
+    totalSizeMB: 300
   }
 ]
 

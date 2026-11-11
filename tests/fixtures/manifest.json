@@ -1,0 +1,872 @@
+{
+  "generatedAt": "2026-11-11T04:01:00.734Z",
+  "source": "Wikimedia Commons (search API, 384px thumbnails)",
+  "note": "人工复核 title 后可删除错误样本；评估脚本以本文件为标签来源",
+  "count": 144,
+  "items": [
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_00.jpg",
+      "title": "Elderly Gambian woman face portrait.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a3/Elderly_Gambian_woman_face_portrait.jpg/500px-Elderly_Gambian_woman_face_portrait.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_01.jpg",
+      "title": "Boy Face from Venezuela.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e7/Boy_Face_from_Venezuela.jpg/500px-Boy_Face_from_Venezuela.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_02.jpg",
+      "title": "Portrait of a smiling girl with wet face at golden hour in Laos.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/71/Portrait_of_a_smiling_girl_with_wet_face_at_golden_hour_in_Laos.jpg/500px-Portrait_of_a_smiling_girl_with_wet_face_at_golden_hour_in_Laos.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_03.jpg",
+      "title": "Studio Portrait Person Wearing White Robe and Face Covering Hood, Naples MET DP-15801-007.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/21/Studio_Portrait_Person_Wearing_White_Robe_and_Face_Covering_Hood%2C_Naples_MET_DP-15801-007.jpg/500px-Studio_Portrait_Person_Wearing_White_Robe_and_Face_Covering_Hood%2C_Naples_MET_DP-15801-007.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_04.jpg",
+      "title": "Portrait photograph at bust length of three Lao girls joining their palms for the Thai greeting, front view, in Don Khon, Laos.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c6/Portrait_photograph_at_bust_length_of_three_Lao_girls_joining_their_palms_for_the_Thai_greeting%2C_front_view%2C_in_Don_Khon%2C_Laos.jpg/500px-Portrait_photograph_at_bust_length_of_three_Lao_girls_joining_their_palms_for_the_Thai_greeting%2C_front_view%2C_in_Don_Khon%2C_Laos.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_05.jpg",
+      "title": "Photographer taking a group photograph of smiling students in front of the Tokyo station, Marunouchi, Japan.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/Photographer_taking_a_group_photograph_of_smiling_students_in_front_of_the_Tokyo_station%2C_Marunouchi%2C_Japan.jpg/500px-Photographer_taking_a_group_photograph_of_smiling_students_in_front_of_the_Tokyo_station%2C_Marunouchi%2C_Japan.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_06.jpg",
+      "title": "Tribu Lopit, Imehejek, Sudán del Sur, 2024-01-22, DD 32.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Tribu_Lopit%2C_Imehejek%2C_Sud%C3%A1n_del_Sur%2C_2024-01-22%2C_DD_32.jpg/500px-Tribu_Lopit%2C_Imehejek%2C_Sud%C3%A1n_del_Sur%2C_2024-01-22%2C_DD_32.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_07.jpg",
+      "title": "Portrait of ASTP crews - restoration.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cf/Portrait_of_ASTP_crews_-_restoration.jpg/500px-Portrait_of_ASTP_crews_-_restoration.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_08.jpg",
+      "title": "Moscow, Zatsepsky Val, group photo, Aug 2026 03.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/11/Moscow%2C_Zatsepsky_Val%2C_group_photo%2C_Aug_2026_03.jpg/500px-Moscow%2C_Zatsepsky_Val%2C_group_photo%2C_Aug_2026_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_09.jpg",
+      "title": "A group of young people in 2006.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1b/A_group_of_young_people_in_2006.jpg/500px-A_group_of_young_people_in_2006.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_10.jpg",
+      "title": "Beaux-Arts de Carcassonne - Portrait de femme - Michiel Jansz. van Mierevelt.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ce/Beaux-Arts_de_Carcassonne_-_Portrait_de_femme_-_Michiel_Jansz._van_Mierevelt.jpg/500px-Beaux-Arts_de_Carcassonne_-_Portrait_de_femme_-_Michiel_Jansz._van_Mierevelt.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_11.jpg",
+      "title": "A man carries a huge hammerhead through the streets of Mogadishu.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/93/A_man_carries_a_huge_hammerhead_through_the_streets_of_Mogadishu.jpg/500px-A_man_carries_a_huge_hammerhead_through_the_streets_of_Mogadishu.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_12.png",
+      "title": "Hillary, a human of NY.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/20/Hillary%2C_a_human_of_NY.png/500px-Hillary%2C_a_human_of_NY.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_13.png",
+      "title": "Hillary, a human of NY 1.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4e/Hillary%2C_a_human_of_NY_1.png/500px-Hillary%2C_a_human_of_NY_1.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "person",
+      "file": "tests/fixtures/images/person/sample_14.jpg",
+      "title": "Woman of Bolivarian Armed Forces in a presidential meeting.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/42/Woman_of_Bolivarian_Armed_Forces_in_a_presidential_meeting.jpg/500px-Woman_of_Bolivarian_Armed_Forces_in_a_presidential_meeting.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_00.jpg",
+      "title": "Dhole(Asiatic wild dog).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ce/Dhole%28Asiatic_wild_dog%29.jpg/500px-Dhole%28Asiatic_wild_dog%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_01.jpg",
+      "title": "DSC09611a Search and Rescue Dog, Austrian Red Cross Perchtoldsdorf, 2024-10.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/94/DSC09611a_Search_and_Rescue_Dog%2C_Austrian_Red_Cross_Perchtoldsdorf%2C_2024-10.jpg/500px-DSC09611a_Search_and_Rescue_Dog%2C_Austrian_Red_Cross_Perchtoldsdorf%2C_2024-10.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_02.jpg",
+      "title": "Kissing Prairie dog edit 3.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Kissing_Prairie_dog_edit_3.jpg/500px-Kissing_Prairie_dog_edit_3.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_03.jpg",
+      "title": "-Dog- MET DP233970.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d0/-Dog-_MET_DP233970.jpg/500px--Dog-_MET_DP233970.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_04.jpg",
+      "title": "Prairie dog Theodore Roosevelt NP ND1.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e4/Prairie_dog_Theodore_Roosevelt_NP_ND1.jpg/500px-Prairie_dog_Theodore_Roosevelt_NP_ND1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_05.jpg",
+      "title": "Cat November 2010-1a.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/4d/Cat_November_2010-1a.jpg/500px-Cat_November_2010-1a.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_06.jpg",
+      "title": "Felis catus-cat on snow.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b6/Felis_catus-cat_on_snow.jpg/500px-Felis_catus-cat_on_snow.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_07.jpg",
+      "title": "Cat playing with a lizard.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/72/Cat_playing_with_a_lizard.jpg/500px-Cat_playing_with_a_lizard.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_08.jpg",
+      "title": "Sleeping cat on her back.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5e/Sleeping_cat_on_her_back.jpg/500px-Sleeping_cat_on_her_back.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_09.jpg",
+      "title": "Cat Sphynx. Kittens. img 11.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/29/Cat_Sphynx._Kittens._img_11.jpg/500px-Cat_Sphynx._Kittens._img_11.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_10.jpg",
+      "title": "Rhinos South Lakes Wild Animal Park.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/88/Rhinos_South_Lakes_Wild_Animal_Park.jpg/500px-Rhinos_South_Lakes_Wild_Animal_Park.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_11.jpg",
+      "title": "Jellyfish at the WILD LIFE Sydney Zoo (Ank Kumar) 02.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/13/Jellyfish_at_the_WILD_LIFE_Sydney_Zoo_%28Ank_Kumar%29_02.jpg/500px-Jellyfish_at_the_WILD_LIFE_Sydney_Zoo_%28Ank_Kumar%29_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_12.jpg",
+      "title": "Jellyfish at the WILD LIFE Sydney Zoo (Ank Kumar) 03.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/96/Jellyfish_at_the_WILD_LIFE_Sydney_Zoo_%28Ank_Kumar%29_03.jpg/500px-Jellyfish_at_the_WILD_LIFE_Sydney_Zoo_%28Ank_Kumar%29_03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_13.jpg",
+      "title": "Jellyfish at the WILD LIFE Sydney Zoo (Ank Kumar) 04.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/80/Jellyfish_at_the_WILD_LIFE_Sydney_Zoo_%28Ank_Kumar%29_04.jpg/500px-Jellyfish_at_the_WILD_LIFE_Sydney_Zoo_%28Ank_Kumar%29_04.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_14.jpg",
+      "title": "Jellyfish at the WILD LIFE Sydney Zoo (Ank Kumar) 01.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/72/Jellyfish_at_the_WILD_LIFE_Sydney_Zoo_%28Ank_Kumar%29_01.jpg/500px-Jellyfish_at_the_WILD_LIFE_Sydney_Zoo_%28Ank_Kumar%29_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_15.jpg",
+      "title": "Jamaica Bay Wildlife Refuge East Pond (61289p).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/ff/Jamaica_Bay_Wildlife_Refuge_East_Pond_%2861289p%29.jpg/500px-Jamaica_Bay_Wildlife_Refuge_East_Pond_%2861289p%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_16.jpg",
+      "title": "Australasian Shoveler - Goulds Lagoon Wildlife Sanctuary.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ae/Australasian_Shoveler_-_Goulds_Lagoon_Wildlife_Sanctuary.jpg/500px-Australasian_Shoveler_-_Goulds_Lagoon_Wildlife_Sanctuary.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "animal",
+      "file": "tests/fixtures/images/animal/sample_17.jpg",
+      "title": "Golden-crowned kinglet at JBWR (11835).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/Golden-crowned_kinglet_at_JBWR_%2811835%29.jpg/500px-Golden-crowned_kinglet_at_JBWR_%2811835%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_00.jpg",
+      "title": "Zagedan Lakes, Mountain cirque, Caucasus Mountains.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/88/Zagedan_Lakes%2C_Mountain_cirque%2C_Caucasus_Mountains.jpg/500px-Zagedan_Lakes%2C_Mountain_cirque%2C_Caucasus_Mountains.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_01.jpg",
+      "title": "Mountains in snow, Mountain lake, Chola Valley, Nepal, Himalayas.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5a/Mountains_in_snow%2C_Mountain_lake%2C_Chola_Valley%2C_Nepal%2C_Himalayas.jpg/500px-Mountains_in_snow%2C_Mountain_lake%2C_Chola_Valley%2C_Nepal%2C_Himalayas.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_02.jpg",
+      "title": "Landscape Arnisee-region.JPG",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/14/Landscape_Arnisee-region.JPG/500px-Landscape_Arnisee-region.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_03.jpg",
+      "title": "Mountain Peak, Alaska (1999).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e8/Mountain_Peak%2C_Alaska_%281999%29.jpg/500px-Mountain_Peak%2C_Alaska_%281999%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_04.jpg",
+      "title": "Blue Mountains National Park (AU), Three Sisters -- 2019 -- 1987-9.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/de/Blue_Mountains_National_Park_%28AU%29%2C_Three_Sisters_--_2019_--_1987-9.jpg/500px-Blue_Mountains_National_Park_%28AU%29%2C_Three_Sisters_--_2019_--_1987-9.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_05.jpg",
+      "title": "Peyto Lake in winter.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Peyto_Lake_in_winter.jpg/500px-Peyto_Lake_in_winter.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_06.jpg",
+      "title": "Church, castle and lake of Ivenack, NW view.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/16/Church%2C_castle_and_lake_of_Ivenack%2C_NW_view.jpg/500px-Church%2C_castle_and_lake_of_Ivenack%2C_NW_view.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_07.jpg",
+      "title": "Russia. Moscow Region. Winter pine wood, lake Kratovskoe area.JPG",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a9/Russia._Moscow_Region._Winter_pine_wood%2C_lake_Kratovskoe_area.JPG/500px-Russia._Moscow_Region._Winter_pine_wood%2C_lake_Kratovskoe_area.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_08.jpg",
+      "title": "Lake Mary Mammoth September 2016.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/01/Lake_Mary_Mammoth_September_2016.jpg/500px-Lake_Mary_Mammoth_September_2016.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_09.jpg",
+      "title": "Sankt Moritz Lake Piz Muragl.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ac/Sankt_Moritz_Lake_Piz_Muragl.jpg/500px-Sankt_Moritz_Lake_Piz_Muragl.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_10.jpg",
+      "title": "Kitesurfer at sunset, Workum, may 2017.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6a/Kitesurfer_at_sunset%2C_Workum%2C_may_2017.jpg/500px-Kitesurfer_at_sunset%2C_Workum%2C_may_2017.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_11.jpg",
+      "title": "Don Puay river bank landscape at sunset.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cb/Don_Puay_river_bank_landscape_at_sunset.jpg/500px-Don_Puay_river_bank_landscape_at_sunset.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_12.jpg",
+      "title": "Sunset on the Aresquiers beach.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bd/Sunset_on_the_Aresquiers_beach.jpg/500px-Sunset_on_the_Aresquiers_beach.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_13.jpg",
+      "title": "Mekong water reflection of lightings of Don Det and colorful sky at sunset seen from a sand beach in Laos.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/58/Mekong_water_reflection_of_lightings_of_Don_Det_and_colorful_sky_at_sunset_seen_from_a_sand_beach_in_Laos.jpg/500px-Mekong_water_reflection_of_lightings_of_Don_Det_and_colorful_sky_at_sunset_seen_from_a_sand_beach_in_Laos.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "landscape",
+      "file": "tests/fixtures/images/landscape/sample_14.jpg",
+      "title": "Children playing at sunset on a Mekong bank in Si Phan Don.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7e/Children_playing_at_sunset_on_a_Mekong_bank_in_Si_Phan_Don.jpg/500px-Children_playing_at_sunset_on_a_Mekong_bank_in_Si_Phan_Don.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_00.jpg",
+      "title": "Snow-covered Quebec City skyline in fog.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1d/Snow-covered_Quebec_City_skyline_in_fog.jpg/500px-Snow-covered_Quebec_City_skyline_in_fog.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_01.jpg",
+      "title": "Quebec City skyline from a park.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ea/Quebec_City_skyline_from_a_park.jpg/500px-Quebec_City_skyline_from_a_park.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_02.jpg",
+      "title": "City of London skyline from London City Hall - Sept 2015 - Crop Aligned.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/City_of_London_skyline_from_London_City_Hall_-_Sept_2015_-_Crop_Aligned.jpg/500px-City_of_London_skyline_from_London_City_Hall_-_Sept_2015_-_Crop_Aligned.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_03.jpg",
+      "title": "City of London skyline from London City Hall - Oct 2008 - Aligned.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/98/City_of_London_skyline_from_London_City_Hall_-_Oct_2008_-_Aligned.jpg/500px-City_of_London_skyline_from_London_City_Hall_-_Oct_2008_-_Aligned.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_04.jpg",
+      "title": "Québec city at night, view from Lévis city.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f4/Qu%C3%A9bec_city_at_night%2C_view_from_L%C3%A9vis_city.jpg/500px-Qu%C3%A9bec_city_at_night%2C_view_from_L%C3%A9vis_city.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_05.jpg",
+      "title": "Québec city downtown.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Qu%C3%A9bec_city_downtown.jpg/500px-Qu%C3%A9bec_city_downtown.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_06.jpg",
+      "title": "Eldridge Street Synagogue (42773).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c7/Eldridge_Street_Synagogue_%2842773%29.jpg/500px-Eldridge_Street_Synagogue_%2842773%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_07.jpg",
+      "title": "Gare fluviale de Québec, Quebec city, Canada.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bf/Gare_fluviale_de_Qu%C3%A9bec%2C_Quebec_city%2C_Canada.jpg/500px-Gare_fluviale_de_Qu%C3%A9bec%2C_Quebec_city%2C_Canada.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_08.jpg",
+      "title": "Château Frontenac city at night.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/72/Ch%C3%A2teau_Frontenac_city_at_night.jpg/500px-Ch%C3%A2teau_Frontenac_city_at_night.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_09.jpg",
+      "title": "View of Empire State Building from Rockefeller Center New York City dllu.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/View_of_Empire_State_Building_from_Rockefeller_Center_New_York_City_dllu.jpg/500px-View_of_Empire_State_Building_from_Rockefeller_Center_New_York_City_dllu.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_10.jpg",
+      "title": "Illuminated roof of the skyscraper Millenia Tower at night in Singapore.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3e/Illuminated_roof_of_the_skyscraper_Millenia_Tower_at_night_in_Singapore.jpg/500px-Illuminated_roof_of_the_skyscraper_Millenia_Tower_at_night_in_Singapore.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_11.jpg",
+      "title": "Aura skyscraper in Toronto.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1d/Aura_skyscraper_in_Toronto.jpg/500px-Aura_skyscraper_in_Toronto.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_12.jpg",
+      "title": "Moscow - 2025 - Architectural elements of the skyscraper on Kotelnicheskaya.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/79/Moscow_-_2025_-_Architectural_elements_of_the_skyscraper_on_Kotelnicheskaya.jpg/500px-Moscow_-_2025_-_Architectural_elements_of_the_skyscraper_on_Kotelnicheskaya.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_13.jpg",
+      "title": "Moscow - 2025 - Architectural elements of the skyscraper on Kotelnicheskaya1.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/71/Moscow_-_2025_-_Architectural_elements_of_the_skyscraper_on_Kotelnicheskaya1.jpg/500px-Moscow_-_2025_-_Architectural_elements_of_the_skyscraper_on_Kotelnicheskaya1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "urban",
+      "file": "tests/fixtures/images/urban/sample_14.jpg",
+      "title": "Skyscraper architecture. Xiamen, Peoples Republic of China, East Asia.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/08/Skyscraper_architecture._Xiamen%2C_Peoples_Republic_of_China%2C_East_Asia.jpg/500px-Skyscraper_architecture._Xiamen%2C_Peoples_Republic_of_China%2C_East_Asia.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_00.jpg",
+      "title": "Living room of a typical rural house in northeast Brazil.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6b/Living_room_of_a_typical_rural_house_in_northeast_Brazil.jpg/500px-Living_room_of_a_typical_rural_house_in_northeast_Brazil.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_01.jpg",
+      "title": "Living room in apartment of Condomínio do Edifício Zaher, Le Blond, Rio de Janeiro, Brazil.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/36/Living_room_in_apartment_of_Condom%C3%ADnio_do_Edif%C3%ADcio_Zaher%2C_Le_Blond%2C_Rio_de_Janeiro%2C_Brazil.jpg/500px-Living_room_in_apartment_of_Condom%C3%ADnio_do_Edif%C3%ADcio_Zaher%2C_Le_Blond%2C_Rio_de_Janeiro%2C_Brazil.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_02.jpg",
+      "title": "Nathan Cobb Cottage - Interior 2nd Floor Loft Looking Down to Living Room - photograph ca. 2021.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/25/Nathan_Cobb_Cottage_-_Interior_2nd_Floor_Loft_Looking_Down_to_Living_Room_-_photograph_ca._2021.jpg/500px-Nathan_Cobb_Cottage_-_Interior_2nd_Floor_Loft_Looking_Down_to_Living_Room_-_photograph_ca._2021.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_03.jpg",
+      "title": "Photographs of Hvitträsk’s Interior - Living Room.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/8b/Photographs_of_Hvittr%C3%A4sk%E2%80%99s_Interior_-_Living_Room.jpg/500px-Photographs_of_Hvittr%C3%A4sk%E2%80%99s_Interior_-_Living_Room.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_04.jpg",
+      "title": "Interieur woonkamer - Living Room Interior (5260603106).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ed/Interieur_woonkamer_-_Living_Room_Interior_%285260603106%29.jpg/500px-Interieur_woonkamer_-_Living_Room_Interior_%285260603106%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_05.jpg",
+      "title": "Morning, Interior - Luce.jpeg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/60/Morning%2C_Interior_-_Luce.jpeg/500px-Morning%2C_Interior_-_Luce.jpeg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_06.jpg",
+      "title": "Bedroom, Interior of apartment in Brisbane, 2025, 02.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2a/Bedroom%2C_Interior_of_apartment_in_Brisbane%2C_2025%2C_02.jpg/500px-Bedroom%2C_Interior_of_apartment_in_Brisbane%2C_2025%2C_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_07.jpg",
+      "title": "Bedroom, Interior of apartment in Brisbane, 2025, 01.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5d/Bedroom%2C_Interior_of_apartment_in_Brisbane%2C_2025%2C_01.jpg/500px-Bedroom%2C_Interior_of_apartment_in_Brisbane%2C_2025%2C_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_08.jpg",
+      "title": "2025.07.13 Interior bedroom Hotel Hlybokae 01.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b3/2025.07.13_Interior_bedroom_Hotel_Hlybokae_01.jpg/500px-2025.07.13_Interior_bedroom_Hotel_Hlybokae_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_09.jpg",
+      "title": "2025.07.13 Interior bedroom Hotel Hlybokae 02.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/47/2025.07.13_Interior_bedroom_Hotel_Hlybokae_02.jpg/500px-2025.07.13_Interior_bedroom_Hotel_Hlybokae_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_10.jpg",
+      "title": "The dining room in the country by Pierre Bonnard (1913).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/12/The_dining_room_in_the_country_by_Pierre_Bonnard_%281913%29.jpg/500px-The_dining_room_in_the_country_by_Pierre_Bonnard_%281913%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_11.jpg",
+      "title": "USL office in Summit with room number.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/USL_office_in_Summit_with_room_number.jpg/500px-USL_office_in_Summit_with_room_number.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_12.jpg",
+      "title": "Rifle Colorado post office interior 4.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/10/Rifle_Colorado_post_office_interior_4.jpg/500px-Rifle_Colorado_post_office_interior_4.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_13.jpg",
+      "title": "Rifle Colorado post office interior 5.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/74/Rifle_Colorado_post_office_interior_5.jpg/500px-Rifle_Colorado_post_office_interior_5.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "indoor",
+      "file": "tests/fixtures/images/indoor/sample_14.jpg",
+      "title": "Rifle Colorado post office interior 1.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/Rifle_Colorado_post_office_interior_1.jpg/500px-Rifle_Colorado_post_office_interior_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_00.jpg",
+      "title": "Piece of chocolate cake on a white plate decorated with chocolate sauce.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ef/Piece_of_chocolate_cake_on_a_white_plate_decorated_with_chocolate_sauce.jpg/500px-Piece_of_chocolate_cake_on_a_white_plate_decorated_with_chocolate_sauce.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_01.jpg",
+      "title": "A heap of shrimp shells on a plate in Tuntorp 1.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1a/A_heap_of_shrimp_shells_on_a_plate_in_Tuntorp_1.jpg/500px-A_heap_of_shrimp_shells_on_a_plate_in_Tuntorp_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_02.jpg",
+      "title": "Food on Mallorca 01.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cb/Food_on_Mallorca_01.jpg/500px-Food_on_Mallorca_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_03.jpg",
+      "title": "Food on Mallorca 11.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/05/Food_on_Mallorca_11.jpg/500px-Food_on_Mallorca_11.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_04.jpg",
+      "title": "Food on a plate at restaurant Saino.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/40/Food_on_a_plate_at_restaurant_Saino.jpg/500px-Food_on_a_plate_at_restaurant_Saino.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_05.jpg",
+      "title": "Dessert include Peanut brownies, cheeze cake, black forest pastry, butterscotch pastry.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3c/Dessert_include_Peanut_brownies%2C_cheeze_cake%2C_black_forest_pastry%2C_butterscotch_pastry.jpg/500px-Dessert_include_Peanut_brownies%2C_cheeze_cake%2C_black_forest_pastry%2C_butterscotch_pastry.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_06.jpg",
+      "title": "St. Honoré cake with chocolate (DSCF4539).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f6/St._Honor%C3%A9_cake_with_chocolate_%28DSCF4539%29.jpg/500px-St._Honor%C3%A9_cake_with_chocolate_%28DSCF4539%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_07.jpg",
+      "title": "Dessert cake.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/45/Dessert_cake.jpg/500px-Dessert_cake.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_08.jpg",
+      "title": "Birthday cake - August 2022 - Sarah Stierch.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/07/Birthday_cake_-_August_2022_-_Sarah_Stierch.jpg/500px-Birthday_cake_-_August_2022_-_Sarah_Stierch.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_09.jpg",
+      "title": "Merry Christmas cake - December 2025 - Sarah Stierch.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/41/Merry_Christmas_cake_-_December_2025_-_Sarah_Stierch.jpg/500px-Merry_Christmas_cake_-_December_2025_-_Sarah_Stierch.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_10.jpg",
+      "title": "A home-cooked meal featuring a breaded and fried hake medallion, a fried egg, and a serving of white rice topped with meat sauce and grated cheese.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/da/A_home-cooked_meal_featuring_a_breaded_and_fried_hake_medallion%2C_a_fried_egg%2C_and_a_serving_of_white_rice_topped_with_meat_sauce_and_grated_cheese.jpg/500px-A_home-cooked_meal_featuring_a_breaded_and_fried_hake_medallion%2C_a_fried_egg%2C_and_a_serving_of_white_rice_topped_with_meat_sauce_and_grated_cheese.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_11.jpg",
+      "title": "Liat Portal for Foodie Disorder - Home cooked seafood and vegetable meal.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/85/Liat_Portal_for_Foodie_Disorder_-_Home_cooked_seafood_and_vegetable_meal.jpg/500px-Liat_Portal_for_Foodie_Disorder_-_Home_cooked_seafood_and_vegetable_meal.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_12.jpg",
+      "title": "Liat Portal for Foodie Disorder - Oven baked chicken with potatoes, onions, garlic, and rice.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Liat_Portal_for_Foodie_Disorder_-_Oven_baked_chicken_with_potatoes%2C_onions%2C_garlic%2C_and_rice.jpg/500px-Liat_Portal_for_Foodie_Disorder_-_Oven_baked_chicken_with_potatoes%2C_onions%2C_garlic%2C_and_rice.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_13.png",
+      "title": "Pork tenderloin dish.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/af/Pork_tenderloin_dish.png/500px-Pork_tenderloin_dish.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "food",
+      "file": "tests/fixtures/images/food/sample_14.jpg",
+      "title": "Liat Portal for Foodie Disorder - Israeli Home Cooking Plate with Chicken Rice and Peas.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ae/Liat_Portal_for_Foodie_Disorder_-_Israeli_Home_Cooking_Plate_with_Chicken_Rice_and_Peas.jpg/500px-Liat_Portal_for_Foodie_Disorder_-_Israeli_Home_Cooking_Plate_with_Chicken_Rice_and_Peas.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_00.jpg",
+      "title": "Abandoned car in Marine Park (10852p).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c3/Abandoned_car_in_Marine_Park_%2810852p%29.jpg/500px-Abandoned_car_in_Marine_Park_%2810852p%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_01.jpg",
+      "title": "Start of the 1927 Italian Grand Prix.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0c/Start_of_the_1927_Italian_Grand_Prix.jpg/500px-Start_of_the_1927_Italian_Grand_Prix.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_02.jpg",
+      "title": "Robert Benoist at the 1927 Italian Grand Prix.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2d/Robert_Benoist_at_the_1927_Italian_Grand_Prix.jpg/500px-Robert_Benoist_at_the_1927_Italian_Grand_Prix.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_03.jpg",
+      "title": "DTM car mercedes2006 Haekkinen racing.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ce/DTM_car_mercedes2006_Haekkinen_racing.jpg/500px-DTM_car_mercedes2006_Haekkinen_racing.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_04.jpg",
+      "title": "Porsche race car Verschuur amk.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/65/Porsche_race_car_Verschuur_amk.jpg/500px-Porsche_race_car_Verschuur_amk.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_05.jpg",
+      "title": "An F-A-18C Hornet launches from the flight deck of the conventionally powered aircraft carrier.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/49/An_F-A-18C_Hornet_launches_from_the_flight_deck_of_the_conventionally_powered_aircraft_carrier.jpg/500px-An_F-A-18C_Hornet_launches_from_the_flight_deck_of_the_conventionally_powered_aircraft_carrier.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_06.jpg",
+      "title": "Commonwealth Aircraft Corporation CA-18 Mustang Mk.21 Jersey Jerk 44-15152 Duxford 2024 02.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/22/Commonwealth_Aircraft_Corporation_CA-18_Mustang_Mk.21_Jersey_Jerk_44-15152_Duxford_2024_02.jpg/500px-Commonwealth_Aircraft_Corporation_CA-18_Mustang_Mk.21_Jersey_Jerk_44-15152_Duxford_2024_02.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_07.jpg",
+      "title": "Finnish Air Force Hawker Hurricane warbird and US Navy T-6 Texan warbird in flight over Finland.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/79/Finnish_Air_Force_Hawker_Hurricane_warbird_and_US_Navy_T-6_Texan_warbird_in_flight_over_Finland.jpg/500px-Finnish_Air_Force_Hawker_Hurricane_warbird_and_US_Navy_T-6_Texan_warbird_in_flight_over_Finland.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_08.jpg",
+      "title": "At Salvador, Bahia 2025 011 - Aircraft at Manchester Airport.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/At_Salvador%2C_Bahia_2025_011_-_Aircraft_at_Manchester_Airport.jpg/500px-At_Salvador%2C_Bahia_2025_011_-_Aircraft_at_Manchester_Airport.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_09.jpg",
+      "title": "Hurricane.r4118.arp.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2b/Hurricane.r4118.arp.jpg/500px-Hurricane.r4118.arp.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_10.jpg",
+      "title": "Jeseník train station 2025.01.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/47/Jesen%C3%ADk_train_station_2025.01.jpg/500px-Jesen%C3%ADk_train_station_2025.01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_11.jpg",
+      "title": "Staraya Russa asv2018-07 various45 Railway station.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bb/Staraya_Russa_asv2018-07_various45_Railway_station.jpg/500px-Staraya_Russa_asv2018-07_various45_Railway_station.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_12.jpg",
+      "title": "Workemen's train, Ffestiniog railway NLW3363957.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2b/Workemen%27s_train%2C_Ffestiniog_railway_NLW3363957.jpg/500px-Workemen%27s_train%2C_Ffestiniog_railway_NLW3363957.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_13.jpg",
+      "title": "Abandoned Train at Janakpur station, Nepal Railways--IMG 7925.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1b/Abandoned_Train_at_Janakpur_station%2C_Nepal_Railways--IMG_7925.jpg/500px-Abandoned_Train_at_Janakpur_station%2C_Nepal_Railways--IMG_7925.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_14.jpg",
+      "title": "205kei train in JR Nikko line 02.JPG",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/81/205kei_train_in_JR_Nikko_line_02.JPG/500px-205kei_train_in_JR_Nikko_line_02.JPG?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_15.jpg",
+      "title": "The destruction of the Foochow Arsenal and Chinese fleet by the French Squadron under Admiral Courbet. (1884).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/a/a5/The_destruction_of_the_Foochow_Arsenal_and_Chinese_fleet_by_the_French_Squadron_under_Admiral_Courbet._%281884%29.jpg/500px-The_destruction_of_the_Foochow_Arsenal_and_Chinese_fleet_by_the_French_Squadron_under_Admiral_Courbet._%281884%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_16.jpg",
+      "title": "Pilot Boat Mercury.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/61/Pilot_Boat_Mercury.jpg/500px-Pilot_Boat_Mercury.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "vehicle",
+      "file": "tests/fixtures/images/vehicle/sample_17.jpg",
+      "title": "Fishing boat Nørre Vorupør 2012-11-18 cropped.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e0/Fishing_boat_N%C3%B8rre_Vorup%C3%B8r_2012-11-18_cropped.jpg/500px-Fishing_boat_N%C3%B8rre_Vorup%C3%B8r_2012-11-18_cropped.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_00.jpg",
+      "title": "Screenshot wikiwand.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/d1/Screenshot_wikiwand.jpg/500px-Screenshot_wikiwand.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_01.png",
+      "title": "Screenshot of the user interface of eLabFTW.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7a/Screenshot_of_the_user_interface_of_eLabFTW.png/500px-Screenshot_of_the_user_interface_of_eLabFTW.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_02.png",
+      "title": "QGIS Software Interface.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fa/QGIS_Software_Interface.png/500px-QGIS_Software_Interface.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_03.jpg",
+      "title": "ClayArena platform homepage screenshot 2026.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7e/ClayArena_platform_homepage_screenshot_2026.jpg/500px-ClayArena_platform_homepage_screenshot_2026.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_04.png",
+      "title": "Screenshot blender interface - 3D view panel selected.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5c/Screenshot_blender_interface_-_3D_view_panel_selected.png/500px-Screenshot_blender_interface_-_3D_view_panel_selected.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_05.jpg",
+      "title": "Screenshot of Sport4ever website.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c1/Screenshot_of_Sport4ever_website.jpg/500px-Screenshot_of_Sport4ever_website.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_06.png",
+      "title": "Screenshot copyright KB website 12 augustus 2021.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/36/Screenshot_copyright_KB_website_12_augustus_2021.png/500px-Screenshot_copyright_KB_website_12_augustus_2021.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_07.png",
+      "title": "Wikimedia Foundation website screenshot - 26 January 2004.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/81/Wikimedia_Foundation_website_screenshot_-_26_January_2004.png/500px-Wikimedia_Foundation_website_screenshot_-_26_January_2004.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_08.png",
+      "title": "Wikimedia Foundation website screenshot - 05 July 2019.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/6/6d/Wikimedia_Foundation_website_screenshot_-_05_July_2019.png/500px-Wikimedia_Foundation_website_screenshot_-_05_July_2019.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_09.png",
+      "title": "Wikimedia Foundation website screenshot - 21 September 2016.png",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b1/Wikimedia_Foundation_website_screenshot_-_21_September_2016.png/500px-Wikimedia_Foundation_website_screenshot_-_21_September_2016.png?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_10.jpg",
+      "title": "Liji 2.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/0a/Liji_2.jpg/500px-Liji_2.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_11.jpg",
+      "title": "13-11-02-olb-by-RalfR-03.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c5/13-11-02-olb-by-RalfR-03.jpg/500px-13-11-02-olb-by-RalfR-03.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_12.jpg",
+      "title": "Grandes Heures Anne de Bretagne Saint Marc.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f5/Grandes_Heures_Anne_de_Bretagne_Saint_Marc.jpg/500px-Grandes_Heures_Anne_de_Bretagne_Saint_Marc.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_13.jpg",
+      "title": "Paris 75005 Quai de Montebello Bouquinistes 20071014.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c2/Paris_75005_Quai_de_Montebello_Bouquinistes_20071014.jpg/500px-Paris_75005_Quai_de_Montebello_Bouquinistes_20071014.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_14.jpg",
+      "title": "Margaret Hamilton - restoration.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/db/Margaret_Hamilton_-_restoration.jpg/500px-Margaret_Hamilton_-_restoration.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_15.jpg",
+      "title": "Front-page of an issue of 'Kirti' (\"labourer\"), a Communist Punjabi newspaper, March 1927 issue.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b0/Front-page_of_an_issue_of_%27Kirti%27_%28%22labourer%22%29%2C_a_Communist_Punjabi_newspaper%2C_March_1927_issue.jpg/500px-Front-page_of_an_issue_of_%27Kirti%27_%28%22labourer%22%29%2C_a_Communist_Punjabi_newspaper%2C_March_1927_issue.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_16.jpg",
+      "title": "Kayhan newspaper, 1982-04-21, Page 01.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/fe/Kayhan_newspaper%2C_1982-04-21%2C_Page_01.jpg/500px-Kayhan_newspaper%2C_1982-04-21%2C_Page_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "document",
+      "file": "tests/fixtures/images/document/sample_17.jpg",
+      "title": "Front-page of an issue of 'Mazdoor Kisan', a weekly Communist Punjabi newspaper, 8 May 1931 issue.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/80/Front-page_of_an_issue_of_%27Mazdoor_Kisan%27%2C_a_weekly_Communist_Punjabi_newspaper%2C_8_May_1931_issue.jpg/500px-Front-page_of_an_issue_of_%27Mazdoor_Kisan%27%2C_a_weekly_Communist_Punjabi_newspaper%2C_8_May_1931_issue.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_00.jpg",
+      "title": "Haltern am See, Sythen, Werkzeughalle der Quarzwerke -- 2015 -- 5012.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/29/Haltern_am_See%2C_Sythen%2C_Werkzeughalle_der_Quarzwerke_--_2015_--_5012.jpg/500px-Haltern_am_See%2C_Sythen%2C_Werkzeughalle_der_Quarzwerke_--_2015_--_5012.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_01.jpg",
+      "title": "Ornamentglas B - Ansicht 1.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7c/Ornamentglas_B_-_Ansicht_1.jpg/500px-Ornamentglas_B_-_Ansicht_1.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_02.jpg",
+      "title": "Oil1 Flickr macro photo by Jordan Mudrack - close-up view colored ink dye paint wet transparent opaque mediums materials forming intricate simple abstract patterns shapes images.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/5/5f/Oil1_Flickr_macro_photo_by_Jordan_Mudrack_-_close-up_view_colored_ink_dye_paint_wet_transparent_opaque_mediums_materials_forming_intricate_simple_abstract_patterns_shapes_images.jpg/500px-thumbnail.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_03.jpg",
+      "title": "Ink&dye346 Flickr macro photo by Jordan Mudrack - close-up view colored ink dye paint wet transparent opaque mediums materials forming intricate simple abstract patterns shapes images.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/02/Ink%26dye346_Flickr_macro_photo_by_Jordan_Mudrack_-_close-up_view_colored_ink_dye_paint_wet_transparent_opaque_mediums_materials_forming_intricate_simple_abstract_patterns_shapes_images.jpg/500px-thumbnail.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_04.jpg",
+      "title": "Ink&dye462 Flickr macro photo by Jordan Mudrack - close-up view colored ink dye paint wet transparent opaque mediums materials forming intricate simple abstract patterns shapes images.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/c0/Ink%26dye462_Flickr_macro_photo_by_Jordan_Mudrack_-_close-up_view_colored_ink_dye_paint_wet_transparent_opaque_mediums_materials_forming_intricate_simple_abstract_patterns_shapes_images.jpg/500px-thumbnail.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_05.jpg",
+      "title": "Pataliputra capital (white background).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/0/06/Pataliputra_capital_%28white_background%29.jpg/500px-Pataliputra_capital_%28white_background%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_06.jpg",
+      "title": "ZIPFY - product profile on white background.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1b/ZIPFY_-_product_profile_on_white_background.jpg/500px-ZIPFY_-_product_profile_on_white_background.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_07.jpg",
+      "title": "Cup of tea isolated on white background - Petr Kratochvil.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/92/Cup_of_tea_isolated_on_white_background_-_Petr_Kratochvil.jpg/500px-Cup_of_tea_isolated_on_white_background_-_Petr_Kratochvil.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_08.jpg",
+      "title": "Nikon Z 5 w Nikkor 50mm f1.8S.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/13/Nikon_Z_5_w_Nikkor_50mm_f1.8S.jpg/500px-Nikon_Z_5_w_Nikkor_50mm_f1.8S.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_09.jpg",
+      "title": "Cup of tea isolated on white background - Petr Kratochvil (cropped).jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/3a/Cup_of_tea_isolated_on_white_background_-_Petr_Kratochvil_%28cropped%29.jpg/500px-Cup_of_tea_isolated_on_white_background_-_Petr_Kratochvil_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_10.jpg",
+      "title": "Sur En-Sent. Sculpture Negativ - Positive. Artwork by Peter Gredig. 17-10-2024. (actm.) 01.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/cd/Sur_En-Sent._Sculpture_Negativ_-_Positive._Artwork_by_Peter_Gredig._17-10-2024._%28actm.%29_01.jpg/500px-Sur_En-Sent._Sculpture_Negativ_-_Positive._Artwork_by_Peter_Gredig._17-10-2024._%28actm.%29_01.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_11.jpg",
+      "title": "Vaka 'A Hina sculpture in Christchurch, New Zealand.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/22/Vaka_%27A_Hina_sculpture_in_Christchurch%2C_New_Zealand.jpg/500px-Vaka_%27A_Hina_sculpture_in_Christchurch%2C_New_Zealand.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_12.jpg",
+      "title": "Frederic Edwin Church - Aurora Borealis - Google Art Project.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/da/Frederic_Edwin_Church_-_Aurora_Borealis_-_Google_Art_Project.jpg/500px-Frederic_Edwin_Church_-_Aurora_Borealis_-_Google_Art_Project.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_13.jpg",
+      "title": "Sargent, John Singer (RA) - Gassed - Google Art Project.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/89/Sargent%2C_John_Singer_%28RA%29_-_Gassed_-_Google_Art_Project.jpg/500px-Sargent%2C_John_Singer_%28RA%29_-_Gassed_-_Google_Art_Project.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    },
+    {
+      "category": "other",
+      "file": "tests/fixtures/images/other/sample_14.jpg",
+      "title": "Rembrandt van Rijn - Self-Portrait - Google Art Project.jpg",
+      "source": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/bd/Rembrandt_van_Rijn_-_Self-Portrait_-_Google_Art_Project.jpg/500px-Rembrandt_van_Rijn_-_Self-Portrait_-_Google_Art_Project.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail"
+    }
+  ]
+}

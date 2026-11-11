@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, safeStorage, Menu, protocol } from 'electron'
 import { basename, dirname, join, normalize, parse } from 'path'
-import { spawnSync } from 'child_process'
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync, existsSync as nodeFileExistsSync, unlinkSync } from 'fs'
 import fs from 'fs-extra'
 import { watch } from 'chokidar'
@@ -1765,34 +1764,20 @@ ipcHandle('model:checkExists', async (_event, modelOrPresetId?: string): Promise
   return checkSingleModelExists(cwd, modelId)
 })
 
+/**
+ * 文本嵌入必须随应用提供，不在运行时生成：
+ * 真实 CLIP 文本编码器是开发期依赖（需联网下载模型），打包后的应用不具备该能力。
+ * 旧实现会在缺失时 spawn bootstrap 脚本，而该脚本过去产出的是伪嵌入，会让分类静默变随机。
+ */
 function ensurePromptsFile(promptsFile: string): boolean {
   const root = resolveProjectRoot()
   const promptsPath = join(getModelsDir(root), promptsFile)
   if (existsSync(promptsPath)) return true
-
-  const bootstrapScript = join(root, 'scripts', 'bootstrap-clip-prompts.mjs')
-  if (!existsSync(bootstrapScript)) {
-    console.warn('[Main] 缺少 prompts 且未找到 bootstrap 脚本:', bootstrapScript)
-    return false
-  }
-
-  try {
-    const key = promptsFile.includes('l14') ? 'l14' : 'b32'
-    console.log('[Main] 自动生成 prompts:', promptsFile)
-    const result = spawnSync(process.execPath, [bootstrapScript, key], {
-      cwd: root,
-      stdio: 'pipe',
-      timeout: 120_000,
-      env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
-    })
-    if (result.status !== 0) {
-      console.warn('[Main] bootstrap prompts 失败:', result.stderr?.toString())
-    }
-  } catch (e) {
-    console.warn('[Main] bootstrap prompts 异常:', e)
-  }
-
-  return existsSync(promptsPath)
+  console.error(
+    `[Main] 缺少真实 CLIP 文本嵌入 ${promptsPath}；请在开发环境执行 npm run gen:clip-prompts ` +
+    '生成后随应用一同部署，运行时不会自动生成。'
+  )
+  return false
 }
 
 async function downloadSingleModelInternal(

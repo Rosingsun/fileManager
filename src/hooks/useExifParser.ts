@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react'
 import type { ExifData } from '../types'
-import { formatExifData, extractExifFromUrl } from '../utils/exifParser'
+import { formatExifData, extractExifFromUrl } from '../utils'
 
 export function useExifParser(exif: ExifData | null | undefined, imageUrl?: string) {
   const [formattedExif, setFormattedExif] = useState<Record<string, string>>({})
