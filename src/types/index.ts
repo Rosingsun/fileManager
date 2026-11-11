@@ -128,6 +128,12 @@ export interface OrganizeHistoryItem {
 }
 
 // 相似照片检测相关类型
+
+/** 检测档位：exact=仅完全重复, near=近重复(默认), scene=额外启用 CLIP 语义参考组 */
+export type SimilarityDetectionMode = 'exact' | 'near' | 'scene'
+/** 分组来源档位，决定该组是否允许批量删除 */
+export type SimilarityTier = 'exact' | 'near' | 'scene'
+
 export interface SimilarityScanConfig {
   scanPath: string // 扫描路径
   includeSubdirectories: boolean // 包含子文件夹
@@ -136,32 +142,62 @@ export interface SimilarityScanConfig {
   excludedFolders?: string[] // 排除的文件夹路径
   excludedExtensions?: string[] // 排除的文件扩展名
   similarityThreshold: number // 相似度阈值（0-100）
-  algorithm: 'hash' | 'phash' | 'both' // 检测算法
+  /** 旧字段，保留兼容；新代码优先读 detectionMode */
+  algorithm?: 'hash' | 'phash' | 'both'
+  /** 新：三档检测范围 */
+  detectionMode?: SimilarityDetectionMode
 }
 
 export interface ImageHash {
   filePath: string
   fileHash: string // MD5文件哈希
-  perceptualHash?: string // 感知哈希（pHash）
+  perceptualHash?: string // 兼容旧字段（pHash hex，运行时不再依赖）
   width?: number
   height?: number
   size: number
   modifiedTime: number
+  /** 清晰度（拉普拉斯方差），用于推荐保留 */
+  sharpness?: number
+  /** 解码失败原因；有值时该图不参与感知/语义比较 */
+  decodeError?: string
+}
+
+/** 组内逐对判定依据 */
+export interface SimilarityPairScore {
+  a: string
+  b: string
+  score: number
+  tier: SimilarityTier
+  breakdown?: {
+    pHash?: number
+    dHash?: number
+    color?: number
+    aspect?: number
+    semantic?: number
+  }
 }
 
 export interface SimilarityGroup {
   id: string
   images: ImageHash[]
-  similarity: number // 平均相似度
+  similarity: number // 组内判定边的平均相似度
+  tier: SimilarityTier
+  /** false 表示仅供参考，禁止进入批量删除/移动 */
+  safeToDelete: boolean
   recommendedKeep?: string // 推荐保留的文件路径
+  pairScores: SimilarityPairScore[]
+  reason: string
 }
 
 export interface SimilarityScanProgress {
   current: number
   total: number
   currentFile?: string
-  status: 'scanning' | 'hashing' | 'comparing' | 'completed' | 'error'
+  status: 'scanning' | 'hashing' | 'comparing' | 'semantic' | 'completed' | 'error' | 'cancelled'
   groupsFound: number
+  /** 比对阶段细粒度进度 0..100 */
+  stagePercent?: number
+  stageLabel?: string
 }
 
 export interface SimilarityScanResult {
@@ -170,6 +206,17 @@ export interface SimilarityScanResult {
   totalGroups: number
   potentialSpaceSaved: number // 字节
   scanTime: number // 扫描耗时（毫秒）
+  /** 诊断信息 */
+  stats?: {
+    pairsCompared: number
+    decodeFailures: number
+    exactGroups: number
+    nearGroups: number
+    sceneGroups: number
+    semanticAvailable: boolean
+    cancelled: boolean
+    threshold: number
+  }
 }
 
 /** 图片质量快速筛选：曝光/对比度阈值与构图启发式参数 */

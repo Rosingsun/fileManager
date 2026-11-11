@@ -10,7 +10,12 @@ interface SimilarityScanProgressPanelProps {
   onCancel: () => void
 }
 
-const STAGE_ORDER: SimilarityScanProgress['status'][] = ['scanning', 'hashing', 'comparing']
+const STAGE_ORDER: SimilarityScanProgress['status'][] = [
+  'scanning',
+  'hashing',
+  'comparing',
+  'semantic',
+]
 
 function stageIndex(status: SimilarityScanProgress['status']): number {
   const idx = STAGE_ORDER.indexOf(status)
@@ -21,12 +26,16 @@ const SimilarityScanProgressPanel: React.FC<SimilarityScanProgressPanelProps> = 
   progress,
   onCancel,
 }) => {
+  // 比对/语义阶段使用后端上报的细粒度进度，其余阶段按已处理数量估算
   const percent =
-    progress && progress.total > 0
-      ? Math.round((progress.current / progress.total) * 100)
-      : 0
+    progress && progress.status !== 'scanning' && typeof progress.stagePercent === 'number'
+      ? Math.max(0, Math.min(100, Math.round(progress.stagePercent)))
+      : progress && progress.total > 0
+        ? Math.round((progress.current / progress.total) * 100)
+        : 0
   const activeStage = progress?.status ?? 'scanning'
-  const activeIdx = stageIndex(activeStage)
+  const activeIdx =
+    activeStage === 'completed' ? SCAN_STAGE_PIPELINE.length : stageIndex(activeStage)
 
   return (
     <section className="sim-scan" aria-live="polite">

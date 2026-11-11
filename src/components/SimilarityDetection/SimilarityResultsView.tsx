@@ -4,7 +4,13 @@ import { PictureOutlined } from '@ant-design/icons'
 import { TbArrowsLeftRight, TbCheck, TbFolderSymlink, TbRefresh, TbTrash } from '../icons'
 import SimilarityCompareView from './SimilarityCompareView'
 import SimilarityMoveDialog from './SimilarityMoveDialog'
-import type { FileConflictAction, SimilarityScanResult, SimilarityScanConfig, SimilarityGroup } from '../../types'
+import type {
+  FileConflictAction,
+  SimilarityScanResult,
+  SimilarityScanConfig,
+  SimilarityGroup,
+  SimilarityTier,
+} from '../../types'
 import { formatFileSize, formatDateTime, logSignedInUserAction, imageLoader, waitForElectronApiReady, getElectronApiIssueMessage } from '../../utils'
 import ImagePreview, { type ImageSource } from '../ImagePreview/ImagePreview'
 import { AppEmptyState } from '../UnifiedUI'
@@ -21,7 +27,7 @@ import { Checkbox } from '../ui/checkbox'
 import { FeatureActionDialogFooter } from '../FeatureAction'
 import { SimilarityButton, SimilarityButtonGroup } from './SimilarityButton'
 import SimilarityGroupStrip from './SimilarityGroupStrip'
-import { basename, getAlgorithmLabel, getDefaultDuplicateFolder, joinPath, removePathsFromSimilarityResult } from './similarityShared'
+import { basename, getAlgorithmLabel, getDefaultDuplicateFolder, joinPath, removePathsFromSimilarityResult, TIER_META } from './similarityShared'
 
 interface SimilarityResultsViewProps {
   result: SimilarityScanResult
@@ -37,6 +43,7 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
   onResultChange,
 }) => {
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
+  const [tierFilter, setTierFilter] = useState<'all' | SimilarityTier>('all')
   const [groupSelections, setGroupSelections] = useState<Map<string, Set<string>>>(new Map())
   const [previewVisible, setPreviewVisible] = useState(false)
   const [previewImages, setPreviewImages] = useState<ImageSource[]>([])
@@ -107,12 +114,28 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
       newSelections.set(group.id, keepSet)
     })
     setGroupSelections(newSelections)
-    setSelectedGroups(new Set(result.groups.map((g) => g.id)))
+    // 同场景组仅供参考，默认不勾选，避免误入批量清理
+    setSelectedGroups(new Set(result.groups.filter((g) => g.safeToDelete).map((g) => g.id)))
+    setTierFilter('all')
     setImageThumbnails(new Map())
     loadingRef.current.clear()
     setLoadingThumbnails(new Set())
     loadAllThumbnails()
   }, [result, loadAllThumbnails])
+
+  /** 只有 exact / near 组可进入批量删除与移动 */
+  const safeGroups = result.groups.filter((g) => g.safeToDelete)
+
+  const tierCounts = result.groups.reduce(
+    (acc, g) => {
+      acc[g.tier] = (acc[g.tier] || 0) + 1
+      return acc
+    },
+    {} as Record<string, number>
+  )
+
+  const visibleGroups =
+    tierFilter === 'all' ? result.groups : result.groups.filter((g) => g.tier === tierFilter)
 
   const spaceToSave = () => {
     let total = 0
@@ -127,6 +150,11 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
   }
 
   const handleGroupToggle = (groupId: string) => {
+    const group = result.groups.find((g) => g.id === groupId)
+    if (group && !group.safeToDelete) {
+      message.info('同场景组仅供参考，不参与批量删除')
+      return
+    }
     const next = new Set(selectedGroups)
     if (next.has(groupId)) next.delete(groupId)
     else next.add(groupId)
@@ -134,8 +162,8 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
   }
 
   const handleSelectAllGroups = () => {
-    if (selectedGroups.size === result.groups.length) setSelectedGroups(new Set())
-    else setSelectedGroups(new Set(result.groups.map((g) => g.id)))
+    const allSafeSelected = safeGroups.every((g) => selectedGroups.has(g.id))
+    setSelectedGroups(allSafeSelected ? new Set() : new Set(safeGroups.map((g) => g.id)))
   }
 
   const handleImageToggle = (groupId: string, imagePath: string) => {
@@ -168,7 +196,7 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
   const collectFilesToKeep = () => {
     const paths: string[] = []
     result.groups
-      .filter((g) => selectedGroups.has(g.id))
+      .filter((g) => g.safeToDelete && selectedGroups.has(g.id))
       .forEach((group) => {
         const keepSet = groupSelections.get(group.id) || new Set()
         keepSet.forEach((p) => paths.push(p))
@@ -232,7 +260,7 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
   const collectFilesToDelete = () => {
     const filesToDelete: string[] = []
     result.groups
-      .filter((g) => selectedGroups.has(g.id))
+      .filter((g) => g.safeToDelete && selectedGroups.has(g.id))
       .forEach((group) => {
         const keepSet = groupSelections.get(group.id) || new Set()
         group.images.forEach((img) => {
@@ -331,21 +359,36 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
     setCompareOpen(true)
   }, [])
 
-  const renderGroup = (group: SimilarityGroup, index: number) => (
+  const renderGroup = (group: SimilarityGroup) => {
+    const groupIndex = result.groups.indexOf(group)
+    const tierMeta = TIER_META[group.tier]
+    const scores = group.pairScores.map((p) => p.score)
+    const scoreRange =
+      scores.length > 0
+        ? Math.min(...scores) === Math.max(...scores)
+          ? `${Math.round(Math.max(...scores))}%`
+          : `${Math.round(Math.min(...scores))}~${Math.round(Math.max(...scores))}%`
+        : `${group.similarity}%`
+
+    return (
     <article
       key={group.id}
-      className={`sim-group ${selectedGroups.has(group.id) ? 'is-selected' : ''}`}
+      className={`sim-group ${selectedGroups.has(group.id) ? 'is-selected' : ''} ${group.safeToDelete ? '' : 'is-reference'}`}
     >
       <header className="sim-group__head">
         <div className="sim-group__left">
           <Checkbox
             checked={selectedGroups.has(group.id)}
+            disabled={!group.safeToDelete}
             onCheckedChange={() => handleGroupToggle(group.id)}
           />
           <div>
-            <div className="sim-group__title">相似组 {index + 1}</div>
+            <div className="sim-group__title">
+              相似组 {groupIndex + 1}
+              <span className={`sim-tier ${tierMeta.tone}`}>{tierMeta.label}</span>
+            </div>
             <div className="sim-group__sub">
-              {group.images.length} 张相似 · 平均 {group.similarity}%
+              {group.images.length} 张 · 相似度 {scoreRange} · {tierMeta.hint}
             </div>
           </div>
         </div>
@@ -355,12 +398,12 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
               variant="secondary"
               size="sm"
               icon={<TbArrowsLeftRight size={15} />}
-              onClick={() => openCompareAt(index)}
+              onClick={() => openCompareAt(groupIndex)}
             >
               对比
             </SimilarityButton>
           ) : null}
-          <span className="sim-group__pct">{group.similarity}%</span>
+          <span className="sim-group__pct">{Math.round(group.similarity)}%</span>
         </div>
       </header>
       <SimilarityGroupStrip
@@ -370,10 +413,11 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
         loadingPaths={loadingThumbnails}
         onToggleKeep={(path) => handleImageToggle(group.id, path)}
         onPreview={(path) => handlePreviewImage(path, group.id)}
-        onCompare={() => openCompareAt(index)}
+        onCompare={() => openCompareAt(groupIndex)}
       />
     </article>
-  )
+    )
+  }
 
   const saved = spaceToSave()
 
@@ -389,7 +433,7 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
             阈值 {config.similarityThreshold}%
           </Badge>
           <Badge variant="outline" className="sim-chip">
-            {getAlgorithmLabel(config.algorithm)}
+            {getAlgorithmLabel(config.detectionMode ?? config.algorithm)}
           </Badge>
         </div>
       </div>
@@ -430,6 +474,27 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
         <span className="sim-groups-head__sub">共 {result.groups.length} 组</span>
       </div>
 
+      {result.groups.length > 0 ? (
+        <div className="sim-tier-filter" role="group" aria-label="按档位筛选">
+          {([
+            ['all', '全部', result.groups.length],
+            ['exact', TIER_META.exact.label, tierCounts.exact || 0],
+            ['near', TIER_META.near.label, tierCounts.near || 0],
+            ['scene', TIER_META.scene.label, tierCounts.scene || 0],
+          ] as const).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              className={`sim-tier-filter__btn ${tierFilter === key ? 'is-active' : ''}`}
+              onClick={() => setTierFilter(key)}
+            >
+              {label}
+              <span className="sim-tier-filter__count">{count}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {result.groups.length === 0 ? (
         <AppEmptyState
           panel
@@ -448,18 +513,31 @@ const SimilarityResultsView: React.FC<SimilarityResultsViewProps> = ({
           }
         />
       ) : (
-        <div className="sim-groups">{result.groups.map(renderGroup)}</div>
+        <div className="sim-groups">
+          {visibleGroups.length > 0 ? (
+            visibleGroups.map(renderGroup)
+          ) : (
+            <AppEmptyState
+              panel
+              icon={<PictureOutlined />}
+              title="该档位没有分组"
+              description="切换上方的档位筛选查看其它结果。"
+            />
+          )}
+        </div>
       )}
 
       <footer className="sim-dock">
         <div className="sim-dock__summary">
-          已选 <strong>{selectedGroups.size}</strong> / {result.groups.length} 组
+          已选 <strong>{selectedGroups.size}</strong> / {safeGroups.length} 组（可清理）
           <span>预计释放 {formatFileSize(saved)}</span>
         </div>
         <div className="sim-dock__actions">
           <SimilarityButtonGroup aria-label="批量选择">
             <SimilarityButton variant="secondary" size="sm" onClick={handleSelectAllGroups}>
-              {selectedGroups.size === result.groups.length ? '取消全选' : '全选'}
+              {safeGroups.length > 0 && safeGroups.every((g) => selectedGroups.has(g.id))
+                ? '取消全选'
+                : '全选'}
             </SimilarityButton>
             <SimilarityButton
               variant="emphasis"

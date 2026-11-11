@@ -1,4 +1,10 @@
-import type { SimilarityScanConfig, SimilarityScanProgress, SimilarityScanResult } from '../../types'
+import type {
+  SimilarityScanConfig,
+  SimilarityScanProgress,
+  SimilarityScanResult,
+  SimilarityDetectionMode,
+  SimilarityTier
+} from '../../types'
 
 export type SimilarityWorkflowStep = 'config' | 'scan' | 'review'
 
@@ -15,26 +21,42 @@ export const WORKFLOW_STEPS: {
 export const INCLUDE_SUBDIRECTORIES_HINT =
   '开启：递归扫描所选目录下所有子文件夹中的图片。关闭：仅扫描当前所选目录根目录中的图片，不包含子文件夹。'
 
+/** 阈值由 npm run calib:similarity 网格搜索标定；预设为实测可用区间 */
 export const THRESHOLD_PRESETS = [
-  { label: '宽松', value: 80, hint: '更多相似组' },
-  { label: '普通', value: 90, hint: '推荐' },
-  { label: '严格', value: 96, hint: '仅高度相似' },
+  { label: '召回', value: 80, hint: '标定最优' },
+  { label: '平衡', value: 86, hint: '推荐' },
+  { label: '严格', value: 92, hint: '仅高度一致' },
 ] as const
 
-export const ALGORITHM_OPTIONS: {
-  value: SimilarityScanConfig['algorithm']
+/** 三档检测范围：exact 与 near 可批量清理，scene 仅供参考且不可删除 */
+export const DETECTION_MODE_OPTIONS: {
+  value: SimilarityDetectionMode
   name: string
   desc: string
   iconKey: 'hash' | 'phash' | 'both'
+  safe: boolean
 }[] = [
-  { value: 'hash', name: '快速', desc: '完全重复', iconKey: 'hash' },
-  { value: 'phash', name: '精确', desc: '视觉相似', iconKey: 'phash' },
-  { value: 'both', name: '混合', desc: '推荐', iconKey: 'both' },
+  { value: 'exact', name: '完全重复', desc: '仅字节一致', iconKey: 'hash', safe: true },
+  { value: 'near', name: '近重复', desc: '压缩/调色/裁剪 · 推荐', iconKey: 'phash', safe: true },
+  { value: 'scene', name: '同场景', desc: 'CLIP 语义 · 仅供参考', iconKey: 'both', safe: false },
 ]
 
-export function getAlgorithmLabel(algorithm: SimilarityScanConfig['algorithm']): string {
-  const opt = ALGORITHM_OPTIONS.find((o) => o.value === algorithm)
-  return opt ? `${opt.name}模式` : algorithm
+export const TIER_META: Record<SimilarityTier, { label: string; hint: string; tone: string }> = {
+  exact: { label: '完全重复', hint: 'MD5 一致，可安全清理', tone: 'is-exact' },
+  near: { label: '近重复', hint: '感知指纹一致，可安全清理', tone: 'is-near' },
+  scene: { label: '同场景', hint: '语义相近，仅供参考，不可批量删除', tone: 'is-scene' },
+}
+
+/** 兼容旧配置对象与结果页文案 */
+export function getAlgorithmLabel(
+  algorithm: SimilarityScanConfig['algorithm'] | SimilarityDetectionMode | undefined
+): string {
+  const mode = (algorithm as SimilarityDetectionMode) || 'near'
+  const opt = DETECTION_MODE_OPTIONS.find((o) => o.value === mode)
+  if (opt) return `${opt.name}模式`
+  if (algorithm === 'hash') return '完全重复模式'
+  if (algorithm === 'both' || algorithm === 'phash') return '近重复模式'
+  return String(algorithm ?? '近重复模式')
 }
 
 export const SCAN_STAGE_PIPELINE: {
@@ -42,8 +64,9 @@ export const SCAN_STAGE_PIPELINE: {
   label: string
 }[] = [
   { status: 'scanning', label: '扫描' },
-  { status: 'hashing', label: '哈希' },
+  { status: 'hashing', label: '指纹' },
   { status: 'comparing', label: '比对' },
+  { status: 'semantic', label: '语义' },
 ]
 
 export const statusMeta: Record<
@@ -53,8 +76,10 @@ export const statusMeta: Record<
   scanning: { label: '正在扫描文件…', className: 'is-scanning' },
   hashing: { label: '正在计算图像指纹…', className: 'is-hashing' },
   comparing: { label: '正在比对相似照片…', className: 'is-comparing' },
+  semantic: { label: '正在分析同场景参考组…', className: 'is-semantic' },
   completed: { label: '扫描完成', className: 'is-completed' },
   error: { label: '扫描出错', className: 'is-error' },
+  cancelled: { label: '已取消', className: 'is-cancelled' },
 }
 
 export function getActiveWorkflowStep(

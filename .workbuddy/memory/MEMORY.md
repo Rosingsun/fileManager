@@ -23,3 +23,19 @@
 - 交叉验证结论：ImageNet 1000→9 类融合会降准确率，最优权重 0，两个预设均不再加载辅助模型。
   当前端到端 Top-1：快速预览 88.2%、最高精准 91.7%。
 - 判对可信度由逻辑回归校准，与 Top3「九类相对分布」语义不同，UI 需分别标注。
+
+## 相似照片检测约定（2026-11-11 确立）
+
+- 主进程只有一套实现：`main.ts` 只做 IPC，逻辑在 `services/similarityService.ts`（扫描/并发/取消）→
+  `utils/similarityGrouping.ts`（并查集）→ `utils/similarityUtils.ts`（指纹与打分）。
+  禁止再把哈希逻辑内联回 `main.ts`，`npm run check:similarity` 会拦截。
+- 打分拆为 `computePairParts` / `scorePairParts` 纯函数，离线标定与运行时共用；
+  改公式必须重跑 `npm run calib:similarity`。
+- 三档语义：exact（MD5）/ near（pHash+dHash+颜色+宽高比）/ scene（CLIP 语义）。
+  `scene` 组必须 `safeToDelete=false`，且只从未进入安全组的图片生成——
+  这是"批量删除不会误删同场景照片"的唯一保障，不得改动。
+- 参数全部由 `npm run calib:similarity` 写回 `models/similarity-calibration.json`
+  （阈值 80、pHash .6/dHash .1/color .25/aspect .05、pDist≤18、cDist≤0.35、语义 0.825），禁止手改。
+- 流水线：`sim:fixtures`（144 原图 → 1728 变换）→ `calib:similarity` → `eval:similarity`；
+  体检 `check:similarity`。当前 near 检出 99.54%、跨源误合并 0.12%、1.75M 对比较 0.3s。
+- 结果页批量删除/移动必须先过滤 `g.safeToDelete`，UI 不得提供"选中同场景组删除"的路径。

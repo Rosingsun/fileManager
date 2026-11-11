@@ -17,12 +17,12 @@ import {
 import { TbBolt, TbEye, TbFolderOpen, TbLayersLinked, TbRadar, TbScan } from "../icons";
 import { SimilarityButton } from "./SimilarityButton";
 
-import type { SimilarityScanConfig } from "../../types";
+import type { SimilarityDetectionMode, SimilarityScanConfig } from "../../types";
 
 import FormPreview from "../FormPreview/FormPreview";
 
 import {
-  ALGORITHM_OPTIONS,
+  DETECTION_MODE_OPTIONS,
   INCLUDE_SUBDIRECTORIES_HINT,
   THRESHOLD_PRESETS,
 } from "./similarityShared";
@@ -46,9 +46,10 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
 
   const [previewVisible, setPreviewVisible] = useState(false);
 
-  const threshold = Form.useWatch("similarityThreshold", form) ?? 90;
+  const threshold = Form.useWatch("similarityThreshold", form) ?? 86;
 
-  const algorithm = Form.useWatch("algorithm", form) ?? "both";
+  const detectionMode: SimilarityDetectionMode =
+    Form.useWatch("detectionMode", form) ?? "near";
 
   const handleSelectPath = async () => {
     if (!window.electronAPI) return;
@@ -88,10 +89,10 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
             .map((e) => e.trim().replace(".", ""))
         : [],
 
-      similarityThreshold: Number(values.similarityThreshold) || 90,
+      similarityThreshold: Number(values.similarityThreshold) || 86,
 
-      algorithm:
-        (values.algorithm as SimilarityScanConfig["algorithm"]) || "both",
+      detectionMode:
+        (values.detectionMode as SimilarityDetectionMode) || "near",
     });
   };
 
@@ -102,8 +103,8 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
       onFinish={handleSubmit}
       initialValues={{
         includeSubdirectories: true,
-        similarityThreshold: 90,
-        algorithm: "both",
+        similarityThreshold: 86,
+        detectionMode: "near",
       }}
       className="sim-setup"
     >
@@ -280,58 +281,37 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
           <div className="sim-panel__head">
             <h2 className="sim-panel__title">检测策略</h2>
 
-            <p className="sim-panel__sub">相似度与算法决定检出严格程度</p>
+            <p className="sim-panel__sub">
+              检测范围决定找回哪些照片，相似度决定严格程度
+            </p>
           </div>
 
-          <div className="sim-presets" role="group" aria-label="相似度预设">
-            {THRESHOLD_PRESETS.map((preset) => (
-              <button
-                key={preset.value}
-                type="button"
-                className={`sim-preset ${threshold === preset.value ? "is-active" : ""}`}
-                onClick={() =>
-                  form.setFieldsValue({ similarityThreshold: preset.value })
-                }
-              >
-                <span className="sim-preset__label">{preset.label}</span>
-
-                <span className="sim-preset__value">{preset.value}%</span>
-
-                <span className="sim-preset__hint">{preset.hint}</span>
-              </button>
-            ))}
-          </div>
-
-          <Form.Item name="similarityThreshold" noStyle>
-            <div className="sim-slider-label">
-              <span>精细调节</span>
-
-              <strong>{threshold}%</strong>
-            </div>
-
-            <Slider min={75} max={100} />
-          </Form.Item>
-
-          <Form.Item name="algorithm" hidden>
+          <Form.Item name="detectionMode" hidden>
             <Input />
           </Form.Item>
 
           <div
             className="sim-algo-grid"
             role="radiogroup"
-            aria-label="检测算法"
+            aria-label="检测范围"
           >
-            {ALGORITHM_OPTIONS.map((opt) => {
+            {DETECTION_MODE_OPTIONS.map((opt) => {
               const Icon = ALGO_ICONS[opt.iconKey];
+
+              const active = detectionMode === opt.value;
 
               return (
                 <button
                   key={opt.value}
                   type="button"
                   role="radio"
-                  aria-checked={algorithm === opt.value}
-                  className={`sim-algo ${algorithm === opt.value ? "is-active" : ""}`}
-                  onClick={() => form.setFieldsValue({ algorithm: opt.value })}
+                  aria-checked={active}
+                  className={`sim-algo ${active ? "is-active" : ""} ${
+                    opt.safe ? "" : "is-reference"
+                  }`}
+                  onClick={() =>
+                    form.setFieldsValue({ detectionMode: opt.value })
+                  }
                 >
                   <span className="sim-algo__icon">
                     <Icon size={15} />
@@ -344,6 +324,58 @@ const SimilarityScanSetup: React.FC<SimilarityScanSetupProps> = ({
               );
             })}
           </div>
+
+          {detectionMode === "exact" ? (
+            <p className="sim-mode-note">
+              仅按文件内容完全一致分组，不做视觉比对；像素级相同即判为重复。
+            </p>
+          ) : null}
+
+          {detectionMode === "scene" ? (
+            <p className="sim-mode-note is-warn">
+              同场景组由 CLIP 语义生成，可能包含「同类不同照片」，仅作参考，
+              不参与批量删除与移动。
+            </p>
+          ) : null}
+
+          {detectionMode === "exact" ? null : (
+            <>
+              <div
+                className="sim-presets"
+                role="group"
+                aria-label="相似度预设"
+              >
+                {THRESHOLD_PRESETS.map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    className={`sim-preset ${
+                      threshold === preset.value ? "is-active" : ""
+                    }`}
+                    onClick={() =>
+                      form.setFieldsValue({ similarityThreshold: preset.value })
+                    }
+                  >
+                    <span className="sim-preset__label">{preset.label}</span>
+
+                    <span className="sim-preset__value">{preset.value}%</span>
+
+                    <span className="sim-preset__hint">{preset.hint}</span>
+                  </button>
+                ))}
+              </div>
+
+              <Form.Item name="similarityThreshold" noStyle>
+                <div className="sim-slider-label">
+                  <span>精细调节</span>
+
+                  <strong>{threshold}%</strong>
+                </div>
+
+                <Slider min={75} max={100} />
+              </Form.Item>
+            </>
+          )}
         </section>
       </div>
 

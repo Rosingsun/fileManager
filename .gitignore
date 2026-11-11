@@ -57,6 +57,9 @@ tests/fixtures/images/*/
 tests/fixtures/features.json
 tests/fixtures/candidates.json
 tests/fixtures/eval-results*.json
+# 相似检测评估资产：npm run sim:fixtures 可完整重建
+tests/fixtures/similarity/
+tests/fixtures/similarity-eval.json
 # 占位伪嵌入仅用于本地基线对照，禁止入库
 models/*.placeholder.json
 

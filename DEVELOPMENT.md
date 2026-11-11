@@ -213,3 +213,27 @@ npm run eval:classify          # 轻量体检：嵌入来源、维度、标定�
 离线标定脚本 `calibrate-classification.mjs` 的打分公式与运行时 `scoreClipWithConfig` **必须保持一致**，
 否则标定参数会失效。当前实测：快速预览 88.2%、最高精准 91.7%（详见 `models/EVAL_BASELINE.md`）。
 ImageNet 融合权重经标定为 0，两个预设都不再加载辅助模型，不要恢复旧的「条件融合」逻辑。
+
+## 相似照片检测维护
+
+链路：`SimilarityDetection.tsx` → preload → `main.ts`（IPC）→
+`services/similarityService.ts`（扫描/并发指纹/取消）→ `utils/similarityGrouping.ts`（并查集分组）→
+`utils/similarityUtils.ts`（pHash/dHash/颜色/宽高比打分）。
+
+**关键约束**
+
+- 主进程只有这一套实现，`main.ts` 不得再内联哈希逻辑（`npm run check:similarity` 会拦截）。
+- 打分函数 `scorePairParts` 同时被离线标定与运行时调用，改公式必须重跑标定。
+- `tier === 'scene'` 的组必须 `safeToDelete = false`，且 scene 候选只从未进入安全组的图片中产生——
+  这是「批量删除不会误删同场景照片」的唯一保障，不要改动。
+- 阈值为标定产物（默认 86，预设 80/86/92），不要手改 `models/similarity-calibration.json`。
+
+```bash
+npm run sim:fixtures       # 生成 1728 张程序化变换样本（近重复 / 同场景）
+npm run calib:similarity   # 网格搜索权重/阈值/硬门控 + CLIP 语义阈值，写回标定文件
+npm run eval:similarity    # 端到端验证检出率、跨源误合并、scene 隔离与取消响应
+npm run check:similarity   # 链路体检：单实现、标定参数、评估集、前端删除隔离
+```
+
+当前实测：近重复变体检出 99.5%、跨源误合并 13/11147 对（0.12%）、1.75M 对比较耗时 0.3s
+（详见 `models/SIMILARITY_EVAL.md`）。

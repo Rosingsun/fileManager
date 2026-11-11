@@ -39,9 +39,13 @@ prompt 规则见 `scripts/_clip_text_gen/prompts-data.mjs`：仅英文、仅肯�
 | 文件 | 说明 |
 |------|------|
 | `classification-calibration.json` | 温度、类别偏置、prompt 聚合、弃判阈值、置信度逻辑回归系数；由 `npm run calib:classify` 生成 |
-| `EVAL_BASELINE.md` | 评估方法、基线与实测结果 |
+| `similarity-calibration.json` | 相似检测的权重、综合分阈值、pHash/颜色硬门控、CLIP 语义阈值；由 `npm run calib:similarity` 生成 |
+| `EVAL_BASELINE.md` | 分类评估方法、基线与实测结果 |
+| `SIMILARITY_EVAL.md` | 相似检测评估方法、与旧 aHash 的对比、三档隔离说明 |
 
 标定由 144 张标注图 + 5 折分层交叉验证得出，**不要手改阈值**；重新标定请用脚本。
+相似检测复用同一批 144 张原图，通过程序化变换生成 1728 张正样本，
+`semanticThreshold` 用 CLIP B/32 视觉模型单独标定（scene 档才需要该模型）。
 
 ## ONNX 文件名
 

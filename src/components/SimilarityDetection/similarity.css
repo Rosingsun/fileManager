@@ -467,6 +467,107 @@
   color: var(--app-text-tertiary);
 }
 
+/* 参考档（同场景）：语义组不参与批量删除 */
+.sim-algo.is-reference .sim-algo__icon {
+  color: var(--app-warning);
+  background: color-mix(in srgb, var(--app-warning) 14%, transparent);
+}
+
+.sim-mode-note {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px dashed var(--app-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface-subtle);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--app-text-secondary);
+}
+
+.sim-mode-note.is-warn {
+  border-color: color-mix(in srgb, var(--app-warning) 45%, var(--app-border));
+  background: color-mix(in srgb, var(--app-warning) 10%, transparent);
+  color: var(--app-text-primary);
+}
+
+/* 结果页档位标记与筛选 */
+.sim-tier {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+  vertical-align: middle;
+}
+
+.sim-tier.is-exact {
+  color: var(--app-primary);
+  border-color: color-mix(in srgb, var(--app-primary) 45%, var(--app-border));
+  background: color-mix(in srgb, var(--app-primary) 10%, transparent);
+}
+
+.sim-tier.is-near {
+  color: var(--app-success);
+  border-color: color-mix(in srgb, var(--app-success) 45%, var(--app-border));
+  background: color-mix(in srgb, var(--app-success) 10%, transparent);
+}
+
+.sim-tier.is-scene {
+  color: var(--app-warning);
+  border-color: color-mix(in srgb, var(--app-warning) 45%, var(--app-border));
+  background: color-mix(in srgb, var(--app-warning) 10%, transparent);
+}
+
+.sim-group.is-reference {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--app-warning) 35%, var(--app-border));
+}
+
+.sim-tier-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 2px 0 12px;
+}
+
+.sim-tier-filter__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  background: var(--app-surface-subtle);
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--app-motion-fast), color var(--app-motion-fast),
+    background-color var(--app-motion-fast);
+}
+
+.sim-tier-filter__btn:hover {
+  border-color: color-mix(in srgb, var(--app-primary) 35%, var(--app-border));
+}
+
+.sim-tier-filter__btn.is-active {
+  border-color: var(--app-primary);
+  color: var(--app-primary);
+  background: color-mix(in srgb, var(--app-primary) 10%, var(--app-surface-subtle));
+}
+
+.sim-tier-filter__count {
+  font-size: 11px;
+  color: var(--app-text-tertiary);
+}
+
+.sim-tier-filter__btn.is-active .sim-tier-filter__count {
+  color: var(--app-primary);
+}
+
 .sim-advanced {
   border: 1px solid var(--app-border) !important;
   border-radius: var(--app-radius-lg) !important;
