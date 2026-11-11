@@ -64,11 +64,40 @@ interface FileStore {
   currentPath: string | null
   setCurrentPath: (path: string | null) => void
 
-  // 当前目录的文件列表
+  // 当前目录的文件列表（惰性全量副本）
+  // 说明：打开文件夹时默认不再填充该字段以提升首屏速度；仅在需要"看整目录"的功能
+  // （整理/提取/图片分类筛选/预览整目录翻页/RAW·LivePhoto 判定/图片分析）被触发时，
+  // 由 ensureAllFilesLoaded 一次性填充，并在目录切换/文件变更后失效重建。
   fileList: FileInfo[]
   setFileList: (files: FileInfo[]) => void
   loading: boolean
   setLoading: (loading: boolean) => void
+
+  // 惰性全量副本的加载状态与路径快照（用于判空/失效）
+  allFilesLoading: boolean
+  setAllFilesLoading: (loading: boolean) => void
+  allFilesLoaded: boolean
+  setAllFilesLoaded: (loaded: boolean) => void
+  allFilesPath: string | null
+  setAllFilesPath: (path: string | null) => void
+
+  // 浏览态（服务端分页增量加载）：当前已加载的累计片段与总数
+  browseItems: FileInfo[]
+  browseTotal: number
+  browseLoading: boolean
+  browseDone: boolean
+  browsePath: string | null
+  setBrowseLoading: (loading: boolean) => void
+  setBrowseDone: (done: boolean) => void
+  /** 重置浏览态（目录切换/筛选条件变化/文件变更时调用），同时保留当前路径标记 */
+  resetBrowse: () => void
+  /** 首页/重置后装载：覆盖片段并更新总数与路径快照 */
+  setBrowseFirst: (path: string, items: FileInfo[], total: number) => void
+  /** 追加后续页片段（按 path 去重，避免重复/缺漏） */
+  appendBrowse: (items: FileInfo[]) => void
+
+  /** 整体清空当前目录状态（退出目录/删除当前历史时用）：currentPath、fileList、浏览态与全量副本 */
+  resetDirectory: () => void
 
   // 文件树数据
   treeData: TreeNode[]
@@ -131,6 +160,66 @@ export const useFileStore = create<FileStore>((set, get) => ({
   setFileList: (files) => set({ fileList: files }),
   loading: false,
   setLoading: (loading) => set({ loading }),
+
+  allFilesLoading: false,
+  setAllFilesLoading: (loading) => set({ allFilesLoading: loading }),
+  allFilesLoaded: false,
+  setAllFilesLoaded: (loaded) => set({ allFilesLoaded: loaded }),
+  allFilesPath: null,
+  setAllFilesPath: (path) => set({ allFilesPath: path }),
+
+  browseItems: [],
+  browseTotal: 0,
+  browseLoading: false,
+  browseDone: false,
+  browsePath: null,
+  setBrowseLoading: (loading) => set({ browseLoading: loading }),
+  setBrowseDone: (done) => set({ browseDone: done }),
+  resetBrowse: () =>
+    set({
+      browseItems: [],
+      browseTotal: 0,
+      browseLoading: false,
+      browseDone: false,
+      browsePath: null
+    }),
+  setBrowseFirst: (path, items, total) =>
+    set({
+      browseItems: items,
+      browseTotal: total,
+      browsePath: path,
+      browseLoading: false,
+      browseDone: items.length >= total
+    }),
+  appendBrowse: (items) =>
+    set((state) => {
+      if (state.browseItems.length === 0 && state.browseTotal === 0) {
+        return { browseItems: items }
+      }
+      const existing = new Set(state.browseItems.map((f) => f.path))
+      const merged = [...state.browseItems]
+      for (const item of items) {
+        if (!existing.has(item.path)) {
+          existing.add(item.path)
+          merged.push(item)
+        }
+      }
+      const done = merged.length >= state.browseTotal
+      return { browseItems: merged, browseDone: done, browseLoading: false }
+    }),
+  resetDirectory: () =>
+    set({
+      currentPath: null,
+      fileList: [],
+      allFilesLoading: false,
+      allFilesLoaded: false,
+      allFilesPath: null,
+      browseItems: [],
+      browseTotal: 0,
+      browseLoading: false,
+      browseDone: false,
+      browsePath: null
+    }),
 
   treeData: [],
   setTreeData: (data) => set({ treeData: data }),

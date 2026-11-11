@@ -1962,3 +1962,77 @@
     text-overflow: ellipsis;
   }
 }
+
+/*
+ * ─── 响应式增强（自适配优化） ───
+ * 在不改变宽屏布局的前提下，针对中窄 / 窄窗口补充降级规则，
+ * 缓解「横向溢出被裁切 / 操作区被挤掉 / 网格列数僵硬」等问题。
+ */
+
+/* 顶部导航：中窄屏提前隐藏副标题，把空间让给 Tab */
+@media (max-width: 1099px) {
+  .header-title-meta {
+    display: none;
+  }
+}
+
+/* 顶部导航：窄屏隐藏品牌文字，仅保留图标，最大化 Tab 可见区 */
+@media (max-width: 859px) {
+  .header-title {
+    display: none;
+  }
+  .header-tabs-wrap {
+    min-width: 0;
+  }
+}
+
+/* 整理页工具栏：中窄窗口允许整体换行，避免把右侧「网格/列表」按钮挤出 */
+@media (max-width: 1099px) {
+  .file-filter-bar {
+    flex-wrap: wrap;
+  }
+  .file-filter-bar__left {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+  .file-filter-bar__right {
+    margin-left: auto;
+  }
+}
+
+/* 极小屏下筛选条改为纵向堆叠，控件占满可用宽，彻底避免横向裁切 */
+@media (max-width: 639px) {
+  .file-filter-bar {
+    gap: 10px;
+  }
+  .file-filter-bar__left,
+  .file-filter-bar__right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  .file-filter-bar__right {
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+}
+
+/* 窄窗口下网格卡片文件名允许折行成两行，避免长文件名把卡片撑得过高或被截断 */
+@media (max-width: 859px) {
+  .file-grid-card__name {
+    white-space: normal;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    text-align: center;
+  }
+}
+
+/* 矮窗口：压缩顶部导航占用，给内容区留出更多纵向空间 */
+@media (max-height: 720px) {
+  .app-header {
+    min-height: 56px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+}

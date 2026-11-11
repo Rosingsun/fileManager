@@ -78,3 +78,41 @@
 .recategorize-modal .ant-select {
   width: 100%;
 }
+
+/* ─── 窄窗口自适应：图片分类页 ─── */
+
+/* 中窄屏：当前目录 chip 在空间不足时换行，避免长路径把按钮挤出 */
+@media (max-width: 1099px) {
+  .classification-path-chip {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .classification-path-chip > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .classification-path-chip .ant-typography.code {
+    display: inline-block;
+    max-width: 100%;
+    white-space: normal;
+    word-break: break-all;
+  }
+}
+
+/* 中窄屏：统计卡最小列宽收窄，避免单卡挤压换行 */
+@media (max-width: 859px) {
+  .classification-stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+    gap: 8px;
+  }
+}
+
+/* 窄屏：控制栏按钮占满整行，避免被 card extra 宽度裁切 */
+@media (max-width: 639px) {
+  .app-surface-card .ant-card-head {
+    align-items: flex-start;
+  }
+  .classification-bar__hint {
+    white-space: normal;
+  }
+}

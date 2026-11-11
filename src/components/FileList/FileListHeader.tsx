@@ -17,6 +17,8 @@ interface FileListHeaderProps {
   selectedQuality: string
   filteredFileList: FileInfo[]
   analyzableImageCount: number
+  /** 是否展示「分析图片」入口：全量就绪时按目录真实图片数判定；默认浏览态未拉全量时按是否有浏览内容判定 */
+  canAnalyze: boolean
   hasClassifiedImagesInFolder: boolean
   isAnalyzingImages: boolean
   onAnalyzeImages: () => void
@@ -38,6 +40,7 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   selectedQuality,
   filteredFileList,
   analyzableImageCount,
+  canAnalyze,
   hasClassifiedImagesInFolder,
   isAnalyzingImages,
   onAnalyzeImages,
@@ -53,7 +56,7 @@ export const FileListHeader: React.FC<FileListHeaderProps> = ({
   const currentCategoryInfo = FILE_CATEGORIES.find(c => c.key === selectedCategory)
   const subExtensions = currentCategoryInfo?.extensions || []
 
-  const showImageAnalysis = analyzableImageCount > 0
+  const showImageAnalysis = canAnalyze
   const showImageFilters = showImageAnalysis && hasClassifiedImagesInFolder
 
   return (

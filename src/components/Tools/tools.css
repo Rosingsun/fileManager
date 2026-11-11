@@ -395,3 +395,31 @@
   right: 0;
   z-index: 1;
 }
+
+/* ─── 窄窗口自适应：工具弹窗 ─── */
+/* 中窄窗口（如 900px 档）下弹窗会被视口限制宽度，适度收窄固定侧栏，
+   避免把主预览区挤压得过窄；侧栏自身保留纵向滚动。 */
+@media (max-width: 900px) {
+  .app-tool-modal__sidebar,
+  .focus-adjust-layout__sidebar.app-tool-modal__sidebar {
+    width: 216px;
+  }
+  .app-tool-modal__layout,
+  .app-tool-modal__body > .focus-adjust-layout {
+    gap: 10px;
+  }
+}
+
+/* 极窄 / 矮窗口：主预览与弹窗头允许适度压缩留白，保证内容可用 */
+@media (max-width: 640px), (max-height: 560px) {
+  .app-tool-modal .ant-modal-body {
+    padding: 0 10px 10px;
+  }
+  .app-tool-modal__sidebar,
+  .focus-adjust-layout__sidebar.app-tool-modal__sidebar {
+    width: 180px;
+  }
+  .app-tool-modal__panel-body {
+    padding: 8px 10px;
+  }
+}

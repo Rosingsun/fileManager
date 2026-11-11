@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons'
 import { useFileStore } from '../../stores'
 import { useImageClassificationStore } from '../../stores'
-import { useFileSystem } from '../../hooks'
+import { useFileSystem, useBrowsing, ensureAllFilesLoaded } from '../../hooks'
 import {
   filterFiles,
   getFileExtension,
@@ -49,11 +49,20 @@ const FileList: React.FC = () => {
     setSelectedSubExtensions,
     resetFilter,
     imageClassificationResults,
-    setImageClassificationResults
+    setImageClassificationResults,
+    allFilesLoaded,
+    allFilesPath
   } = useFileStore()
 
   const { loadDirectory } = useFileSystem()
   const { results: classificationResultsFromStore } = useImageClassificationStore()
+  const {
+    items: browseItems,
+    total: browseTotal,
+    loading: browseLoading,
+    done: browseDone,
+    loadMore: browseLoadMore
+  } = useBrowsing()
 
   const [selectedImageCategory, setSelectedImageCategory] = useState<string>('all')
   const [selectedQuality, setSelectedQuality] = useState<string>('all')
@@ -77,8 +86,6 @@ const FileList: React.FC = () => {
   const [batchRenameSuffix, setBatchRenameSuffix] = useState('')
   const [moveModalVisible, setMoveModalVisible] = useState(false)
   const [moveTargetPath, setMoveTargetPath] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(15)
   const [gridColumns, setGridColumns] = useState(5)
 
   const [previewModalVisible, setPreviewModalVisible] = useState(false)
@@ -99,6 +106,15 @@ const FileList: React.FC = () => {
   const [isAnalyzingImages, setIsAnalyzingImages] = useState(false)
 
   const previewEnabled = true
+
+  // ---- 数据视图模式判定 ----
+  // 图片内容分类/质量筛选依赖前端内存分类结果，服务端无法据此分页，
+  // 一旦启用即回退到「惰性全量副本」在前端过滤；其余情形走服务端分页滚动浏览。
+  const imageFilterActive = selectedImageCategory !== 'all' || selectedQuality !== 'all'
+  const simpleFilterActive = selectedCategory !== 'all' || selectedSubExtensions.length > 0
+  const hasAnyFilter = imageFilterActive || simpleFilterActive
+  // 惰性全量副本是否已就绪（当前路径一致且已加载）
+  const fullReady = allFilesLoaded && !!currentPath && allFilesPath === currentPath
 
   const {
     previews,
@@ -122,19 +138,18 @@ const FileList: React.FC = () => {
   }, [classificationResultsFromStore, setImageClassificationResults])
 
   useEffect(() => {
-    setFiles(fileList)
-  }, [fileList, setFiles])
-
-  useEffect(() => {
     clearCache()
   }, [currentPath, clearCache])
 
   useEffect(() => {
     const calculateGridColumns = () => {
+      // 网格卡片宽度会受「侧栏 + 右侧面板」内联占位影响，而非整窗宽度。
+      // 尤其 1100~1280px 段两者同时内联，若按整窗分 4 列会把卡片压得过挤，
+      // 故此区间归入 3 列档；1280~1500 为 4 列舒适档；更大屏为 5 列。
       const width = window.innerWidth
       if (width < 768) return 2
-      if (width < 1024) return 3
-      if (width < 1440) return 4
+      if (width < 1280) return 3
+      if (width < 1500) return 4
       return 5
     }
 
@@ -148,17 +163,27 @@ const FileList: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    setCurrentPage(1)
-  }, [fileList, pageSize, selectedCategory, selectedSubExtensions, selectedImageCategory, selectedQuality])
-
-  useEffect(() => {
     setSelectedImageCategory('all')
     setSelectedQuality('all')
   }, [currentPath])
 
+  // 一旦进入「需整目录」的筛选态，惰性加载全量副本（内部有并发/缓存保护，不会重复读取）
+  useEffect(() => {
+    if (currentPath && hasAnyFilter) {
+      void ensureAllFilesLoaded(currentPath)
+    }
+  }, [currentPath, hasAnyFilter])
+
+  // 「当前视为完整的目录列表」：全量副本就绪用全量（保证 RAW·LivePhoto/预览翻页/分析等精确）；
+  // 否则用已浏览片段兜底（默认浏览态，保证首屏不用拉全量即可渲染）。
+  const dirList = useMemo(
+    () => (fullReady ? fileList : browseItems),
+    [fullReady, fileList, browseItems]
+  )
+
   const siblingNames = useMemo(
-    () => fileList.filter(f => !f.isDirectory).map(f => f.name),
-    [fileList]
+    () => dirList.filter(f => !f.isDirectory).map(f => f.name),
+    [dirList]
   )
 
   const isPreviewable = useCallback((file: FileInfo): boolean => {
@@ -175,10 +200,6 @@ const FileList: React.FC = () => {
     [siblingNames]
   )
 
-  const getImageFiles = useCallback(() => {
-    return fileList.filter(f => !f.isDirectory && isPreviewableImage(f))
-  }, [fileList, isPreviewableImage])
-
   const handleEdit = useCallback((file: FileInfo) => {
     setEditorFilePath(file.path)
     setEditorVisible(true)
@@ -191,11 +212,14 @@ const FileList: React.FC = () => {
   }, [selectedRows])
 
   const handlePreview = useCallback(async (file: FileInfo) => {
+    // 预览需要「整目录同类文件翻页」与 RAW·LivePhoto 兄弟判定，先确保惰性全量副本可用
+    const fullList = currentPath ? (await ensureAllFilesLoaded(currentPath)) ?? [] : fileList
+
     const ext = getFileExtension(file.name).toLowerCase()
     const kind = getMediaPreviewKind(ext)
 
     if (kind && kind !== 'image') {
-      const sameKindFiles = fileList.filter((f) => {
+      const sameKindFiles = fullList.filter((f) => {
         if (f.isDirectory) return false
         return getMediaPreviewKind(getFileExtension(f.name).toLowerCase()) === kind
       })
@@ -208,7 +232,8 @@ const FileList: React.FC = () => {
       return
     }
 
-    const imageFiles = getImageFiles()
+    const siblingNamesAll = fullList.filter(f => !f.isDirectory).map(f => f.name)
+    const imageFiles = fullList.filter(f => !f.isDirectory && isPreviewableImageFile(f.name, siblingNamesAll))
     const index = imageFiles.findIndex(f => f.path === file.path)
     if (index >= 0) {
       setPreviewableFiles(imageFiles)
@@ -240,7 +265,7 @@ const FileList: React.FC = () => {
       setPreviewIndex(index)
       setPreviewModalVisible(true)
     }
-  }, [fileList, getImageFiles, previews])
+  }, [currentPath, fileList, previews])
 
   const handlePreviewIndexChange = useCallback((newIndex: number) => {
     setPreviewIndex(newIndex)
@@ -265,6 +290,19 @@ const FileList: React.FC = () => {
 
     return files
   }, [fileList, selectedCategory, selectedSubExtensions, imageClassificationResults, selectedImageCategory, selectedQuality])
+
+  // ---- 主浏览数据源：有筛选 → 惰性全量副本前端过滤后一次展示；否则 → 服务端分页片段滚动追加 ----
+  const filteredListActive = hasAnyFilter
+  const viewItems = filteredListActive ? filteredFileList : browseItems
+  const viewTotal = filteredListActive ? filteredFileList.length : browseTotal
+  const viewDone = filteredListActive ? true : browseDone
+  const viewLoadingMore = filteredListActive ? false : browseLoading
+  const viewOnLoadMore = filteredListActive ? undefined : browseLoadMore
+
+  // 可视数据变化时同步给预览 hook（供缩略图按可视项懒加载/大小排序）
+  useEffect(() => {
+    setFiles(viewItems)
+  }, [viewItems, setFiles])
 
   const handleGoBack = useCallback(() => {
     if (!currentPath) return
@@ -478,32 +516,34 @@ const FileList: React.FC = () => {
     setSelectedRows(rows)
   }, [])
 
-  /** 网格仅回传 path keys，需按全量筛选列表还原 row，顶部批量删除等依赖 selectedRows */
+  /** 网格仅回传 path keys，需按当前可视数据还原 row，顶部批量删除等依赖 selectedRows */
   const handleGridSelectionChange = useCallback(
     (keys: string[]) => {
       setSelectedRowKeys(keys)
-      setSelectedRows(filteredFileList.filter(f => keys.includes(f.path)))
+      setSelectedRows(viewItems.filter(f => keys.includes(f.path)))
     },
-    [filteredFileList]
+    [viewItems]
   )
 
-  const handlePageChange = useCallback((page: number, pageSize: number) => {
-    setCurrentPage(page)
-    setPageSize(pageSize)
-  }, [])
-
   const analyzableImageCount = useMemo(
-    () => fileList.filter(f => !f.isDirectory && isPreviewableImage(f)).length,
-    [fileList, isPreviewableImage]
+    () => (fullReady ? fileList.filter(f => !f.isDirectory && isPreviewableImage(f)).length : 0),
+    [fullReady, fileList, isPreviewableImage]
   )
 
   const hasClassifiedImagesInFolder = useMemo(
-    () => fileList.some(f => !f.isDirectory && imageClassificationResults.has(f.path)),
-    [fileList, imageClassificationResults]
+    () => (fullReady ? fileList.some(f => !f.isDirectory && imageClassificationResults.has(f.path)) : false),
+    [fullReady, fileList, imageClassificationResults]
   )
 
+  /** 默认浏览（未拉全量）下仅依据是否有浏览内容来展示入口，点击时再惰性全量校验 */
+  const canAnalyze = !!(currentPath && (viewTotal > 0 || viewItems.length > 0))
+
   const handleAnalyzeImages = useCallback(async () => {
-    const imagePaths = fileList.filter(f => !f.isDirectory && isPreviewableImage(f)).map(f => f.path)
+    if (!currentPath) return
+    // 分析面向整目录图片，先确保惰性全量副本可用
+    const fullList = (await ensureAllFilesLoaded(currentPath)) ?? []
+    const siblingNamesAll = fullList.filter(f => !f.isDirectory).map(f => f.name)
+    const imagePaths = fullList.filter(f => !f.isDirectory && isPreviewableImageFile(f.name, siblingNamesAll)).map(f => f.path)
     if (imagePaths.length === 0) {
       message.warning('当前目录没有可分析的图片')
       return
@@ -551,11 +591,7 @@ const FileList: React.FC = () => {
     } finally {
       setIsAnalyzingImages(false)
     }
-  }, [fileList, isPreviewableImage])
-
-  const startIndex = (currentPage - 1) * pageSize
-  const endIndex = startIndex + pageSize
-  const paginatedFileList = filteredFileList.slice(startIndex, endIndex)
+  }, [currentPath])
 
   if (!currentPath) {
     return (
@@ -581,6 +617,7 @@ const FileList: React.FC = () => {
             selectedQuality={selectedQuality}
             filteredFileList={filteredFileList}
             analyzableImageCount={analyzableImageCount}
+            canAnalyze={canAnalyze}
             hasClassifiedImagesInFolder={hasClassifiedImagesInFolder}
             isAnalyzingImages={isAnalyzingImages}
             onAnalyzeImages={handleAnalyzeImages}
@@ -622,11 +659,13 @@ const FileList: React.FC = () => {
         <div style={{ flex: 1,height:"100%", minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {viewMode === 'list' ? (
             <FileListTable
-              dataSource={paginatedFileList}
-              total={filteredFileList.length}
-              current={currentPage}
-              pageSize={pageSize}
+              key={`list-${currentPath}-${String(filteredListActive)}`}
+              dataSource={viewItems}
+              total={viewTotal}
               loading={loading}
+              loadingMore={viewLoadingMore}
+              done={viewDone}
+              onLoadMore={viewOnLoadMore}
               previewEnabled={previewEnabled}
               previewVersion={previewVersion}
               previews={previews}
@@ -643,17 +682,18 @@ const FileList: React.FC = () => {
               onDoubleClick={handleDoubleClick}
               onSelectionChange={handleSelectionChange}
               onRegisterRef={registerImageRef}
-              onPageChange={handlePageChange}
               isPreviewable={isPreviewable}
               isPreviewableImage={isPreviewableImage}
             />
           ) : (
             <FileListGrid
-              dataSource={paginatedFileList}
-              total={filteredFileList.length}
-              current={currentPage}
-              pageSize={pageSize}
-              previewVersion={previewVersion}
+              key={`grid-${currentPath}-${String(filteredListActive)}`}
+              dataSource={viewItems}
+              total={viewTotal}
+              loadingFull={loading && viewItems.length === 0}
+              loadingMore={viewLoadingMore}
+              done={viewDone}
+              onLoadMore={viewOnLoadMore}
               gridColumns={gridColumns}
               previews={previews}
               loadingImages={loadingImages}
@@ -666,7 +706,6 @@ const FileList: React.FC = () => {
               onDoubleClick={handleDoubleClick}
               onSelectionChange={handleGridSelectionChange}
               onRegisterRef={registerImageRef}
-              onPageChange={handlePageChange}
               isPreviewable={isPreviewable}
               isPreviewableImage={isPreviewableImage}
             />

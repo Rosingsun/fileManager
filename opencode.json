@@ -15,6 +15,21 @@
           "name": "glm47"
         }
       }
+    },
+    "minimax": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "MiniMax 自建",
+      "options": {
+        "baseURL": "http://43.135.141.190:3000/v1",
+        "headers": {
+          "Authorization": "Bearer sk-ThT0pJP57NktxSJ0pI5mVRfUCLqndJAoUhyiR2kx1aqX0HLO"
+        }
+      },
+      "models": {
+        "MiniMax-M3": {
+          "name": "MiniMax-M3"
+        }
+      }
     }
   }
 }

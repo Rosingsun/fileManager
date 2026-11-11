@@ -1,6 +1,7 @@
 export { useImageHistogram } from './useImageHistogram'
 export { useAvatarSrc } from './useAvatarSrc'
-export { useFileSystem } from './useFileSystem'
+export { useFileSystem, BROWSE_PAGE_SIZE, ensureAllFilesLoaded, invalidateAllFiles } from './useFileSystem'
+export { useBrowsing, type BrowsingState } from './useBrowsing'
 export { useImageLoader } from './useImageLoader'
 export { useExifParser } from './useExifParser'
 export { useColorExtractor } from './useColorExtractor'

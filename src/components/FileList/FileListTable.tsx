@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react'
-import { Table, Tag, Space } from 'antd'
+import React, { useMemo, useRef, useEffect } from 'react'
+import { Table, Tag, Space, Spin } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
   FileOutlined,
@@ -15,15 +15,13 @@ import {
 import { FILE_TYPE_ICON_COLORS, formatFileSize, formatDateTime, getFileExtension, getFileTypeIcon } from '../../utils'
 import { ImageThumbnail } from './ImageThumbnail'
 import { getClassificationDisplayLabel } from '../../types'
-import { CATEGORY_COLORS, MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
+import { CATEGORY_COLORS, MAX_IMAGE_SIZE } from './types'
 import type { FileInfo } from '../../types'
 import type { PreviewData } from './types'
 
 interface FileListTableProps {
   dataSource: FileInfo[]
   total?: number
-  current?: number
-  pageSize?: number
   loading: boolean
   previewEnabled: boolean
   previewVersion: number
@@ -34,6 +32,12 @@ interface FileListTableProps {
   selectedRowKeys: string[]
   selectedRows: FileInfo[]
   maxImageSize?: number
+  /** 滚动到底正在加载更多 */
+  loadingMore?: boolean
+  /** 是否已全部加载（无更多可追加） */
+  done?: boolean
+  /** 滚动到底触底回调（默认浏览态传入） */
+  onLoadMore?: () => void
   onPreview: (file: FileInfo) => void
   onEdit?: (file: FileInfo) => void
   onRename: (file: FileInfo) => void
@@ -41,7 +45,6 @@ interface FileListTableProps {
   onDoubleClick: (file: FileInfo) => void
   onSelectionChange: (keys: string[], rows: FileInfo[]) => void
   onRegisterRef: (filePath: string, el: HTMLDivElement | null) => void
-  onPageChange?: (page: number, pageSize: number) => void
   isPreviewable: (file: FileInfo) => boolean
   isPreviewableImage: (file: FileInfo) => boolean
 }
@@ -49,8 +52,6 @@ interface FileListTableProps {
 export const FileListTable: React.FC<FileListTableProps> = ({
   dataSource,
   total,
-  current,
-  pageSize,
   loading,
   previewEnabled,
   previewVersion,
@@ -61,6 +62,9 @@ export const FileListTable: React.FC<FileListTableProps> = ({
   selectedRowKeys,
   selectedRows,
   maxImageSize = MAX_IMAGE_SIZE,
+  loadingMore = false,
+  done = false,
+  onLoadMore,
   onPreview,
   onEdit,
   onRename,
@@ -69,9 +73,26 @@ export const FileListTable: React.FC<FileListTableProps> = ({
   onSelectionChange,
   onRegisterRef,
   isPreviewable,
-  isPreviewableImage,
-  onPageChange
+  isPreviewableImage
 }) => {
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+
+  // 监听 antd 表格体滚动，接近底部时触发加载更多
+  useEffect(() => {
+    const root = wrapRef.current
+    const body = root?.querySelector<HTMLElement>('.ant-table-body')
+    if (!body) return
+
+    const handler = () => {
+      if (!onLoadMore || loadingMore || done) return
+      if (body.scrollHeight - body.scrollTop - body.clientHeight < 80) {
+        onLoadMore()
+      }
+    }
+    body.addEventListener('scroll', handler, { passive: true })
+    return () => body.removeEventListener('scroll', handler)
+  }, [onLoadMore, loadingMore, done, dataSource.length, previewVersion])
+
   const getIcon = (file: FileInfo) => {
     if (file.isDirectory) {
       return <FolderOutlined style={{ color: FILE_TYPE_ICON_COLORS.folder }} />
@@ -223,32 +244,40 @@ export const FileListTable: React.FC<FileListTableProps> = ({
     }
   ], [previewEnabled, previews, loadingImages, progress, imageClassificationResults, maxImageSize, onPreview, onRename, onDelete, onRegisterRef, isPreviewable, isPreviewableImage])
 
+  const showLoadFooter = Boolean(onLoadMore)
+
+  const footerNode = showLoadFooter ? (
+    <div style={{ textAlign: 'center', padding: '6px 0', color: 'var(--app-text-secondary)', fontSize: 12 }}>
+      {done ? (
+        `已全部加载 · 共 ${total} 项`
+      ) : loadingMore ? (
+        <span><Spin size="small" /> 正在加载更多…</span>
+      ) : (
+        `继续下滑加载更多 · 已加载 ${dataSource.length}/${total} 项`
+      )}
+    </div>
+  ) : null
+
   return (
-    <Table
-      key={`table-${previewVersion}`}
-      columns={columns}
-      dataSource={dataSource}
-      loading={loading}
-      rowKey="path"
-      rowSelection={{
-        selectedRowKeys,
-        onChange: (keys, rows) => onSelectionChange(keys as string[], rows)
-      }}
-      scroll={{ x: true, y: selectedRows.length > 0 ? 'calc(100vh - 260px)' : 'calc(100vh - 275px)' }}
-      onRow={(record) => ({
-        onDoubleClick: () => onDoubleClick(record),
-        style: { cursor: record.isDirectory ? 'pointer' : 'default', height: '40px' }
-      })}
-      pagination={{
-        current,
-        pageSize,
-        total,
-        showSizeChanger: true,
-        showQuickJumper: true,
-        pageSizeOptions: PAGE_SIZE_OPTIONS,
-        showTotal: (total) => `共 ${total} 项`,
-        onChange: onPageChange
-      }}
-    />
+    <div ref={wrapRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <Table
+        columns={columns}
+        dataSource={dataSource}
+        loading={loading}
+        rowKey="path"
+        rowSelection={{
+          selectedRowKeys,
+          onChange: (keys, rows) => onSelectionChange(keys as string[], rows)
+        }}
+        scroll={{ x: true, y: selectedRows.length > 0 ? 'calc(100vh - 300px)' : 'calc(100vh - 315px)' }}
+        // rc-table 会将 footer 作为函数调用，必须传 (data) => ReactNode，不能直接传 React 元素
+        footer={() => footerNode}
+        pagination={false}
+        onRow={(record) => ({
+          onDoubleClick: () => onDoubleClick(record),
+          style: { cursor: record.isDirectory ? 'pointer' : 'default', height: '40px' }
+        })}
+      />
+    </div>
   )
 }

@@ -19,8 +19,7 @@ const FileTree: React.FC = () => {
     e.stopPropagation()
     removeHistory(path)
     if (currentPath === path) {
-      useFileStore.getState().setCurrentPath(null)
-      useFileStore.getState().setFileList([])
+      useFileStore.getState().resetDirectory()
     }
   }
 
@@ -32,8 +31,7 @@ const FileTree: React.FC = () => {
           title="确定要清空所有历史记录吗？"
           onConfirm={() => {
             clearHistory()
-            useFileStore.getState().setCurrentPath(null)
-            useFileStore.getState().setFileList([])
+            useFileStore.getState().resetDirectory()
           }}
           okText="确定"
           cancelText="取消"

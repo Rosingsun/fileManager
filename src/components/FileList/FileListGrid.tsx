@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Empty, Pagination } from 'antd'
+import { Empty, Spin } from 'antd'
 import {
   FolderOutlined,
   FileOutlined,
@@ -13,7 +13,7 @@ import {
   DeleteOutlined
 } from '@ant-design/icons'
 import { ImageThumbnail } from './ImageThumbnail'
-import { MAX_IMAGE_SIZE, PAGE_SIZE_OPTIONS } from './types'
+import { MAX_IMAGE_SIZE } from './types'
 import {
   FILE_TYPE_ICON_COLORS,
   getFileExtension,
@@ -25,24 +25,30 @@ import type { FileInfo } from '../../types'
 import type { PreviewData } from './types'
 
 interface FileListGridProps {
+  /** 当前应展示的数据（默认浏览态为已加载的累计片段；筛选态为前端过滤结果） */
   dataSource: FileInfo[]
+  /** 过滤后条目总数 */
   total: number
-  current: number
-  pageSize: number
-  previewVersion: number
   gridColumns: number
   previews: Map<string, PreviewData>
   loadingImages: Set<string>
   progress: Map<string, number>
   selectedRowKeys: string[]
   maxImageSize?: number
+  /** 首屏/切换目录时的整体加载态 */
+  loadingFull?: boolean
+  /** 滚动到底正在加载更多 */
+  loadingMore?: boolean
+  /** 是否已全部加载（无更多可追加） */
+  done?: boolean
+  /** 滚动到底触底回调（默认浏览态传入；筛选态可缺省） */
+  onLoadMore?: () => void
   onPreview: (file: FileInfo) => void
   onEdit?: (file: FileInfo) => void
   onDelete: (file: FileInfo) => void
   onDoubleClick: (file: FileInfo) => void
   onSelectionChange: (keys: string[]) => void
   onRegisterRef: (filePath: string, el: HTMLDivElement | null) => void
-  onPageChange: (page: number, pageSize: number) => void
   isPreviewable: (file: FileInfo) => boolean
   isPreviewableImage: (file: FileInfo) => boolean
   siblingFileNames?: string[]
@@ -51,34 +57,37 @@ interface FileListGridProps {
 export const FileListGrid: React.FC<FileListGridProps> = ({
   dataSource,
   total,
-  current,
-  pageSize,
-  previewVersion,
   gridColumns,
   previews,
   loadingImages,
   progress,
   selectedRowKeys,
   maxImageSize = MAX_IMAGE_SIZE,
+  loadingFull = false,
+  loadingMore = false,
+  done = false,
+  onLoadMore,
   onPreview,
   onEdit,
   onDelete,
   onDoubleClick,
   onSelectionChange,
   onRegisterRef,
-  onPageChange,
   isPreviewable,
   isPreviewableImage,
   siblingFileNames = []
 }) => {
   const contentRef = useRef<HTMLDivElement | null>(null)
 
-  useEffect(() => {
-    contentRef.current?.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    })
-  }, [current, pageSize])
+  // 滚动到底自动加载更多
+  const handleScroll = () => {
+    const el = contentRef.current
+    if (!el || !onLoadMore || loadingMore || done) return
+    // 距底部 80px 内即触发
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 80) {
+      onLoadMore()
+    }
+  }
 
   const iconSize = { fontSize: 48 } as const
 
@@ -102,6 +111,16 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
     return iconMap[iconType] || <FileOutlined style={{ ...iconSize, color: FILE_TYPE_ICON_COLORS.default }} />
   }
 
+  if (loadingFull) {
+    return (
+      <div className="file-grid-empty">
+        <div className="app-empty-state">
+          <Spin tip="正在加载…" />
+        </div>
+      </div>
+    )
+  }
+
   if (dataSource.length === 0) {
     return (
       <div className="file-grid-empty">
@@ -112,16 +131,18 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
     )
   }
 
+  const showLoadBar = Boolean(onLoadMore)
+
   return (
     <div className="file-grid">
       <div
         ref={contentRef}
         className="file-grid__content"
-        key={`grid-${previewVersion}`}
         style={{
           gridTemplateColumns: `repeat(${gridColumns}, 1fr)`,
           alignContent: 'start'
         }}
+        onScroll={handleScroll}
       >
         {dataSource.map(file => {
           const isSelected = selectedRowKeys.includes(file.path)
@@ -226,18 +247,17 @@ export const FileListGrid: React.FC<FileListGridProps> = ({
           )
         })}
       </div>
-      <div className="file-grid__pagination">
-        <Pagination
-          total={total}
-          current={current}
-          pageSize={pageSize}
-          showSizeChanger
-          showQuickJumper
-          pageSizeOptions={PAGE_SIZE_OPTIONS}
-          showTotal={(total) => `共 ${total} 项`}
-          onChange={onPageChange}
-        />
-      </div>
+      {showLoadBar && (
+        <div className="file-grid__pagination">
+          {done ? (
+            <span style={{ color: 'var(--app-text-secondary)' }}>已全部加载 · 共 {total} 项</span>
+          ) : loadingMore ? (
+            <span style={{ color: 'var(--app-text-secondary)' }}><Spin size="small" /> 正在加载更多…</span>
+          ) : (
+            <span style={{ color: 'var(--app-text-secondary)' }}>继续下滑加载更多 · 已加载 {dataSource.length}/{total} 项</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

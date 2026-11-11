@@ -22,7 +22,7 @@ import {
   ExportOutlined
 } from '@ant-design/icons'
 import { useFileStore } from '../stores'
-import { useFileSystem } from '../hooks'
+import { useFileSystem, ensureAllFilesLoaded } from '../hooks'
 import { GlassCard } from './UnifiedUI'
 import { generatePreview, getExtensionsByCategory, formatOrganizeRuleLabel, logSignedInUserAction } from '../utils'
 import type { OrganizeRule, OrganizeConfig, PreviewResultItem, SizeRange } from '../types'
@@ -76,7 +76,6 @@ const buildTreeData = (results: PreviewResultItem[], currentPath: string) => {
 const ControlPanel: React.FC = () => {
   const {
     currentPath,
-    fileList,
     setOrganizeConfig,
     previewResults,
     setPreviewResults,
@@ -125,7 +124,9 @@ const ControlPanel: React.FC = () => {
       return
     }
 
-    if (fileList.length === 0) {
+    // 整理基于目录全量条目，先确保惰性全量副本可用再判空
+    const topLevelEntries = (await ensureAllFilesLoaded(currentPath)) ?? []
+    if (topLevelEntries.length === 0) {
       message.warning('当前目录没有文件')
       return
     }
@@ -268,7 +269,9 @@ const ControlPanel: React.FC = () => {
       return
     }
 
-    if (fileList.length === 0) {
+    // 预览基于目录全量条目，先确保惰性全量副本可用
+    const topLevelEntries = (await ensureAllFilesLoaded(currentPath)) ?? []
+    if (topLevelEntries.length === 0) {
       message.warning('当前目录没有文件')
       return
     }
@@ -290,10 +293,10 @@ const ControlPanel: React.FC = () => {
     }
 
     try {
-      // 如果包含子目录，使用递归加载的文件列表
+      // 如果包含子目录，使用递归加载的文件列表；否则使用已就绪的全量副本
       const filesToPreview = includeSubdirs
         ? await loadRecursiveDirectoryForPreview(currentPath)
-        : fileList
+        : topLevelEntries
 
       const results = await generatePreview(filesToPreview, config, sizeRanges)
       setPreviewResults(results)
